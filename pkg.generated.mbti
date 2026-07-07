@@ -6,6 +6,20 @@ package "heke1228/raft-moonbit"
 // Errors
 
 // Types and methods
+pub(all) struct AppendEntriesArgs {
+  term : UInt64
+  leader_id : String
+  prev_log_index : UInt64
+  prev_log_term : UInt64
+  entries : Array[Entry]
+  leader_commit : UInt64
+} derive(Eq)
+
+pub(all) struct AppendEntriesReply {
+  term : UInt64
+  success : Bool
+} derive(Eq)
+
 pub(all) struct Entry {
   term : UInt64
   index : UInt64
@@ -27,12 +41,25 @@ pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
 pub fn Node::current_term(Self) -> UInt64
+pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
 pub fn Node::role(Self) -> Role
 pub fn Node::term_at(Self, UInt64) -> UInt64
+
+pub(all) struct RequestVoteArgs {
+  term : UInt64
+  candidate_id : String
+  last_log_index : UInt64
+  last_log_term : UInt64
+} derive(Eq)
+
+pub(all) struct RequestVoteReply {
+  term : UInt64
+  vote_granted : Bool
+} derive(Eq)
 
 pub enum Role {
   Follower
