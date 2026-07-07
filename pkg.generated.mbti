@@ -2,6 +2,8 @@
 package "heke1228/raft-moonbit"
 
 // Values
+pub fn replicate(Node, Array[Node]) -> UInt64
+
 pub fn run_election(Node, Array[Node]) -> Bool
 
 // Errors
