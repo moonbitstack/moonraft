@@ -3,7 +3,7 @@
 pub fn Node::last_log_index(self : Node) -> UInt64 {
   let n = self.log.length()
   if n == 0 {
-    0
+    self.snapshot_index
   } else {
     self.log[n - 1].index
   }
@@ -14,7 +14,7 @@ pub fn Node::last_log_index(self : Node) -> UInt64 {
 pub fn Node::last_log_term(self : Node) -> UInt64 {
   let n = self.log.length()
   if n == 0 {
-    0
+    self.snapshot_term
   } else {
     self.log[n - 1].term
   }
@@ -34,9 +34,11 @@ pub fn Node::append(self : Node, term : UInt64, command : Bytes) -> Entry {
 /// position before the first entry) or past the end of the log. Used by the
 /// log-matching consistency check.
 pub fn Node::term_at(self : Node, index : UInt64) -> UInt64 {
-  if index == 0 || index > self.last_log_index() {
+  if index == self.snapshot_index {
+    self.snapshot_term
+  } else if index <= self.snapshot_index || index > self.last_log_index() {
     0
   } else {
-    self.log[(index - 1).to_int()].term
+    self.log[(index - self.snapshot_index - 1).to_int()].term
   }
 }

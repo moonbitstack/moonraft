@@ -6,7 +6,7 @@ fn Node::append_args_from(self : Node, prev : UInt64) -> AppendEntriesArgs {
   let last = self.last_log_index()
   let mut i = prev
   while i < last {
-    entries.push(self.log[i.to_int()])
+    entries.push(self.log[(i - self.snapshot_index).to_int()])
     i = i + 1
   }
   {

@@ -13,6 +13,8 @@ pub struct Node {
   log : Array[Entry]
   mut commit_index : UInt64
   mut last_applied : UInt64
+  mut snapshot_index : UInt64
+  mut snapshot_term : UInt64
 }
 
 ///|
@@ -26,6 +28,8 @@ pub fn Node::new(id : String) -> Node {
     log: [],
     commit_index: 0,
     last_applied: 0,
+    snapshot_index: 0,
+    snapshot_term: 0,
   }
 }
 

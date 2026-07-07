@@ -47,6 +47,8 @@ pub struct Node {
   log : Array[Entry]
   mut commit_index : UInt64
   mut last_applied : UInt64
+  mut snapshot_index : UInt64
+  mut snapshot_term : UInt64
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
 pub fn Node::append(Self, UInt64, Bytes) -> Entry
@@ -54,9 +56,11 @@ pub fn Node::apply_committed(Self, &StateMachine) -> Unit
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
+pub fn Node::compact(Self, UInt64, Bytes) -> Snapshot
 pub fn Node::current_term(Self) -> UInt64
 pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
 pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
+pub fn Node::install_snapshot(Self, Snapshot) -> Unit
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::mark_applied(Self, UInt64) -> Unit
@@ -90,6 +94,12 @@ pub enum Role {
   Candidate
   Leader
 } derive(Eq)
+
+pub(all) struct Snapshot {
+  last_index : UInt64
+  last_term : UInt64
+  data : Bytes
+}
 
 // Type aliases
 

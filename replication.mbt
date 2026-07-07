@@ -66,7 +66,7 @@ fn Node::store_entries(
 ///|
 /// Delete every entry from `index` (1-based) to the end of the log.
 fn Node::truncate_from(self : Node, index : UInt64) -> Unit {
-  let keep = (index - 1).to_int()
+  let keep = (index - self.snapshot_index - 1).to_int()
   while self.log.length() > keep {
     self.log.pop() |> ignore
   }
