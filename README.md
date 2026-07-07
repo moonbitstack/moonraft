@@ -50,6 +50,10 @@ a.apply_committed(my_state_machine)
 | `leader.mbt` | Leader-side replication with nextIndex backoff |
 | `cluster.mbt` | The synchronous election driver |
 | `statemachine.mbt` | The `StateMachine` trait and entry application |
+| `storage.mbt` | The `LogStore` trait and crash recovery |
+| `transport.mbt` | The `Transport` trait for RPC delivery |
+| `membership.mbt` | Cluster membership and quorum |
+| `snapshot.mbt` | Log compaction and snapshot install |
 
 ## Roadmap
 
@@ -58,9 +62,10 @@ a.apply_committed(my_state_machine)
 - [x] Log replication and commit advancement
 - [x] Safety: up-to-date-log restriction and log matching
 - [x] Pluggable state machine
-- [ ] Durable persistence behind a `LogStore` interface
-- [ ] Snapshot and log compaction
-- [ ] Membership change
+- [x] Durable persistence behind a `LogStore` interface
+- [x] Snapshot and log compaction
+- [x] One-server-at-a-time membership change
+- [x] Pluggable `Transport` for RPC delivery
 - [ ] Deterministic simulation harness: partition, loss, reorder, crash
 
 ## License
