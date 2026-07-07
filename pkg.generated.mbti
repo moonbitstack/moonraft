@@ -40,6 +40,7 @@ pub struct Node {
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
 pub fn Node::append(Self, UInt64, Bytes) -> Entry
+pub fn Node::apply_committed(Self, &StateMachine) -> Unit
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
@@ -75,4 +76,7 @@ pub enum Role {
 // Type aliases
 
 // Traits
+pub trait StateMachine {
+  fn apply(Self, Bytes) -> Unit
+}
 
