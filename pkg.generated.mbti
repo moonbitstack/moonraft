@@ -10,13 +10,31 @@ pub(all) struct Entry {
   term : UInt64
   index : UInt64
   command : Bytes
-} derive(Eq, Show)
+} derive(Eq)
+
+pub struct Node {
+  id : String
+  mut role : Role
+  mut current_term : UInt64
+  mut voted_for : String?
+  log : Array[Entry]
+  mut commit_index : UInt64
+  mut last_applied : UInt64
+}
+pub fn Node::advance_commit(Self, UInt64) -> Unit
+pub fn Node::become_candidate(Self) -> Unit
+pub fn Node::become_follower(Self, UInt64) -> Unit
+pub fn Node::become_leader(Self) -> Unit
+pub fn Node::current_term(Self) -> UInt64
+pub fn Node::mark_applied(Self, UInt64) -> Unit
+pub fn Node::new(String) -> Self
+pub fn Node::role(Self) -> Role
 
 pub enum Role {
   Follower
   Candidate
   Leader
-} derive(Eq, Show)
+} derive(Eq)
 
 // Type aliases
 

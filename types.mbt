@@ -10,4 +10,4 @@ pub(all) struct Entry {
   term : UInt64
   index : UInt64
   command : Bytes
-} derive(Eq, Show)
+} derive(Eq)

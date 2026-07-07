@@ -8,4 +8,4 @@ pub enum Role {
   Follower
   Candidate
   Leader
-} derive(Eq, Show)
+} derive(Eq)
