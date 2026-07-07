@@ -51,9 +51,17 @@ pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
+pub fn Node::persisted(Self) -> Persisted
+pub fn Node::recover(Self, Persisted) -> Unit
 pub fn Node::request_vote_args(Self) -> RequestVoteArgs
 pub fn Node::role(Self) -> Role
 pub fn Node::term_at(Self, UInt64) -> UInt64
+
+pub(all) struct Persisted {
+  term : UInt64
+  voted_for : String?
+  log : Array[Entry]
+}
 
 pub(all) struct RequestVoteArgs {
   term : UInt64
@@ -76,6 +84,11 @@ pub enum Role {
 // Type aliases
 
 // Traits
+pub trait LogStore {
+  fn persist(Self, Persisted) -> Unit
+  fn restore(Self) -> Persisted?
+}
+
 pub trait StateMachine {
   fn apply(Self, Bytes) -> Unit
 }
