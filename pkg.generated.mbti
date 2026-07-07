@@ -22,13 +22,17 @@ pub struct Node {
   mut last_applied : UInt64
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
+pub fn Node::append(Self, UInt64, Bytes) -> Entry
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
 pub fn Node::current_term(Self) -> UInt64
+pub fn Node::last_log_index(Self) -> UInt64
+pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
 pub fn Node::role(Self) -> Role
+pub fn Node::term_at(Self, UInt64) -> UInt64
 
 pub enum Role {
   Follower
