@@ -29,6 +29,16 @@ pub(all) struct Entry {
   command : Bytes
 } derive(Eq)
 
+pub(all) struct Membership {
+  members : Array[String]
+}
+pub fn Membership::add(Self, String) -> Unit
+pub fn Membership::contains(Self, String) -> Bool
+pub fn Membership::new(Array[String]) -> Self
+pub fn Membership::quorum(Self) -> Int
+pub fn Membership::remove(Self, String) -> Unit
+pub fn Membership::size(Self) -> Int
+
 pub struct Node {
   id : String
   mut role : Role
@@ -91,5 +101,10 @@ pub trait LogStore {
 
 pub trait StateMachine {
   fn apply(Self, Bytes) -> Unit
+}
+
+pub trait Transport {
+  fn request_vote(Self, String, RequestVoteArgs) -> RequestVoteReply
+  fn append_entries(Self, String, AppendEntriesArgs) -> AppendEntriesReply
 }
 
