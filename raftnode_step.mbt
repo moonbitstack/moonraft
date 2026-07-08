@@ -146,11 +146,19 @@ fn RaftNode::handle_append_resp(
       if reply.success {
         let _ = p.maybe_update(reply.match_index)
         p.become_replicate()
+        let out : Array[Message] = []
         if self.maybe_commit() {
-          self.bcast_append()
-        } else {
-          []
+          // A new commit: tell every follower, which also carries entries to
+          // any that are behind.
+          for m in self.bcast_append() {
+            out.push(m)
+          }
+        } else if p.match_index < self.core.last_log_index() {
+          // This follower acked (often a heartbeat) but is still behind; push
+          // it the next entries now instead of waiting for a client proposal.
+          out.push(self.send_to(from))
         }
+        out
       } else {
         // Back off using the follower's hint and retry. Even when next_index is
         // already at its floor (so no decrease is possible) we still retry, so a
