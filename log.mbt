@@ -1,5 +1,6 @@
 ///|
-/// The index of the last entry in the log, or 0 if the log is empty.
+/// The index of the last entry in the log, or the snapshot baseline when the
+/// log is empty (0 on a fresh node).
 pub fn Node::last_log_index(self : Node) -> UInt64 {
   let n = self.log.length()
   if n == 0 {
@@ -10,7 +11,8 @@ pub fn Node::last_log_index(self : Node) -> UInt64 {
 }
 
 ///|
-/// The term of the last entry in the log, or 0 if the log is empty.
+/// The term of the last entry in the log, or the snapshot baseline term when
+/// the log is empty (0 on a fresh node).
 pub fn Node::last_log_term(self : Node) -> UInt64 {
   let n = self.log.length()
   if n == 0 {
@@ -21,12 +23,40 @@ pub fn Node::last_log_term(self : Node) -> UInt64 {
 }
 
 ///|
+/// The number of entries physically held in memory (those after the snapshot
+/// baseline). Useful for compaction bookkeeping and tests.
+pub fn Node::log_len(self : Node) -> Int {
+  self.log.length()
+}
+
+///|
 /// Append a command to the log under `term`, returning the newly stored entry.
 /// The new entry takes the next sequential index.
 pub fn Node::append(self : Node, term : UInt64, command : Bytes) -> Entry {
-  let entry = { term, index: self.last_log_index() + 1, command }
+  let entry = Entry::normal(term, self.last_log_index() + 1, command)
   self.log.push(entry)
   entry
+}
+
+///|
+/// Append a configuration-change command to the log under `term`. Membership
+/// changes travel through the log like any other entry so that every server
+/// adopts them at the same point in the sequence (Raft §6).
+pub fn Node::append_conf(self : Node, term : UInt64, command : Bytes) -> Entry {
+  let entry = Entry::conf(term, self.last_log_index() + 1, command)
+  self.log.push(entry)
+  entry
+}
+
+///|
+/// Fetch the entry at absolute `index`, or `None` when it is at or before the
+/// snapshot baseline or past the end of the log.
+pub fn Node::entry_at(self : Node, index : UInt64) -> Entry? {
+  if index <= self.snapshot_index || index > self.last_log_index() {
+    None
+  } else {
+    Some(self.log[(index - self.snapshot_index - 1).to_int()])
+  }
 }
 
 ///|
@@ -41,4 +71,21 @@ pub fn Node::term_at(self : Node, index : UInt64) -> UInt64 {
   } else {
     self.log[(index - self.snapshot_index - 1).to_int()].term
   }
+}
+
+///|
+/// Every entry strictly after absolute `index`, in order. The leader uses this
+/// to assemble the payload of an AppendEntries that repairs a lagging follower.
+pub fn Node::entries_after(self : Node, index : UInt64) -> Array[Entry] {
+  let out : Array[Entry] = []
+  let last = self.last_log_index()
+  let mut i = index
+  while i < last {
+    match self.entry_at(i + 1) {
+      Some(e) => out.push(e)
+      None => ()
+    }
+    i = i + 1
+  }
+  out
 }

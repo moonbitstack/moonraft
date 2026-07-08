@@ -22,10 +22,7 @@ test "append entries stores new entries onto a matching log" {
     leader_id: "L",
     prev_log_index: 0,
     prev_log_term: 0,
-    entries: [
-      { term: 1, index: 1, command: b"a" },
-      { term: 1, index: 2, command: b"b" },
-    ],
+    entries: [Entry::normal(1, 1, b"a"), Entry::normal(1, 2, b"b")],
     leader_commit: 0,
   })
   assert_true(reply.success)
@@ -57,7 +54,7 @@ test "conflicting entries are overwritten by the leader's" {
     leader_id: "L",
     prev_log_index: 0,
     prev_log_term: 0,
-    entries: [{ term: 2, index: 1, command: b"new" }],
+    entries: [Entry::normal(2, 1, b"new")],
     leader_commit: 0,
   })
   assert_true(reply.success)
@@ -73,7 +70,7 @@ test "commit index advances with the leader but no further than the log" {
     leader_id: "L",
     prev_log_index: 0,
     prev_log_term: 0,
-    entries: [{ term: 1, index: 1, command: b"a" }],
+    entries: [Entry::normal(1, 1, b"a")],
     leader_commit: 9,
   })
   assert_true(reply.success)
