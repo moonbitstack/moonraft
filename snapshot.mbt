@@ -6,6 +6,19 @@ pub(all) struct Snapshot {
   last_index : UInt64
   last_term : UInt64
   data : Bytes
+} derive(Eq)
+
+///|
+/// The empty snapshot: no state captured, baseline at index 0.
+pub fn Snapshot::empty() -> Snapshot {
+  { last_index: 0, last_term: 0, data: b"" }
+}
+
+///|
+/// Whether this snapshot actually captures any state. A baseline index of 0 is
+/// the empty snapshot a fresh node starts with.
+pub fn Snapshot::is_empty(self : Snapshot) -> Bool {
+  self.last_index == 0
 }
 
 ///|
