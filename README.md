@@ -4,13 +4,23 @@ Raft consensus algorithm implemented in MoonBit.
 
 Raft keeps a cluster of nodes agreeing on the order of a command log even when some nodes crash or the network drops, delays and reorders messages. It is the foundation of the replicated state machines used by systems such as etcd, TiKV and Consul. This is an independent MoonBit implementation whose engineering structure references the Go [etcd-io/raft](https://github.com/etcd-io/raft).
 
+It ships two ways to run the protocol on top of one consensus core:
+
+- a **synchronous driver** (`run_election`, `replicate`) that composes the RPC handlers into whole rounds — small and easy to read or embed; and
+- a **message-driven server** (`RaftNode`) that talks only in `Message`s through `tick` and `step`, so a real transport — or the bundled deterministic simulator — can drive it exactly the way etcd separates protocol logic from I/O.
+
 ## Features
 
 - **Leader election** with the Follower / Candidate / Leader roles and the up-to-date-log voting restriction (§5.2, §5.4.1).
-- **Log replication** through AppendEntries: the log-matching consistency check, conflicting-suffix truncation and majority commit advancement (§5.3).
-- **Safety**: a candidate wins only with an up-to-date log, and committed entries are never overwritten.
-- **Pluggable `StateMachine`**: committed entries are applied, in order, to any state machine you supply.
-- A synchronous, deterministic cluster driver (`run_election`, `replicate`) that composes the RPC handlers into whole rounds, which keeps tests readable and makes the core easy to embed.
+- **Pre-vote** so a partitioned node cannot inflate the cluster term, plus randomized election timeouts and heartbeats off a per-node deterministic PRNG.
+- **Log replication** through AppendEntries: the log-matching check, conflicting-suffix truncation, and majority commit within the current term (§5.3, §5.4.2). Replies carry a `conflict_index` hint for one-jump backoff, and per-follower `Progress` (probe / replicate / snapshot) drives repair — including from heartbeat acks.
+- **Snapshots and log compaction** (§7): `compact`, the `InstallSnapshot` RPC, and automatic snapshot fallback for a follower whose next entry has already been compacted away.
+- **Membership changes** (§6): single-server add/remove and full **joint consensus** (a C(old,new) transition needing a majority of both halves), carried as `ConfChange` log entries and folded in by a configuration state machine.
+- **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and an etcd-style `MemoryStorage` engine with index/term/slice reads, conflict-truncating append, compaction and snapshotting — plus a storage-backed recovery path.
+- **Linearizable reads** via ReadIndex / leader lease, and **check-quorum** so a leader that loses contact with a majority steps down.
+- **Leadership transfer** (`TimeoutNow`, §3.10) for an orderly handover to a caught-up follower.
+- **Pluggable `StateMachine`, `Transport`, `LogStore` and `RaftStorage`** traits, with a replicated key-value store as the worked example.
+- **Deterministic simulation harness** (`Cluster`): a single-seed, discrete-time network that drops, delays, reorders, partitions and crashes/restarts nodes, with built-in safety-invariant checks (one leader per term, an agreeing committed prefix, log matching) and a suite of scenario and chaos tests.
 
 ## Install
 
@@ -21,52 +31,54 @@ moon add heke1228/raft-moonbit
 ## Example
 
 ```moonbit
-// moon.pkg.json: import { "heke1228/raft-moonbit" as raft }
+// Drive a five-node cluster through the deterministic simulator.
+let cluster = @raft.Cluster::new(["a", "b", "c", "d", "e"], seed=1)
+let leader = cluster.run_until_leader(200)          // elect a leader
+let _ = cluster.propose(b"set x = 1")               // replicate a command
+let _ = cluster.run_until_committed(2, 200)         // wait for commit
 
-// A three-node cluster.
-let a = @raft.Node::new("a")
-let b = @raft.Node::new("b")
-let c = @raft.Node::new("c")
-
-// Elect a leader, then replicate two commands to a majority.
-let _ = @raft.run_election(a, [b, c])
-let _ = a.append(a.current_term(), b"set x = 1")
-let _ = a.append(a.current_term(), b"set y = 2")
-let _ = @raft.replicate(a, [b, c])
-
-// Feed the committed log into your own state machine.
-a.apply_committed(my_state_machine)
+// Inject a fault and watch the cluster keep its safety guarantees.
+cluster.crash(leader.unwrap())
+let _ = cluster.run_until_leader(400)               // a new leader takes over
+assert_true(cluster.one_leader_per_term())
+assert_true(cluster.committed_agrees())
 ```
+
+The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `raftnode_wbtest.mbt` for the message-driven path and `cluster_wbtest.mbt` for the synchronous one.
 
 ## Architecture
 
 | File | Responsibility |
 | --- | --- |
+| `types.mbt` | Log `Entry`, its kind (`Normal` / `ConfChange`), constructors |
 | `state.mbt` | `Node` state and the role transitions |
-| `log.mbt` | Log operations: append, last index / term, term lookup |
-| `rpc.mbt` | RequestVote / AppendEntries message types |
+| `log.mbt` | Log operations: append, indices, term lookup, bounded slices |
+| `rpc.mbt` | RequestVote / AppendEntries types with backoff hints |
 | `election.mbt` | The RequestVote handler and the up-to-date-log rule |
 | `replication.mbt` | The AppendEntries handler: matching, truncation, commit |
-| `leader.mbt` | Leader-side replication with nextIndex backoff |
-| `cluster.mbt` | The synchronous election driver |
-| `statemachine.mbt` | The `StateMachine` trait and entry application |
-| `storage.mbt` | The `LogStore` trait and crash recovery |
-| `transport.mbt` | The `Transport` trait for RPC delivery |
-| `membership.mbt` | Cluster membership and quorum |
-| `snapshot.mbt` | Log compaction and snapshot install |
+| `snapshot.mbt` / `snapshot_rpc.mbt` | Compaction, `Snapshot`, the `InstallSnapshot` RPC |
+| `hardstate.mbt` / `wal.mbt` / `storage.mbt` / `storage_engine.mbt` | HardState, the write-ahead log, the `LogStore` and `RaftStorage` engines |
+| `storage_bridge.mbt` | Persist and rebuild a node through the storage engine |
+| `membership.mbt` / `confchange.mbt` | Configurations, joint consensus, `ConfChange` and the config driver |
+| `message.mbt` / `progress.mbt` | The routed `Message` type and per-follower progress |
+| `raftnode.mbt` / `raftnode_step.mbt` | The message-driven server: timers, campaigns, `tick` / `step` |
+| `readindex.mbt` | ReadIndex, leader lease and check-quorum |
+| `status.mbt` | Observable server status |
+| `leader.mbt` / `cluster.mbt` | The synchronous election and replication driver |
+| `statemachine.mbt` / `transport.mbt` | The `StateMachine` and `Transport` traits |
+| `sim.mbt` / `sim_check.mbt` | The deterministic simulator and its safety invariants |
 
 ## Roadmap
 
-- [x] Core types: term, index, role, log entry
-- [x] Leader election
-- [x] Log replication and commit advancement
+- [x] Core types, leader election, log replication and commit advancement
 - [x] Safety: up-to-date-log restriction and log matching
-- [x] Pluggable state machine
-- [x] Durable persistence behind a `LogStore` interface
-- [x] Snapshot and log compaction
-- [x] One-server-at-a-time membership change
-- [x] Pluggable `Transport` for RPC delivery
-- [ ] Deterministic simulation harness: partition, loss, reorder, crash
+- [x] Pluggable state machine, transport and storage traits
+- [x] Snapshot, log compaction and the InstallSnapshot RPC
+- [x] Membership changes: single-server and joint consensus
+- [x] Durable persistence: HardState, write-ahead log and a MemoryStorage engine
+- [x] Message-driven server: pre-vote, randomized timers, heartbeats
+- [x] ReadIndex / lease reads, check-quorum, leadership transfer
+- [x] Deterministic simulation harness: partition, loss, reorder, crash — with a chaos suite
 
 ## License
 
