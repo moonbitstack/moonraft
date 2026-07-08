@@ -38,7 +38,24 @@ pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
     AppendResp(reply) => self.handle_append_resp(msg.from, reply)
     Snapshot(args) => self.handle_snapshot(msg.from, args)
     SnapshotResp(reply) => self.handle_snapshot_resp(msg.from, reply)
+    TimeoutNow(term) => self.handle_timeout_now(term)
   }
+}
+
+///|
+/// Handle a TimeoutNow from the leader (Raft §3.10, leadership transfer). The
+/// target campaigns at once — skipping pre-vote and the usual election-timeout
+/// wait — so an orderly handover completes in about one round trip rather than
+/// waiting for the old leader to look dead.
+fn RaftNode::handle_timeout_now(
+  self : RaftNode,
+  term : UInt64,
+) -> Array[Message] {
+  if term < self.core.current_term() || self.core.role() == Leader {
+    return []
+  }
+  self.reset_timeout()
+  self.start_real_campaign()
 }
 
 ///|

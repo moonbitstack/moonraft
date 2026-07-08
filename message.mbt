@@ -12,6 +12,7 @@ pub enum Payload {
   AppendResp(AppendEntriesReply)
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
+  TimeoutNow(UInt64)
 }
 
 ///|
@@ -43,6 +44,7 @@ pub fn Message::term(self : Message) -> UInt64 {
     AppendResp(r) => r.term
     Snapshot(a) => a.term
     SnapshotResp(r) => r.term
+    TimeoutNow(t) => t
   }
 }
 
@@ -68,5 +70,6 @@ pub fn Message::kind(self : Message) -> String {
     AppendResp(_) => "AppendResp"
     Snapshot(_) => "Snapshot"
     SnapshotResp(_) => "SnapshotResp"
+    TimeoutNow(_) => "TimeoutNow"
   }
 }

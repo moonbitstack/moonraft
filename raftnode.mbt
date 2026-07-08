@@ -287,6 +287,29 @@ pub fn RaftNode::propose_conf(
 }
 
 ///|
+/// Begin transferring leadership to `target` (Raft §3.10). If the target is
+/// already caught up it is sent a TimeoutNow so it campaigns immediately;
+/// otherwise it is first sent the entries it lacks and the caller retries the
+/// transfer once it has caught up. A no-op on a non-leader or an unknown target.
+pub fn RaftNode::transfer_leadership(
+  self : RaftNode,
+  target : String,
+) -> Array[Message] {
+  if self.core.role() != Leader {
+    return []
+  }
+  match self.progress.get(target) {
+    None => []
+    Some(p) =>
+      if p.match_index == self.core.last_log_index() {
+        [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
+      } else {
+        [self.send_to(target)]
+      }
+  }
+}
+
+///|
 /// Build the AppendEntries or InstallSnapshot message for one follower, based on
 /// its progress. If the entry the follower needs has been compacted away, a
 /// snapshot is sent instead (Raft §7).

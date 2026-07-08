@@ -288,6 +288,21 @@ pub fn Cluster::compact_leader(
 }
 
 ///|
+/// Ask the current leader to transfer leadership to `target`. Returns whether a
+/// leader started the transfer.
+pub fn Cluster::transfer_leadership(self : Cluster, target : String) -> Bool {
+  match self.leader() {
+    Some(id) => {
+      for msg in self.nodes[id].transfer_leadership(target) {
+        self.schedule(msg)
+      }
+      true
+    }
+    None => false
+  }
+}
+
+///|
 /// Enable check-quorum (and lease reads) on every server.
 pub fn Cluster::enable_check_quorum(self : Cluster) -> Unit {
   for id in self.ids {
