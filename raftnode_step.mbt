@@ -151,11 +151,14 @@ fn RaftNode::handle_append_resp(
         } else {
           []
         }
-      } else if p.maybe_decrease(reply.conflict_index) {
+      } else {
+        // Back off using the follower's hint and retry. Even when next_index is
+        // already at its floor (so no decrease is possible) we still retry, so a
+        // follower whose needed entry has been compacted is handed a snapshot by
+        // send_to rather than being left stuck.
+        let _ = p.maybe_decrease(reply.conflict_index)
         p.become_probe()
         [self.send_to(from)]
-      } else {
-        []
       }
     }
   }

@@ -46,7 +46,19 @@ fn Cluster::min_commit(self : Cluster) -> UInt64 {
 /// would mean two different commands were committed at the same slot.
 pub fn Cluster::committed_agrees(self : Cluster) -> Bool {
   let upto = self.min_commit()
-  let mut i : UInt64 = 1
+  // Below the highest snapshot baseline the entries are covered by a snapshot on
+  // at least one node, which no longer keeps their terms; comparison starts past
+  // it, where every live node still physically holds the committed entries.
+  let mut base : UInt64 = 0
+  for id in self.ids {
+    if self.down.get(id) != Some(true) {
+      let s = self.nodes[id].node().snapshot_index
+      if s > base {
+        base = s
+      }
+    }
+  }
+  let mut i : UInt64 = base + 1
   while i <= upto {
     let mut term : UInt64? = None
     for id in self.ids {

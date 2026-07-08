@@ -269,6 +269,33 @@ pub fn Cluster::propose_on(
 }
 
 ///|
+/// Compact the current leader's log up to `upto`, standing the discarded prefix
+/// in for a snapshot with payload `data`. A lagging follower that later needs an
+/// entry from the discarded prefix will be caught up by InstallSnapshot. Returns
+/// whether a leader performed the compaction.
+pub fn Cluster::compact_leader(
+  self : Cluster,
+  upto : UInt64,
+  data : Bytes,
+) -> Bool {
+  match self.leader() {
+    Some(id) => {
+      let _ = self.nodes[id].node().compact(upto, data)
+      true
+    }
+    None => false
+  }
+}
+
+///|
+/// Enable check-quorum (and lease reads) on every server.
+pub fn Cluster::enable_check_quorum(self : Cluster) -> Unit {
+  for id in self.ids {
+    self.nodes[id].enable_check_quorum()
+  }
+}
+
+///|
 /// The ids of every server that currently believes it is leader.
 pub fn Cluster::leaders(self : Cluster) -> Array[String] {
   let out : Array[String] = []

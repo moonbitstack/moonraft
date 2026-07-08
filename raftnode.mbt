@@ -14,6 +14,7 @@ pub struct RaftNode {
   progress : Map[String, Progress]
   votes : Map[String, Bool]
   pre_vote : Bool
+  mut check_quorum : Bool
   mut in_pre_campaign : Bool
   mut leader_id : String?
   mut election_elapsed : Int
@@ -48,6 +49,7 @@ pub fn RaftNode::new(
     progress: {},
     votes: {},
     pre_vote: true,
+    check_quorum: false,
     in_pre_campaign: false,
     leader_id: None,
     election_elapsed: 0,
@@ -139,17 +141,46 @@ fn RaftNode::granted(self : RaftNode) -> Array[String] {
 pub fn RaftNode::tick(self : RaftNode) -> Array[Message] {
   if self.core.role() == Leader {
     self.heartbeat_elapsed = self.heartbeat_elapsed + 1
+    self.election_elapsed = self.election_elapsed + 1
+    let out : Array[Message] = []
+    // Once per election timeout, close the liveness window. With check-quorum
+    // on, a leader that has not heard from a majority in that window steps down
+    // so a partitioned-away leader cannot linger (etcd's CheckQuorum, §6.4).
+    if self.election_elapsed >= self.election_timeout {
+      self.election_elapsed = 0
+      if self.check_quorum && !self.quorum_active() {
+        self.step_down()
+        return []
+      }
+      self.reset_recent_active()
+    }
     if self.heartbeat_elapsed >= self.heartbeat_timeout {
       self.heartbeat_elapsed = 0
-      return self.bcast_heartbeat()
+      for m in self.bcast_heartbeat() {
+        out.push(m)
+      }
     }
-    return []
+    return out
   }
   self.election_elapsed = self.election_elapsed + 1
   if self.election_elapsed >= self.randomized_election_timeout {
     return self.campaign()
   }
   []
+}
+
+///|
+/// Turn on check-quorum and lease reads for this server.
+pub fn RaftNode::enable_check_quorum(self : RaftNode) -> Unit {
+  self.check_quorum = true
+}
+
+///|
+/// Stand down to follower in the current term, e.g. on losing quorum contact.
+fn RaftNode::step_down(self : RaftNode) -> Unit {
+  self.core.become_follower(self.core.current_term())
+  self.leader_id = None
+  self.reset_timeout()
 }
 
 ///|
@@ -222,6 +253,9 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   }
   let _ = self.core.append(self.core.current_term(), b"")
   self.heartbeat_elapsed = 0
+  self.election_elapsed = 0
+  // In a single-node cluster the no-op commits at once, which also arms reads.
+  self.maybe_commit() |> ignore
 }
 
 ///|
