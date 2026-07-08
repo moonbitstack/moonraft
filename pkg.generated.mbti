@@ -21,23 +21,151 @@ pub(all) struct AppendEntriesArgs {
 pub(all) struct AppendEntriesReply {
   term : UInt64
   success : Bool
+  match_index : UInt64
+  conflict_index : UInt64
 } derive(Eq)
+
+pub struct Cluster {
+  nodes : Map[String, RaftNode]
+  ids : Array[String]
+  mut inflight : Array[InFlight]
+  mut now : Int
+  part : Map[String, Int]
+  down : Map[String, Bool]
+  mut drop_permil : Int
+  mut max_delay : Int
+  mut next_group : Int
+  mut rng : UInt64
+}
+pub fn Cluster::all_committed(Self, UInt64) -> Bool
+pub fn Cluster::committed_agrees(Self) -> Bool
+pub fn Cluster::compact_leader(Self, UInt64, Bytes) -> Bool
+pub fn Cluster::crash(Self, String) -> Unit
+pub fn Cluster::enable_check_quorum(Self) -> Unit
+pub fn Cluster::heal(Self) -> Unit
+pub fn Cluster::invariants_hold(Self) -> Bool
+pub fn Cluster::is_down(Self, String) -> Bool
+pub fn Cluster::isolate(Self, String) -> Unit
+pub fn Cluster::leader(Self) -> String?
+pub fn Cluster::leaders(Self) -> Array[String]
+pub fn Cluster::logs_consistent(Self) -> Bool
+pub fn Cluster::new(Array[String], seed? : UInt64) -> Self
+pub fn Cluster::node(Self, String) -> RaftNode
+pub fn Cluster::one_leader_per_term(Self) -> Bool
+pub fn Cluster::partition(Self, Array[String], Array[String]) -> Unit
+pub fn Cluster::propose(Self, Bytes) -> Bool
+pub fn Cluster::propose_conf(Self, ConfChange) -> Bool
+pub fn Cluster::propose_on(Self, String, Bytes) -> Bool
+pub fn Cluster::restart(Self, String) -> Unit
+pub fn Cluster::run(Self, Int) -> Unit
+pub fn Cluster::run_until_committed(Self, UInt64, Int) -> Bool
+pub fn Cluster::run_until_leader(Self, Int) -> String?
+pub fn Cluster::same_committed_commands(Self) -> Bool
+pub fn Cluster::set_delay(Self, Int) -> Unit
+pub fn Cluster::set_drop(Self, Int) -> Unit
+pub fn Cluster::tick(Self) -> Unit
+pub fn Cluster::transfer_leadership(Self, String) -> Bool
+
+pub(all) struct ConfChange {
+  change_type : ConfChangeType
+  node_id : String
+} derive(Eq)
+pub fn ConfChange::add(String) -> Self
+pub fn ConfChange::apply_to(Self, Membership) -> Unit
+pub fn ConfChange::decode(Bytes) -> Self?
+pub fn ConfChange::encode(Self) -> Bytes
+pub fn ConfChange::remove(String) -> Self
+
+pub enum ConfChangeType {
+  AddNode
+  RemoveNode
+} derive(Eq)
+
+pub struct ConfDriver {
+  config : Membership
+  mut applied : UInt64
+}
+pub fn ConfDriver::config(Self) -> Membership
+pub fn ConfDriver::drive(Self, Node) -> Int
+pub fn ConfDriver::new(Array[String]) -> Self
 
 pub(all) struct Entry {
   term : UInt64
   index : UInt64
+  entry_type : EntryType
   command : Bytes
+} derive(Eq)
+pub fn Entry::conf(UInt64, UInt64, Bytes) -> Self
+pub fn Entry::is_conf_change(Self) -> Bool
+pub fn Entry::normal(UInt64, UInt64, Bytes) -> Self
+
+pub enum EntryType {
+  Normal
+  ConfChange
+} derive(Eq)
+
+pub(all) struct HardState {
+  term : UInt64
+  vote : String?
+  commit : UInt64
+} derive(Eq)
+pub fn HardState::initial() -> Self
+
+type InFlight
+
+pub(all) struct InstallSnapshotArgs {
+  term : UInt64
+  leader_id : String
+  last_index : UInt64
+  last_term : UInt64
+  offset : UInt64
+  data : Bytes
+  done : Bool
+} derive(Eq)
+pub fn InstallSnapshotArgs::whole(UInt64, String, Snapshot) -> Self
+
+pub(all) struct InstallSnapshotReply {
+  term : UInt64
 } derive(Eq)
 
 pub(all) struct Membership {
   members : Array[String]
+  outgoing : Array[String]
+  mut joint : Bool
 }
 pub fn Membership::add(Self, String) -> Unit
 pub fn Membership::contains(Self, String) -> Bool
+pub fn Membership::enter_joint(Self, Array[String]) -> Unit
+pub fn Membership::has_majority(Self, Array[String]) -> Bool
+pub fn Membership::is_joint(Self) -> Bool
+pub fn Membership::leave_joint(Self) -> Unit
 pub fn Membership::new(Array[String]) -> Self
 pub fn Membership::quorum(Self) -> Int
 pub fn Membership::remove(Self, String) -> Unit
 pub fn Membership::size(Self) -> Int
+pub fn Membership::voters(Self) -> Array[String]
+
+pub struct MemoryStorage {
+  mut hard : HardState
+  mut snap : Snapshot
+  ents : Array[Entry]
+}
+pub fn MemoryStorage::append(Self, Array[Entry]) -> Unit
+pub fn MemoryStorage::apply_snapshot(Self, Snapshot) -> Unit
+pub fn MemoryStorage::compact(Self, UInt64) -> Bool
+pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes) -> Snapshot?
+pub fn MemoryStorage::new() -> Self
+pub fn MemoryStorage::set_hard_state(Self, HardState) -> Unit
+
+pub(all) struct Message {
+  from : String
+  to : String
+  payload : Payload
+}
+pub fn Message::is_response(Self) -> Bool
+pub fn Message::kind(Self) -> String
+pub fn Message::new(String, String, Payload) -> Self
+pub fn Message::term(Self) -> UInt64
 
 pub struct Node {
   id : String
@@ -52,30 +180,130 @@ pub struct Node {
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
 pub fn Node::append(Self, UInt64, Bytes) -> Entry
+pub fn Node::append_conf(Self, UInt64, Bytes) -> Entry
 pub fn Node::apply_committed(Self, &StateMachine) -> Unit
+pub fn Node::apply_hard_state(Self, HardState) -> Unit
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
 pub fn Node::compact(Self, UInt64, Bytes) -> Snapshot
 pub fn Node::current_term(Self) -> UInt64
+pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
+pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
+pub fn Node::entry_at(Self, UInt64) -> Entry?
 pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
+pub fn Node::handle_install_snapshot(Self, InstallSnapshotArgs) -> InstallSnapshotReply
 pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
+pub fn Node::hard_state(Self) -> HardState
 pub fn Node::install_snapshot(Self, Snapshot) -> Unit
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
+pub fn Node::load_from(Self, &RaftStorage) -> Unit
+pub fn Node::log_len(Self) -> Int
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
 pub fn Node::persisted(Self) -> Persisted
+pub fn Node::propose_conf_change(Self, UInt64, ConfChange) -> Entry
 pub fn Node::recover(Self, Persisted) -> Unit
+pub fn Node::recover_from(Self, &WalStore) -> Unit
+pub fn Node::replay(Self, Array[WalRecord]) -> Unit
 pub fn Node::request_vote_args(Self) -> RequestVoteArgs
 pub fn Node::role(Self) -> Role
+pub fn Node::save_into(Self, MemoryStorage) -> Unit
+pub fn Node::save_to(Self, &WalStore) -> Unit
 pub fn Node::term_at(Self, UInt64) -> UInt64
+
+pub enum Payload {
+  PreVote(RequestVoteArgs)
+  PreVoteResp(RequestVoteReply)
+  Vote(RequestVoteArgs)
+  VoteResp(RequestVoteReply)
+  Append(AppendEntriesArgs)
+  AppendResp(AppendEntriesReply)
+  Snapshot(InstallSnapshotArgs)
+  SnapshotResp(InstallSnapshotReply)
+  TimeoutNow(UInt64)
+}
 
 pub(all) struct Persisted {
   term : UInt64
   voted_for : String?
   log : Array[Entry]
 }
+
+pub struct Progress {
+  mut next_index : UInt64
+  mut match_index : UInt64
+  mut state : ProgressState
+  mut recent_active : Bool
+}
+pub fn Progress::become_probe(Self) -> Unit
+pub fn Progress::become_replicate(Self) -> Unit
+pub fn Progress::become_snapshot(Self, UInt64) -> Unit
+pub fn Progress::is_active(Self) -> Bool
+pub fn Progress::mark_active(Self) -> Unit
+pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
+pub fn Progress::maybe_update(Self, UInt64) -> Bool
+pub fn Progress::new(UInt64) -> Self
+pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
+pub fn Progress::reset_active(Self) -> Unit
+
+pub enum ProgressState {
+  Probe
+  Replicate
+  Snapshot
+} derive(Eq)
+
+pub struct RaftNode {
+  core : Node
+  id : String
+  peers : Array[String]
+  config : Membership
+  progress : Map[String, Progress]
+  votes : Map[String, Bool]
+  pre_vote : Bool
+  mut check_quorum : Bool
+  mut in_pre_campaign : Bool
+  mut leader_id : String?
+  mut election_elapsed : Int
+  mut heartbeat_elapsed : Int
+  election_timeout : Int
+  heartbeat_timeout : Int
+  mut randomized_election_timeout : Int
+  max_entries : UInt64
+  mut rng : UInt64
+}
+pub fn RaftNode::campaign(Self) -> Array[Message]
+pub fn RaftNode::commit_index(Self) -> UInt64
+pub fn RaftNode::election_deadline(Self) -> Int
+pub fn RaftNode::enable_check_quorum(Self) -> Unit
+pub fn RaftNode::has_lease(Self) -> Bool
+pub fn RaftNode::id(Self) -> String
+pub fn RaftNode::is_leader(Self) -> Bool
+pub fn RaftNode::leader(Self) -> String?
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64) -> Self
+pub fn RaftNode::node(Self) -> Node
+pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
+pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
+pub fn RaftNode::quorum_active(Self) -> Bool
+pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::role(Self) -> Role
+pub fn RaftNode::status(Self) -> RaftStatus
+pub fn RaftNode::step(Self, Message) -> Array[Message]
+pub fn RaftNode::term(Self) -> UInt64
+pub fn RaftNode::tick(Self) -> Array[Message]
+pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
+
+pub(all) struct RaftStatus {
+  id : String
+  role : Role
+  term : UInt64
+  leader : String?
+  commit : UInt64
+  last_index : UInt64
+  applied : UInt64
+} derive(Eq)
+pub fn RaftStatus::describe(Self) -> String
 
 pub(all) struct RequestVoteArgs {
   term : UInt64
@@ -99,7 +327,15 @@ pub(all) struct Snapshot {
   last_index : UInt64
   last_term : UInt64
   data : Bytes
-}
+} derive(Eq)
+pub fn Snapshot::empty() -> Self
+pub fn Snapshot::is_empty(Self) -> Bool
+
+pub enum WalRecord {
+  WalHardState(HardState)
+  WalEntry(Entry)
+  WalSnapshot(Snapshot)
+} derive(Eq)
 
 // Type aliases
 
@@ -109,6 +345,15 @@ pub trait LogStore {
   fn restore(Self) -> Persisted?
 }
 
+pub trait RaftStorage {
+  fn first_index(Self) -> UInt64
+  fn last_index(Self) -> UInt64
+  fn storage_term(Self, UInt64) -> UInt64?
+  fn slice(Self, UInt64, UInt64) -> Array[Entry]
+  fn storage_snapshot(Self) -> Snapshot
+  fn storage_hard_state(Self) -> HardState
+}
+
 pub trait StateMachine {
   fn apply(Self, Bytes) -> Unit
 }
@@ -116,5 +361,10 @@ pub trait StateMachine {
 pub trait Transport {
   fn request_vote(Self, String, RequestVoteArgs) -> RequestVoteReply
   fn append_entries(Self, String, AppendEntriesArgs) -> AppendEntriesReply
+}
+
+pub trait WalStore {
+  fn append_record(Self, WalRecord) -> Unit
+  fn load(Self) -> Array[WalRecord]
 }
 
