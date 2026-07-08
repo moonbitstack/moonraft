@@ -22,6 +22,7 @@ pub struct RaftNode {
   election_timeout : Int
   heartbeat_timeout : Int
   mut randomized_election_timeout : Int
+  max_entries : UInt64
   mut rng : UInt64
 }
 
@@ -36,6 +37,7 @@ pub fn RaftNode::new(
   seed? : UInt64 = 1,
   election_timeout? : Int = 10,
   heartbeat_timeout? : Int = 1,
+  max_entries? : UInt64 = 256,
 ) -> RaftNode {
   let all = [id]
   for p in peers {
@@ -57,6 +59,7 @@ pub fn RaftNode::new(
     election_timeout,
     heartbeat_timeout,
     randomized_election_timeout: election_timeout,
+    max_entries,
     rng: seed,
   }
   node.reset_timeout()
@@ -90,6 +93,13 @@ pub fn RaftNode::id(self : RaftNode) -> String {
 /// The current role of the underlying consensus core.
 pub fn RaftNode::role(self : RaftNode) -> Role {
   self.core.role()
+}
+
+///|
+/// The randomized election timeout this server is currently counting toward, in
+/// ticks. Exposed for tests that check the timeout stays within its band.
+pub fn RaftNode::election_deadline(self : RaftNode) -> Int {
+  self.randomized_election_timeout
 }
 
 ///|
@@ -331,7 +341,7 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
       ),
     )
   }
-  let entries = self.core.entries_after(prev)
+  let entries = self.core.entries_after_limited(prev, self.max_entries)
   if p.state == Replicate && entries.length() > 0 {
     p.optimistic_advance(entries[entries.length() - 1].index)
   }

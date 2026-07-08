@@ -89,3 +89,25 @@ pub fn Node::entries_after(self : Node, index : UInt64) -> Array[Entry] {
   }
   out
 }
+
+///|
+/// At most `max` entries strictly after absolute `index`, in order. A leader
+/// caps the size of an AppendEntries with this so a badly lagging follower is
+/// caught up over several bounded messages instead of one huge one.
+pub fn Node::entries_after_limited(
+  self : Node,
+  index : UInt64,
+  max : UInt64,
+) -> Array[Entry] {
+  let out : Array[Entry] = []
+  let last = self.last_log_index()
+  let mut i = index
+  while i < last && out.length().to_uint64() < max {
+    match self.entry_at(i + 1) {
+      Some(e) => out.push(e)
+      None => ()
+    }
+    i = i + 1
+  }
+  out
+}
