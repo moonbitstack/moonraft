@@ -31,7 +31,14 @@ pub(all) struct AppendEntriesArgs {
 ///|
 /// Reply to an AppendEntries RPC. `success` is true when the follower's log
 /// contained a matching entry at `prev_log_index` and the entries were stored.
+/// On success `match_index` is the highest index the follower now agrees on, so
+/// the leader can advance its progress without guessing. On rejection
+/// `conflict_index` is a hint at where the two logs diverge, letting the leader
+/// back off in one jump instead of decrementing nextIndex one entry at a time
+/// (the optimization sketched in Raft §5.3).
 pub(all) struct AppendEntriesReply {
   term : UInt64
   success : Bool
+  match_index : UInt64
+  conflict_index : UInt64
 } derive(Eq)
