@@ -132,6 +132,43 @@ fn Cluster::pair_consistent(self : Cluster, x : String, y : String) -> Bool {
 }
 
 ///|
+/// The strongest agreement check: every live node holds byte-for-byte the same
+/// command at every committed index past the highest snapshot baseline. Where
+/// `committed_agrees` only compares terms, this compares the actual replicated
+/// commands, so a run that commits distinct values proves they land in the same
+/// order everywhere — a stand-in for linearizability of the committed prefix.
+pub fn Cluster::same_committed_commands(self : Cluster) -> Bool {
+  let upto = self.min_commit()
+  let mut base : UInt64 = 0
+  let live : Array[String] = []
+  for id in self.ids {
+    if self.down.get(id) != Some(true) {
+      live.push(id)
+      let s = self.nodes[id].node().snapshot_index
+      if s > base {
+        base = s
+      }
+    }
+  }
+  let mut i = base + 1
+  while i <= upto {
+    let mut command : Bytes? = None
+    for id in live {
+      match self.nodes[id].node().entry_at(i) {
+        Some(e) =>
+          match command {
+            None => command = Some(e.command)
+            Some(c) => if c != e.command { return false }
+          }
+        None => return false
+      }
+    }
+    i = i + 1
+  }
+  true
+}
+
+///|
 /// Whether every stated invariant holds right now. A scenario asserts this after
 /// each interesting step.
 pub fn Cluster::invariants_hold(self : Cluster) -> Bool {

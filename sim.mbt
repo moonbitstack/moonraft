@@ -296,6 +296,21 @@ pub fn Cluster::enable_check_quorum(self : Cluster) -> Unit {
 }
 
 ///|
+/// Propose a configuration change on the current leader. Returns whether a
+/// leader accepted it.
+pub fn Cluster::propose_conf(self : Cluster, change : ConfChange) -> Bool {
+  match self.leader() {
+    Some(id) => {
+      for msg in self.nodes[id].propose_conf(change) {
+        self.schedule(msg)
+      }
+      true
+    }
+    None => false
+  }
+}
+
+///|
 /// The ids of every server that currently believes it is leader.
 pub fn Cluster::leaders(self : Cluster) -> Array[String] {
   let out : Array[String] = []

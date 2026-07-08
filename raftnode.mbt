@@ -271,6 +271,22 @@ pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
 }
 
 ///|
+/// Append a configuration change to the leader's log and replicate it, so every
+/// server folds the same membership change into its configuration at the same
+/// log position once it commits (Raft §6). A no-op on a non-leader.
+pub fn RaftNode::propose_conf(
+  self : RaftNode,
+  change : ConfChange,
+) -> Array[Message] {
+  if self.core.role() != Leader {
+    return []
+  }
+  let _ = self.core.append_conf(self.core.current_term(), change.encode())
+  self.maybe_commit() |> ignore
+  self.bcast_append()
+}
+
+///|
 /// Build the AppendEntries or InstallSnapshot message for one follower, based on
 /// its progress. If the entry the follower needs has been compacted away, a
 /// snapshot is sent instead (Raft §7).
