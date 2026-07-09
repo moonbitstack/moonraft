@@ -9,6 +9,26 @@ It ships two ways to run the protocol on top of one consensus core:
 - a **synchronous driver** (`run_election`, `replicate`) that composes the RPC handlers into whole rounds — small and easy to read or embed; and
 - a **message-driven server** (`RaftNode`) that talks only in `Message`s through `tick` and `step`, so a real transport — or the bundled deterministic simulator — can drive it exactly the way etcd separates protocol logic from I/O.
 
+## Live demo — Raft, running in your browser
+
+**▶ https://lfan-ke.github.io/raft-moonbit/**
+
+The consensus core and the deterministic `Cluster` simulator are compiled to JavaScript with `moon build --target js` and run entirely in the page — no server, no mock. Drive leader elections, replicate a log, split the network into a brain-split, crash and restart nodes, add packet loss — and watch Raft's safety invariants (**Election Safety**, **State-Machine Safety**, command agreement) hold through all of it while the logs reconcile on heal.
+
+![Raft consensus demo: a network partition with two leaders in different terms — the hard safety invariants still hold](docs/demo-screenshot.png)
+
+The visualization is not a JavaScript re-implementation: it calls straight into the MoonBit code every tick, and everything on screen comes from `demo_state()`, the JSON snapshot the simulator returns. The browser bridge is `demo_driver.mbt`; the front end lives under [`docs/`](docs/).
+
+### Build and run the demo locally
+
+```
+moon build --target js --release                 # -> _build/js/release/build/raft-moonbit.js
+cp _build/js/release/build/raft-moonbit.js docs/raft-moonbit.js
+python3 -m http.server 8099 --directory docs     # then open http://localhost:8099/
+```
+
+An ES-module import needs `http(s)`; opening `index.html` as a `file://` URL will not work.
+
 ## Features
 
 - **Leader election** with the Follower / Candidate / Leader roles and the up-to-date-log voting restriction (§5.2, §5.4.1).
@@ -67,6 +87,7 @@ The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `
 | `leader.mbt` / `cluster.mbt` | The synchronous election and replication driver |
 | `statemachine.mbt` / `transport.mbt` | The `StateMachine` and `Transport` traits |
 | `sim.mbt` / `sim_check.mbt` | The deterministic simulator and its safety invariants |
+| `demo_driver.mbt` | Browser bridge: a flat JSON/scalar API over `Cluster` for the `docs/` demo |
 
 ## Roadmap
 
@@ -79,6 +100,7 @@ The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `
 - [x] Message-driven server: pre-vote, randomized timers, heartbeats
 - [x] ReadIndex / lease reads, check-quorum, leadership transfer
 - [x] Deterministic simulation harness: partition, loss, reorder, crash — with a chaos suite
+- [x] Interactive browser demo compiled from the same code with `moon build --target js`
 
 ## License
 

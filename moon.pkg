@@ -1,1 +1,27 @@
 // raft-moonbit: Raft consensus, core package.
+
+// Browser demo build (`moon build --target js`): export the demo-driver API as
+// an ES module so the docs/ visualization can drive the real simulator.
+options(
+  link: {
+    "js": {
+      "exports": [
+        "demo_new",
+        "demo_tick",
+        "demo_run",
+        "demo_propose",
+        "demo_propose_on",
+        "demo_partition",
+        "demo_isolate",
+        "demo_heal",
+        "demo_crash",
+        "demo_restart",
+        "demo_set_drop",
+        "demo_set_delay",
+        "demo_transfer",
+        "demo_state",
+      ],
+      "format": "esm",
+    },
+  },
+)

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Raft Consensus · Live in MoonBit</title>
+<meta name="description" content="Real Raft consensus and a deterministic cluster simulator, written in MoonBit and compiled to your browser. Watch leader election, log replication, network partitions and split-brain recovery — with the Raft safety invariants checked live." />
+<style>
+  :root{
+    --bg:#080c14; --bg2:#0c1220; --panel:#111a29; --panel2:#0d1420;
+    --border:#1d2a3e; --border2:#2a3c57;
+    --text:#e7edf6; --muted:#8494ad; --dim:#586a86;
+    --leader:#22d69a; --candidate:#f6b73c; --follower:#5b8cff; --down:#ff5470;
+    --ok:#22d69a; --warn:#f6b73c; --bad:#ff5470;
+    --violet:#a78bfa; --blue:#5b8cff; --green:#34d399; --orange:#fb923c; --gray:#5c6f8c;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:
+    radial-gradient(1100px 600px at 80% -10%, #12203a55, transparent),
+    radial-gradient(900px 500px at 0% 110%, #0e2a2455, transparent),
+    var(--bg);
+    color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--follower);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .app{max-width:1320px;margin:0 auto;padding:20px 20px 40px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+  .title h1{margin:0;font-size:23px;letter-spacing:.2px;font-weight:680}
+  .title h1 .accent{color:var(--leader)}
+  .title p{margin:5px 0 0;color:var(--muted);font-size:13px;max-width:640px;line-height:1.5}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .badge{font-family:var(--mono);font-size:11px;padding:4px 9px;border:1px solid var(--border2);
+    border-radius:999px;color:var(--muted);background:#0e1726;white-space:nowrap}
+  .badge b{color:var(--text);font-weight:600}
+  .team{text-align:right;font-size:12px;color:var(--muted)}
+  .team b{color:var(--text)}
+
+  .grid{display:grid;grid-template-columns:1fr 348px;gap:16px;align-items:start}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);
+    border-radius:14px;padding:14px}
+  .card h2{margin:0 0 10px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .stage{position:relative;padding:8px}
+  #net{width:100%;height:auto;display:block}
+  .stage-head{display:flex;justify-content:space-between;align-items:center;padding:6px 8px 2px}
+  .stage-head .clock{font-family:var(--mono);color:var(--muted);font-size:12px}
+  .stage-head .clock b{color:var(--text)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:8px 10px 2px;font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .side{display:flex;flex-direction:column;gap:16px}
+
+  /* status */
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .stat{background:#0c1626;border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+  .stat .k{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--dim)}
+  .stat .v{font-family:var(--mono);font-size:19px;margin-top:3px}
+  .stat .v.small{font-size:14px}
+
+  /* invariants */
+  .inv{display:flex;align-items:center;gap:10px;padding:8px 4px;border-top:1px solid var(--border)}
+  .inv:first-of-type{border-top:none}
+  .inv .light{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:0 0 0 0 transparent;transition:box-shadow .2s}
+  .inv.ok  .light{background:var(--ok);box-shadow:0 0 10px 1px #22d69a88}
+  .inv.warn .light{background:var(--warn);box-shadow:0 0 10px 1px #f6b73c66}
+  .inv.bad .light{background:var(--bad);box-shadow:0 0 12px 2px #ff547088}
+  .inv .txt{flex:1;min-width:0}
+  .inv .name{font-size:13px;font-weight:600}
+  .inv .desc{font-size:11px;color:var(--muted);margin-top:1px}
+  .inv .state{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .inv.ok .state{color:var(--ok)} .inv.warn .state{color:var(--warn)} .inv.bad .state{color:var(--bad)}
+  .safety-note{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.45}
+
+  /* controls */
+  .ctl-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px;align-items:center}
+  button, .seg{font-family:var(--sans);font-size:12.5px}
+  button{cursor:pointer;background:#16233a;color:var(--text);border:1px solid var(--border2);
+    border-radius:9px;padding:8px 11px;transition:.14s;font-weight:560}
+  button:hover{background:#1d2d49;border-color:#375074}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:linear-gradient(180deg,#1c8f6d,#127a5b);border-color:#1fae83;color:#eafff7}
+  button.primary:hover{background:linear-gradient(180deg,#22a37d,#149067)}
+  button.danger{background:#3a1622;border-color:#5c2334;color:#ffd8e0}
+  button.danger:hover{background:#4a1c2c}
+  button.ghost{background:transparent}
+  .seg{display:inline-flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden}
+  .seg button{border:none;border-radius:0;border-right:1px solid var(--border);padding:7px 11px;background:#0f1a2c;font-weight:560}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:#25518f;color:#fff}
+  label.fld{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  input[type=number],input[type=text]{width:74px;background:#0b1524;border:1px solid var(--border2);color:var(--text);
+    border-radius:8px;padding:7px 8px;font-family:var(--mono);font-size:12.5px}
+  input[type=range]{accent-color:var(--follower);flex:1;min-width:90px}
+  .slider{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .slider .val{font-family:var(--mono);color:var(--text);min-width:52px;text-align:right}
+  .sel-info{font-size:12px;color:var(--muted);margin:2px 0 9px}
+  .sel-info b{font-family:var(--mono);color:var(--text)}
+  .subhead{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim);margin:12px 0 7px}
+
+  /* events */
+  .events{max-height:200px;overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.7}
+  .events .ev{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .events .ev .t{color:var(--dim)}
+  .events .ev.hi{color:var(--text)}
+  .events .ev.good{color:var(--leader)}
+  .events .ev.warn{color:var(--candidate)}
+  .events .ev.bad{color:var(--down)}
+
+  /* log matrix */
+  .logs{margin-top:16px}
+  .logwrap{overflow-x:auto;padding-bottom:4px}
+  table.matrix{border-collapse:collapse;font-family:var(--mono);font-size:11px}
+  table.matrix th,table.matrix td{padding:0}
+  table.matrix .rowhead{padding:4px 10px 4px 2px;text-align:right;color:var(--muted);white-space:nowrap}
+  table.matrix .colhead{padding:2px 0 5px;text-align:center;color:var(--dim);font-size:10px;min-width:26px}
+  .cell{width:24px;height:22px;margin:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+    color:#04121b;font-weight:700;border:1px solid transparent}
+  .cell.empty{background:#0c1626;border-color:var(--border)}
+  .cell.uncommitted{opacity:1;color:#e7edf6;background:transparent !important;border-style:dashed}
+  .cell.committed{color:#04121b}
+  .cell.confbadge{outline:2px dotted #ffffff88;outline-offset:-4px}
+  .commitmark{color:var(--leader);font-weight:700}
+  .logs .lgd{font-size:11px;color:var(--muted);margin-top:8px;display:flex;gap:16px;flex-wrap:wrap}
+
+  footer{margin-top:26px;color:var(--dim);font-size:12px;line-height:1.6;border-top:1px solid var(--border);padding-top:14px}
+  footer code{font-family:var(--mono);background:#0e1726;padding:1px 6px;border-radius:5px;color:var(--muted)}
+
+  @media (max-width:960px){
+    .grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">
+      <h1>Raft Consensus · <span class="accent">Live</span></h1>
+      <p>A real Raft implementation and a deterministic cluster simulator — written in
+        <b>MoonBit</b>, compiled to JavaScript, running entirely in this tab. Drive elections,
+        replicate a log, split the network, crash nodes — and watch the Raft safety invariants
+        hold through all of it. Not a mock: the same code passes 143 tests.</p>
+    </div>
+    <div>
+      <div class="badges">
+        <span class="badge"><b>MoonBit</b> → JS (ESM)</span>
+        <span class="badge">deterministic sim</span>
+        <span class="badge">143 tests ✓</span>
+      </div>
+      <div class="team" style="margin-top:8px">Team <b>程柯雷</b> · 太原理工大学</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card stage">
+      <div class="stage-head">
+        <h2 style="margin:0">Cluster network</h2>
+        <div class="clock">tick <b id="clk">0</b> · leader <b id="clkLeader">—</b></div>
+      </div>
+      <svg id="net" viewBox="0 0 640 640" role="img" aria-label="Raft cluster network visualization"></svg>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--leader)"></i>Leader</span>
+        <span><i class="dot" style="background:var(--candidate)"></i>Candidate</span>
+        <span><i class="dot" style="background:var(--follower)"></i>Follower</span>
+        <span><i class="dot" style="background:var(--down)"></i>Down</span>
+        <span><i class="dot" style="background:var(--violet)"></i>RequestVote</span>
+        <span><i class="dot" style="background:var(--blue)"></i>AppendEntries</span>
+        <span><i class="dot" style="background:var(--green)"></i>Response</span>
+        <span><i class="dot" style="background:var(--gray)"></i>Heartbeat</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Cluster status</h2>
+        <div class="stat-row">
+          <div class="stat"><div class="k">Leader</div><div class="v" id="sLeader">—</div></div>
+          <div class="stat"><div class="k">Term</div><div class="v" id="sTerm">0</div></div>
+          <div class="stat"><div class="k">Committed</div><div class="v" id="sCommit">0</div></div>
+          <div class="stat"><div class="k">Nodes up</div><div class="v" id="sUp">0/0</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Safety invariants</h2>
+        <div class="inv" id="invElection"><span class="light"></span>
+          <div class="txt"><div class="name">Election Safety</div><div class="desc">At most one leader per term</div></div>
+          <div class="state">—</div></div>
+        <div class="inv" id="invSM"><span class="light"></span>
+          <div class="txt"><div class="name">State-Machine Safety</div><div class="desc">Committed entries never diverge</div></div>
+          <div class="state">—</div></div>
+        <div class="inv" id="invCmd"><span class="light"></span>
+          <div class="txt"><div class="name">Commands Agree</div><div class="desc">All nodes apply identical commands</div></div>
+          <div class="state">—</div></div>
+        <div class="inv" id="invConv"><span class="light"></span>
+          <div class="txt"><div class="name">Logs Converged</div><div class="desc">All logs identical (settles after chaos)</div></div>
+          <div class="state">—</div></div>
+        <div class="safety-note">The first three are Raft's hard safety guarantees — they must stay
+          green <b>even mid-partition</b>. "Logs Converged" is a stricter liveness check: it turns amber
+          while a stale replica still holds an un-committed tail, then goes green once the cluster settles.</div>
+      </div>
+
+      <div class="card">
+        <h2>Controls</h2>
+        <div class="ctl-row">
+          <button id="btnPlay" class="primary">▶ Run</button>
+          <button id="btnStep">Step</button>
+          <button id="btnReset" class="ghost">Reset</button>
+        </div>
+        <div class="ctl-row">
+          <span style="font-size:11.5px;color:var(--muted)">Speed</span>
+          <div class="seg" id="segSpeed">
+            <button data-ms="900">Slow</button>
+            <button data-ms="430" class="on">Normal</button>
+            <button data-ms="150">Fast</button>
+          </div>
+        </div>
+        <div class="ctl-row">
+          <span style="font-size:11.5px;color:var(--muted)">Size</span>
+          <div class="seg" id="segSize">
+            <button data-n="3">3</button>
+            <button data-n="5" class="on">5</button>
+            <button data-n="7">7</button>
+          </div>
+          <label class="fld">seed <input id="inSeed" type="number" value="7" /></label>
+        </div>
+
+        <div class="subhead">Replicate</div>
+        <div class="ctl-row">
+          <button id="btnPropose" class="primary">Propose entry</button>
+          <button id="btnProp5">Propose ×5</button>
+        </div>
+
+        <div class="subhead">Fault injection</div>
+        <div class="sel-info">Selected: <b id="selName">— (click a node)</b></div>
+        <div class="ctl-row">
+          <button id="btnCrash" class="danger">Crash</button>
+          <button id="btnRestart">Restart</button>
+          <button id="btnIsolate">Isolate</button>
+        </div>
+        <div class="ctl-row">
+          <button id="btnSplit" class="danger">Split-brain</button>
+          <button id="btnHeal">Heal network</button>
+        </div>
+        <div class="slider">drop <input id="inDrop" type="range" min="0" max="500" value="0" />
+          <span class="val" id="vDrop">0‰</span></div>
+        <div class="slider">latency <input id="inDelay" type="range" min="0" max="8" value="0" />
+          <span class="val" id="vDelay">0t</span></div>
+
+        <div class="subhead">One-click scenarios</div>
+        <div class="ctl-row">
+          <button id="scElect" class="ghost">Leader election</button>
+          <button id="scSplit" class="ghost">Split-brain &amp; heal</button>
+        </div>
+        <div class="ctl-row">
+          <button id="scCrash" class="ghost">Leader crash</button>
+          <button id="scChaos" class="ghost">Packet-loss storm</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Event log</h2>
+        <div class="events" id="events"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="card logs">
+    <h2>Replicated log &amp; commit progress</h2>
+    <div class="logwrap"><table class="matrix" id="matrix"></table></div>
+    <div class="lgd">
+      <span>Column = log index, cell colour = the entry's <b>term</b>.</span>
+      <span><span class="cell committed" style="width:16px;height:16px;background:var(--follower)"></span> solid = committed</span>
+      <span><span class="cell uncommitted" style="width:16px;height:16px;border-color:var(--muted)"></span> dashed = not yet committed</span>
+      <span><span class="commitmark">▸</span> commit index</span>
+    </div>
+  </section>
+
+  <footer>
+    <div>Built with the <code>raft-moonbit</code> library and its deterministic <code>Cluster</code> simulator
+      (partition / drop / delay / reorder / crash-restart injection). Compiled with
+      <code>moon build --target js</code>; the browser imports the emitted ES module and calls into the real
+      consensus code every tick — the visual state you see is produced by <code>demo_state()</code> in MoonBit,
+      not re-implemented in JavaScript.</div>
+    <div style="margin-top:6px">Source &amp; run instructions in the project README. MIT licensed.</div>
+  </footer>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
