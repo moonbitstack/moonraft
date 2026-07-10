@@ -286,9 +286,10 @@ fn RaftNode::release_pending_read_index(self : RaftNode) -> Array[Message] {
   if self.pending_read_index.length() == 0 {
     return []
   }
-  if self.core.term_at(self.core.commit_index) != self.core.current_term() {
-    return []
-  }
+  // The sole caller runs this immediately after `maybe_commit` reported a fresh
+  // commit, which by §5.4.2 only advances the commit index onto a current-term
+  // entry, so the in-term-commit precondition (etcd's `committedEntryInCurrentTerm`
+  // guard in `releasePendingReadIndexMessages`) always already holds here.
   let pending = self.pending_read_index.copy()
   self.pending_read_index.clear()
   let out : Array[Message] = []

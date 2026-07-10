@@ -83,6 +83,14 @@ pub struct RaftNode {
   // zero-valued Config leaves a removed leader in place until the new
   // configuration elects a replacement (etcd's `switchToConfig`).
   step_down_on_removal : Bool
+  // Final appends owed to servers this leader is about to reconcile out of its
+  // peer set: a committed removal drops a peer eagerly on apply, so before its
+  // progress is discarded the leader stages the append carrying that commit here
+  // and flushes it on the next broadcast, so the departing server learns of its
+  // own removal instead of stalling on the pre-removal commit index. etcd keeps
+  // the progress until the application applies the change, which has the same
+  // effect.
+  pending_farewell : Array[Message]
   // Diagnostics sink (etcd's `Config.Logger`); a no-op by default.
   logger : &Logger
   // State-transition tracer (etcd's `Config.TraceLogger`); a no-op by default.
@@ -176,6 +184,7 @@ pub fn RaftNode::new(
     pending_conf_index: 0,
     no_conf_change_validation: disable_conf_change_validation,
     step_down_on_removal,
+    pending_farewell: [],
     logger,
     tracer,
   }
@@ -616,17 +625,18 @@ pub fn RaftNode::transfer_leadership(
   }
   self.lead_transferee = Some(target)
   self.election_elapsed = 0
-  match self.progress.get(target) {
-    None => []
-    Some(p) =>
-      if p.match_index == self.core.last_log_index() {
-        [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
-      } else {
-        match self.send_to(target) {
-          Some(m) => [m]
-          None => []
-        }
-      }
+  // A voting member on a leader always has a progress entry (reconcile_peers
+  // keeps the two in step), so index it directly.
+  let p = self.progress[target]
+  if p.match_index == self.core.last_log_index() {
+    [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
+  } else if self.send_to(target) is Some(m) {
+    [m]
+  } else {
+    // The target is behind the compacted snapshot and has not been heard from,
+    // so `send_to` withholds even the snapshot (D-snap-recentactive). Nothing is
+    // sent; the transfer waits for the target to become active.
+    []
   }
 }
 
@@ -747,6 +757,12 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
       None => ()
     }
   }
+  // Flush any final appends owed to servers just reconciled out of the peer set
+  // (a committed removal), so the departing server hears the removing commit.
+  for m in self.pending_farewell {
+    out.push(m)
+  }
+  self.pending_farewell.clear()
   out
 }
 
@@ -873,9 +889,8 @@ pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
   let mut freed = 0UL
   let mut i = self.core.last_applied + 1
   while i <= index {
-    match self.core.entry_at(i) {
-      Some(e) => freed = freed + payload_size(e)
-      None => ()
+    if self.core.entry_at(i) is Some(e) {
+      freed = freed + payload_size(e)
     }
     i = i + 1
   }
@@ -898,12 +913,9 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
           match ConfChangeV2::decode(e.command) {
             Some(v2) => self.apply_conf_change_v2(v2)
             None =>
-              match ConfChange::decode(e.command) {
-                Some(cc) => {
-                  cc.apply_to(self.config)
-                  self.reconcile_peers()
-                }
-                None => ()
+              if ConfChange::decode(e.command) is Some(cc) {
+                cc.apply_to(self.config)
+                self.reconcile_peers()
               }
           }
         }
@@ -949,9 +961,10 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
   }
   let mut i = self.core.last_applied + 1
   while i <= self.core.commit_index {
-    match self.core.entry_at(i) {
-      Some(e) => if e.is_conf_change() { return true }
-      None => ()
+    if self.core.entry_at(i) is Some(e) {
+      if e.is_conf_change() {
+        return true
+      }
     }
     i = i + 1
   }
@@ -964,15 +977,14 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
 fn RaftNode::has_pending_leave(self : RaftNode) -> Bool {
   let mut i = self.core.commit_index + 1
   while i <= self.core.last_log_index() {
-    match self.core.entry_at(i) {
-      Some(e) =>
-        if e.is_conf_change() {
-          match ConfChangeV2::decode(e.command) {
-            Some(v2) => if v2.is_leave() { return true }
-            None => ()
+    if self.core.entry_at(i) is Some(e) {
+      if e.is_conf_change() {
+        if ConfChangeV2::decode(e.command) is Some(v2) {
+          if v2.is_leave() {
+            return true
           }
         }
-      None => ()
+      }
     }
     i = i + 1
   }
@@ -1173,6 +1185,15 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
     }
   }
   for peer in stale {
+    // A leader tells a departing server about the commit that removes it before
+    // discarding its progress, so it does not stall on the pre-removal commit
+    // index. Withheld only when `send_to` itself withholds (an inactive peer
+    // behind the snapshot), matching etcd, which would not ship it a snapshot.
+    if self.core.role() == Leader {
+      if self.send_to(peer) is Some(m) {
+        self.pending_farewell.push(m)
+      }
+    }
     self.progress.remove(peer)
   }
   for id in desired {
@@ -1181,11 +1202,16 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.peers.push(id)
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
-        self.progress[id] = Progress::new(
+        let p = Progress::new(
           self.core.last_log_index() + 1,
           max_inflight=self.max_inflight,
           max_inflight_bytes=self.max_inflight_bytes,
         )
+        // etcd's initProgress marks a newcomer recently active, so a check-quorum
+        // leader that adds a voter is not immediately stepped down by the very
+        // next quorum check for a member it has not yet had a chance to hear from.
+        p.recent_active = true
+        self.progress[id] = p
       }
       // Keep each progress's learner flag in step with the configuration.
       match self.progress.get(id) {

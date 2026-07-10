@@ -35,9 +35,11 @@ fn bring_into_sync(leader : Node, follower : Node) -> Bool {
     } else if reply.success {
       synced = true
       running = false
-    } else if prev == 0 {
-      running = false
     } else {
+      // A rejection is a log-matching failure, which can only occur above the
+      // shared baseline (index 0 always agrees at equal term), so `prev` is
+      // strictly positive here and the decrement never underflows: the walk-back
+      // terminates once it reaches the baseline and the append is accepted.
       prev = prev - 1
     }
   }

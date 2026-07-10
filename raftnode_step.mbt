@@ -110,9 +110,10 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     | TimeoutNow(_) => []
     PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) =>
       self.dispatch(msg)
-    // Local, routable messages never reach here (handled term-free in `step`);
-    // the arms exist only to keep the match exhaustive.
-    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => []
+    // Local, routable messages are intercepted term-free in `step` and never
+    // reach the term classifier, so one arriving here is a routing bug.
+    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader =>
+      abort("local message reached on_stale")
   }
 }
 
@@ -160,8 +161,9 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     TimeoutNow(term) => self.handle_timeout_now(term)
     ReadIndexResp(reply) => self.handle_read_index_resp(reply)
     // Local, routable messages are handled term-free in `step` and never reach
-    // dispatch; the arms exist only to keep the match exhaustive.
-    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => []
+    // dispatch, so one arriving here is a routing bug.
+    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader =>
+      abort("local message reached dispatch")
   }
 }
 
@@ -515,10 +517,11 @@ fn RaftNode::handle_heartbeat_resp(
       // A heartbeat response clears the flow throttle (etcd), so one more
       // message goes out to a follower that is still behind.
       p.unpause()
+      // The follower was just marked active, so `send_to` yields a message (it
+      // withholds only from an inactive follower behind the snapshot).
       if p.match_index < self.core.last_log_index() && p.state != Snapshot {
-        match self.send_to(from) {
-          Some(m) => out.push(m)
-          None => ()
+        if self.send_to(from) is Some(m) {
+          out.push(m)
         }
       }
       out
@@ -625,10 +628,10 @@ fn RaftNode::handle_append_resp(
           // entries (match < last) or merely on the commit index it has been told
           // (etcd's `CanBumpCommit`, which skips a redundant commit-only MsgApp
           // when the follower already knows the latest in-flight commit). Push it
-          // the next append now rather than waiting for a client proposal.
-          match self.send_to(from) {
-            Some(m) => out.push(m)
-            None => ()
+          // the next append now rather than waiting for a client proposal. The
+          // follower was just marked active, so `send_to` yields a message.
+          if self.send_to(from) is Some(m) {
+            out.push(m)
           }
         }
         out
@@ -651,10 +654,12 @@ fn RaftNode::handle_append_resp(
           if p.state == Replicate {
             p.become_probe()
           }
-          match self.send_to(from) {
-            Some(m) => [m]
-            None => []
+          // The follower was just marked active, so `send_to` yields the retry.
+          let out : Array[Message] = []
+          if self.send_to(from) is Some(m) {
+            out.push(m)
           }
+          out
         } else {
           []
         }
@@ -730,10 +735,12 @@ fn RaftNode::handle_snapshot_resp(
       let _ = p.maybe_update(self.core.snapshot_index)
       p.become_probe()
       p.mark_active()
-      match self.send_to(from) {
-        Some(m) => [m]
-        None => []
+      // Marked active above, so `send_to` yields the next probe.
+      let out : Array[Message] = []
+      if self.send_to(from) is Some(m) {
+        out.push(m)
       }
+      out
     }
   }
 }

@@ -619,6 +619,7 @@ pub struct RaftNode {
   mut pending_conf_index : UInt64
   no_conf_change_validation : Bool
   step_down_on_removal : Bool
+  pending_farewell : Array[Message]
   logger : &Logger
   tracer : &Tracer
 }

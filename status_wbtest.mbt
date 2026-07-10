@@ -11,6 +11,30 @@ test "status reflects a freshly elected leader" {
   assert_eq(s.term, 1)
   assert_true(s.leader == Some("solo"))
   assert_eq(s.commit, 1)
+  // A one-line description names the known leader.
+  assert_eq(s.describe(), "solo leader term=1 leader=solo commit=1 last=1")
+}
+
+///|
+test "status describes a candidate" {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  r.node().become_candidate()
+  let s = r.status()
+  assert_true(s.role == Candidate)
+  assert_eq(s.describe(), "1 candidate term=1 leader=- commit=0 last=0")
+}
+
+///|
+test "status describes a precandidate" {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=true)
+  let mut i = 0
+  while r.status().role != PreCandidate && i < 100 {
+    let _ = r.tick()
+    i = i + 1
+  }
+  let s = r.status()
+  assert_true(s.role == PreCandidate)
+  assert_eq(s.describe(), "1 precandidate term=0 leader=- commit=0 last=0")
 }
 
 ///|

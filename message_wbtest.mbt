@@ -51,6 +51,23 @@ test "a heartbeat and an empty-append probe are distinct kinds" {
 }
 
 ///|
+test "a read-index request reports its kind" {
+  let m = Message::new("f", "L", ReadIndex(b"ctx"))
+  assert_eq(m.kind(), "ReadIndex")
+  assert_false(m.is_response())
+}
+
+///|
+test "a read-index response reports its kind" {
+  let m = Message::new(
+    "L",
+    "f",
+    ReadIndexResp({ term: 1, index: 3, context: b"ctx" }),
+  )
+  assert_eq(m.kind(), "ReadIndexResp")
+}
+
+///|
 test "responses are recognised" {
   let r = Message::new(
     "f",
