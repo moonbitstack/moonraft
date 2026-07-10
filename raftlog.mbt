@@ -14,6 +14,16 @@
 // limitations under the License.
 
 ///|
+/// The one way a `RaftLog` read can fail: the requested index predates the
+/// snapshot baseline and has been compacted away. `slice` / `entries` /
+/// `must_check_out_of_bounds` narrow the storage layer's four-variant
+/// `StorageError` to this single mode at the boundary — a caller such as
+/// `all_entries` then handles exactly the failure that can occur, and no wildcard
+/// arm can silently swallow an `Unavailable` or contract-violating error (etcd
+/// documents that `raftLog.slice` only ever returns `ErrCompacted`).
+pub suberror LogCompacted
+
+///|
 fn u64_min(a : UInt64, b : UInt64) -> UInt64 {
   if a < b {
     a
@@ -460,7 +470,7 @@ pub fn RaftLog::next_committed_ents(
   }
   let max_size = self.max_applying_ents_size - self.applying_ents_size
   self.slice(lo, hi, max_size) catch {
-    _ => abort("unexpected error getting unapplied entries")
+    LogCompacted => abort("unexpected error getting unapplied entries")
   }
 }
 
@@ -506,7 +516,7 @@ pub fn RaftLog::entries(
   self : RaftLog,
   i : UInt64,
   max_size : UInt64,
-) -> Array[Entry] raise StorageError {
+) -> Array[Entry] raise LogCompacted {
   if i > self.last_index() {
     return []
   }
@@ -516,13 +526,11 @@ pub fn RaftLog::entries(
 ///|
 /// Every entry currently in the log.
 pub fn RaftLog::all_entries(self : RaftLog) -> Array[Entry] {
-  // etcd retries on a concurrent `ErrCompacted` and panics on anything else. Since
-  // `entries` -> `slice` only ever surfaces `Compacted` (every other storage error
-  // is aborted inside `slice`, as in etcd), the `_` arm mirrors etcd's equally
-  // unreachable `panic(err)` and is required only for catch exhaustiveness.
+  // `entries` narrows its failure to `LogCompacted`, so the retry on a racing
+  // compaction (etcd's `return l.allEntries()`) is the whole catch — there is no
+  // other error mode and thus no wildcard arm.
   self.entries(self.first_index(), no_limit) catch {
-    Compacted => self.all_entries()
-    _ => abort("unexpected error in all_entries")
+    LogCompacted => self.all_entries()
   }
 }
 
@@ -560,7 +568,7 @@ pub fn RaftLog::slice(
   lo : UInt64,
   hi : UInt64,
   max_size : UInt64,
-) -> Array[Entry] raise StorageError {
+) -> Array[Entry] raise LogCompacted {
   self.must_check_out_of_bounds(lo, hi)
   if lo == hi {
     return []
@@ -569,12 +577,14 @@ pub fn RaftLog::slice(
     return limit_size(self.unstable.slice(lo, hi)[:], max_size)
   }
   let cut = u64_min(hi, self.unstable.offset)
-  // etcd's `raftLog.slice` dispatches on the storage error: `ErrCompacted`
-  // propagates (a caller such as `all_entries` retries a racing compaction),
-  // `ErrUnavailable` and any other error panic. A wildcard catch would fold a
-  // compaction into an abort and defeat that retry, so the codes stay separate.
+  // etcd's `raftLog.slice` dispatches on the storage error and only ever surfaces
+  // `ErrCompacted`: it propagates (a caller such as `all_entries` retries a racing
+  // compaction), while `ErrUnavailable` and any other error panic. Narrowing the
+  // storage layer's `StorageError` to `LogCompacted` here makes that fact a type,
+  // so no caller's catch can fold `Unavailable` or a contract-violating error into
+  // the compaction path.
   let ents = self.storage.storage_entries(lo, cut, max_size) catch {
-    Compacted => raise Compacted
+    Compacted => raise LogCompacted
     Unavailable => abort("entries are unavailable from storage")
     _ => abort("unexpected error reading entries from storage")
   }
@@ -615,13 +625,13 @@ pub fn RaftLog::must_check_out_of_bounds(
   self : RaftLog,
   lo : UInt64,
   hi : UInt64,
-) -> Unit raise StorageError {
+) -> Unit raise LogCompacted {
   if lo > hi {
     abort("invalid slice: lo > hi")
   }
   let fi = self.first_index()
   if lo < fi {
-    raise Compacted
+    raise LogCompacted
   }
   let length = self.last_index() + 1 - fi
   if hi > fi + length {
