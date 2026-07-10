@@ -157,6 +157,16 @@ pub fn RaftNode::new(
 }
 
 ///|
+/// The voters of the current configuration, sorted (etcd's `VoterNodes`), for
+/// status and diagnostics. Sorting makes the list deterministic regardless of
+/// the order members were added.
+pub fn RaftNode::voter_nodes(self : RaftNode) -> Array[String] {
+  let out = self.config.voters()
+  out.sort()
+  out
+}
+
+///|
 /// Whether this node may stand for election (etcd's `promotable`): it must be a
 /// voter of the current configuration. A learner or a node that has been removed
 /// is not promotable. (etcd also refuses while a snapshot is being applied; this
@@ -425,6 +435,7 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
   self.leader_id = None
   self.in_pre_campaign = false
   self.pending_conf_index = 0
+  self.lead_transferee = None
   self.reset_timeout()
   self.tracer.on_event(StateChange(self.id, Follower, term))
   self.logger.log(Info, "\{self.id} became follower at term \{term}")
@@ -437,6 +448,7 @@ pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
   self.core.become_candidate()
   self.leader_id = None
   self.pending_conf_index = 0
+  self.lead_transferee = None
   self.reset_timeout()
   self.tracer.on_event(
     StateChange(self.id, Candidate, self.core.current_term()),
