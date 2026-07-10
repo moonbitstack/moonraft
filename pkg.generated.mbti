@@ -32,9 +32,15 @@ pub fn demo_tick() -> Unit
 
 pub fn demo_transfer(String) -> Bool
 
+pub fn hard_state_equal(HardState, HardState) -> Bool
+
+pub fn must_sync(HardState, HardState, Int) -> Bool
+
 pub fn replicate(Node, Array[Node]) -> UInt64
 
 pub fn run_election(Node, Array[Node]) -> Bool
+
+pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
 
 pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
 
@@ -145,6 +151,7 @@ pub(all) struct HardState {
   commit : UInt64
 } derive(Eq)
 pub fn HardState::initial() -> Self
+pub fn HardState::is_empty(Self) -> Bool
 
 type InFlight
 
@@ -356,8 +363,10 @@ pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
 pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
+pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
 pub fn RaftNode::role(Self) -> Role
+pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
 pub fn RaftNode::step(Self, Message) -> Array[Message]
 pub fn RaftNode::term(Self) -> UInt64
@@ -374,6 +383,47 @@ pub(all) struct RaftStatus {
   applied : UInt64
 } derive(Eq)
 pub fn RaftStatus::describe(Self) -> String
+
+pub struct RawNode {
+  raft : RaftNode
+  msgs : Array[Message]
+  read_states : Array[ReadState]
+  mut prev_soft : SoftState
+  mut prev_hard : HardState
+  mut stabled : UInt64
+}
+pub fn RawNode::advance(Self, Ready) -> Unit
+pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
+pub fn RawNode::campaign(Self) -> Unit
+pub fn RawNode::has_ready(Self) -> Bool
+pub fn RawNode::new(RaftNode) -> Self
+pub fn RawNode::node(Self) -> RaftNode
+pub fn RawNode::propose(Self, Bytes) -> Unit
+pub fn RawNode::propose_conf(Self, ConfChange) -> Unit
+pub fn RawNode::read_index(Self, Bytes) -> Unit
+pub fn RawNode::ready(Self) -> Ready
+pub fn RawNode::ready_without_accept(Self) -> Ready
+pub fn RawNode::stabilize(Self) -> Array[Message]
+pub fn RawNode::status(Self) -> RaftStatus
+pub fn RawNode::step(Self, Message) -> Unit
+pub fn RawNode::tick(Self) -> Unit
+pub fn RawNode::transfer_leader(Self, String) -> Unit
+
+pub(all) struct ReadState {
+  index : UInt64
+  request_ctx : Bytes
+} derive(Eq)
+
+pub(all) struct Ready {
+  soft_state : SoftState?
+  hard_state : HardState?
+  read_states : Array[ReadState]
+  entries : Array[Entry]
+  snapshot : Snapshot?
+  committed_entries : Array[Entry]
+  messages : Array[Message]
+  must_sync : Bool
+}
 
 pub(all) struct RequestVoteArgs {
   term : UInt64
@@ -400,6 +450,12 @@ pub(all) struct Snapshot {
 } derive(Eq)
 pub fn Snapshot::empty() -> Self
 pub fn Snapshot::is_empty(Self) -> Bool
+
+pub(all) struct SoftState {
+  lead : String?
+  state : Role
+} derive(Eq)
+pub fn SoftState::equal(Self, Self) -> Bool
 
 pub enum VoteState {
   VoteWon
