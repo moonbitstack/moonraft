@@ -697,8 +697,12 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
   let entries = if p.state == Replicate && p.inflights.full() {
     []
   } else {
-    // Cap the batch by both count (max_entries) and encoded byte size
-    // (MaxSizePerMsg); limit_size always keeps at least one entry.
+    // Cap the batch by encoded byte size (etcd's MaxSizePerMsg) and, as an
+    // extra bound etcd does NOT have, by entry count (max_entries, default 256).
+    // DIVERGENT (we do more): etcd caps a MsgApp only by bytes; the count cap is
+    // a belt-and-suspenders limit, latent while max_msg_bytes is finite and the
+    // in-flight message/byte windows bound throughput anyway. limit_size always
+    // keeps at least one entry.
     limit_size(
       self.core.entries_after_limited(prev, self.max_entries)[:],
       self.max_msg_bytes,
