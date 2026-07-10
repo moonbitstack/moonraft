@@ -23,12 +23,49 @@ pub struct Progress {
   mut match_index : UInt64
   mut state : ProgressState
   mut recent_active : Bool
+  inflights : Inflights
 }
 
 ///|
-/// A fresh progress that will start probing from `next`.
-pub fn Progress::new(next : UInt64) -> Progress {
-  { next_index: next, match_index: 0, state: Probe, recent_active: false }
+/// A fresh progress that will start probing from `next`, with a replication
+/// flow-control window of `max_inflight` outstanding AppendEntries.
+pub fn Progress::new(next : UInt64, max_inflight? : Int = 256) -> Progress {
+  {
+    next_index: next,
+    match_index: 0,
+    state: Probe,
+    recent_active: false,
+    inflights: Inflights::new(max_inflight, 0),
+  }
+}
+
+///|
+/// Whether replication to this follower is currently throttled: in `Replicate`
+/// once the in-flight window is full, and always while a snapshot is pending.
+/// A `Probe` follower is never throttled here — it is paced one message per
+/// heartbeat by the caller.
+pub fn Progress::is_paused(self : Progress) -> Bool {
+  match self.state {
+    Replicate => self.inflights.full()
+    Snapshot => true
+    Probe => false
+  }
+}
+
+///|
+/// Record that a replication message ending at `last` was sent, consuming a slot
+/// of the in-flight window. Only meaningful in `Replicate`.
+pub fn Progress::sent_entries(self : Progress, last : UInt64) -> Unit {
+  if self.state == Replicate {
+    self.optimistic_advance(last)
+    self.inflights.add(last, 1)
+  }
+}
+
+///|
+/// Free every in-flight slot up through the acknowledged `index`.
+pub fn Progress::free_le(self : Progress, index : UInt64) -> Unit {
+  self.inflights.free_le(index)
 }
 
 ///|
@@ -52,6 +89,7 @@ pub fn Progress::is_active(self : Progress) -> Bool {
 ///|
 /// Move to streaming replication, sending from just past the match point.
 pub fn Progress::become_replicate(self : Progress) -> Unit {
+  self.inflights.reset()
   self.state = Replicate
   self.next_index = self.match_index + 1
 }
@@ -59,6 +97,7 @@ pub fn Progress::become_replicate(self : Progress) -> Unit {
 ///|
 /// Move back to cautious probing, one entry at a time.
 pub fn Progress::become_probe(self : Progress) -> Unit {
+  self.inflights.reset()
   self.state = Probe
 }
 
@@ -69,6 +108,7 @@ pub fn Progress::become_snapshot(
   self : Progress,
   snapshot_index : UInt64,
 ) -> Unit {
+  self.inflights.reset()
   self.state = Snapshot
   self.next_index = snapshot_index + 1
 }

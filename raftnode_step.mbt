@@ -9,26 +9,89 @@ fn log_up_to_date(core : Node, cand_term : UInt64, cand_index : UInt64) -> Bool 
 }
 
 ///|
+/// How an incoming message's term compares with ours. Classifying once, up
+/// front, is what lets `step` treat a stale message structurally instead of
+/// leaving each handler to remember the check — the omission that was bug B1.
+priv enum TermRel {
+  Stale
+  Aligned
+  Ahead
+}
+
+///|
+fn RaftNode::term_rel(self : RaftNode, msg : Message) -> TermRel {
+  let t = msg.term()
+  let cur = self.core.current_term()
+  if t < cur {
+    Stale
+  } else if t > cur {
+    Ahead
+  } else {
+    Aligned
+  }
+}
+
+///|
 /// Process one incoming message and return the messages to send in reply. This
 /// is the single entry point the transport drives; together with `tick` it is
 /// the whole externally-visible behaviour of a server.
+///
+/// The term is classified first (Raft §5.1). A stale message is never allowed
+/// to reach a handler as if it were current: acting on a stale *response* is
+/// exactly what let a late `VoteResp` be miscounted into a false majority
+/// (double leader) or a late `AppendResp` inflate a follower's progress.
 pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
-  // Adopt a strictly higher term and step down — except for pre-vote traffic,
-  // which is hypothetical and must not move our term or make us yield.
+  match self.term_rel(msg) {
+    Stale => self.on_stale(msg)
+    Ahead => {
+      self.adopt_higher_term(msg)
+      self.dispatch(msg)
+    }
+    Aligned => self.dispatch(msg)
+  }
+}
+
+///|
+/// Handle a message stamped with a term below ours. Responses are dropped, so a
+/// reply from a superseded term can never move our state. Requests are still
+/// answered — the reply carries our current term, which is how the sender
+/// learns it is behind and steps down — and their handlers already reject on
+/// the stale term. (etcd's `Step` does the same: ignore stale responses; for
+/// stale MsgApp/MsgVote/MsgSnap reveal our term to the sender.)
+fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
+  match msg.payload {
+    VoteResp(_)
+    | PreVoteResp(_)
+    | AppendResp(_)
+    | SnapshotResp(_)
+    | TimeoutNow(_) => []
+    PreVote(_) | Vote(_) | Append(_) | Snapshot(_) => self.dispatch(msg)
+  }
+}
+
+///|
+/// Adopt a strictly higher term and step down — except for pre-vote traffic,
+/// which is hypothetical (a pre-candidate probes under a term it has not
+/// adopted) and must neither move our term nor make us yield.
+fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
   match msg.payload {
     PreVote(_) | PreVoteResp(_) => ()
-    _ =>
-      if msg.term() > self.core.current_term() {
-        self.core.become_follower(msg.term())
-        self.in_pre_campaign = false
-        self.leader_id = match msg.payload {
-          Append(a) => Some(a.leader_id)
-          Snapshot(a) => Some(a.leader_id)
-          _ => None
-        }
-        self.reset_timeout()
+    _ => {
+      self.core.become_follower(msg.term())
+      self.in_pre_campaign = false
+      self.leader_id = match msg.payload {
+        Append(a) => Some(a.leader_id)
+        Snapshot(a) => Some(a.leader_id)
+        _ => None
       }
+      self.reset_timeout()
+    }
   }
+}
+
+///|
+/// Route a term-checked message to its handler.
+fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
   match msg.payload {
     PreVote(args) => self.handle_pre_vote(msg.from, args)
     PreVoteResp(reply) => self.handle_pre_vote_resp(msg.from, reply)
@@ -76,19 +139,23 @@ fn RaftNode::handle_pre_vote_resp(
   from : String,
   reply : RequestVoteReply,
 ) -> Array[Message] {
-  if !self.in_pre_campaign {
-    return []
-  }
+  guard self.in_pre_campaign else { return [] }
+  // A rejection revealing a higher term ends the pre-campaign (etcd only skips
+  // stepping down for a *granted* pre-vote, which carries our own future term).
   if !reply.vote_granted && reply.term > self.core.current_term() {
     self.core.become_follower(reply.term)
     self.in_pre_campaign = false
     return []
   }
   self.votes[from] = reply.vote_granted
-  if self.config.has_majority(self.granted()) {
-    return self.start_real_campaign()
+  match self.config.vote_result(self.votes) {
+    VoteWon => self.start_real_campaign()
+    VoteLost => {
+      self.in_pre_campaign = false
+      []
+    }
+    VotePending => []
   }
-  []
 }
 
 ///|
@@ -111,19 +178,21 @@ fn RaftNode::handle_vote_resp(
   from : String,
   reply : RequestVoteReply,
 ) -> Array[Message] {
-  if self.core.role() != Candidate {
-    return []
-  }
-  if reply.term > self.core.current_term() {
-    self.core.become_follower(reply.term)
-    return []
-  }
+  guard self.core.role() == Candidate else { return [] }
   self.votes[from] = reply.vote_granted
-  if self.config.has_majority(self.granted()) {
-    self.become_leader()
-    return self.bcast_append()
+  // Count with the quorum's three-valued result so a candidate that is denied
+  // by a majority steps down at once instead of waiting out its timer.
+  match self.config.vote_result(self.votes) {
+    VoteWon => {
+      self.become_leader()
+      self.bcast_append()
+    }
+    VoteLost => {
+      self.core.become_follower(self.core.current_term())
+      []
+    }
+    VotePending => []
   }
-  []
 }
 
 ///|
@@ -161,8 +230,14 @@ fn RaftNode::handle_append_resp(
     Some(p) => {
       p.mark_active()
       if reply.success {
-        let _ = p.maybe_update(reply.match_index)
-        p.become_replicate()
+        p.maybe_update(reply.match_index) |> ignore
+        // A first ack promotes a prober to streaming; a streaming follower just
+        // releases the acknowledged slots of its in-flight window.
+        match p.state {
+          Probe => p.become_replicate()
+          Replicate => p.free_le(reply.match_index)
+          Snapshot => ()
+        }
         let out : Array[Message] = []
         if self.maybe_commit() {
           // A new commit: tell every follower, which also carries entries to
@@ -170,7 +245,7 @@ fn RaftNode::handle_append_resp(
           for m in self.bcast_append() {
             out.push(m)
           }
-        } else if p.match_index < self.core.last_log_index() {
+        } else if p.match_index < self.core.last_log_index() && !p.is_paused() {
           // This follower acked (often a heartbeat) but is still behind; push
           // it the next entries now instead of waiting for a client proposal.
           out.push(self.send_to(from))

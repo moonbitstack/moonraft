@@ -2,6 +2,8 @@
 package "heke1228/raft-moonbit"
 
 // Values
+pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
+
 pub fn demo_crash(String) -> Unit
 
 pub fn demo_heal() -> Unit
@@ -33,6 +35,8 @@ pub fn demo_transfer(String) -> Bool
 pub fn replicate(Node, Array[Node]) -> UInt64
 
 pub fn run_election(Node, Array[Node]) -> Bool
+
+pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
 
 // Errors
 
@@ -141,6 +145,27 @@ pub fn HardState::initial() -> Self
 
 type InFlight
 
+pub(all) struct Inflight {
+  mut index : UInt64
+  mut bytes : UInt64
+} derive(Eq)
+
+pub struct Inflights {
+  mut start : Int
+  mut count : Int
+  mut bytes : UInt64
+  size : Int
+  max_bytes : UInt64
+  mut buffer : Array[Inflight]
+}
+pub fn Inflights::add(Self, UInt64, UInt64) -> Unit
+pub fn Inflights::clone(Self) -> Self
+pub fn Inflights::count(Self) -> Int
+pub fn Inflights::free_le(Self, UInt64) -> Unit
+pub fn Inflights::full(Self) -> Bool
+pub fn Inflights::new(Int, UInt64) -> Self
+pub fn Inflights::reset(Self) -> Unit
+
 pub(all) struct InstallSnapshotArgs {
   term : UInt64
   leader_id : String
@@ -162,6 +187,7 @@ pub(all) struct Membership {
   mut joint : Bool
 }
 pub fn Membership::add(Self, String) -> Unit
+pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
 pub fn Membership::contains(Self, String) -> Bool
 pub fn Membership::enter_joint(Self, Array[String]) -> Unit
 pub fn Membership::has_majority(Self, Array[String]) -> Bool
@@ -171,6 +197,7 @@ pub fn Membership::new(Array[String]) -> Self
 pub fn Membership::quorum(Self) -> Int
 pub fn Membership::remove(Self, String) -> Unit
 pub fn Membership::size(Self) -> Int
+pub fn Membership::vote_result(Self, Map[String, Bool]) -> VoteState
 pub fn Membership::voters(Self) -> Array[String]
 
 pub struct MemoryStorage {
@@ -264,17 +291,21 @@ pub struct Progress {
   mut match_index : UInt64
   mut state : ProgressState
   mut recent_active : Bool
+  inflights : Inflights
 }
 pub fn Progress::become_probe(Self) -> Unit
 pub fn Progress::become_replicate(Self) -> Unit
 pub fn Progress::become_snapshot(Self, UInt64) -> Unit
+pub fn Progress::free_le(Self, UInt64) -> Unit
 pub fn Progress::is_active(Self) -> Bool
+pub fn Progress::is_paused(Self) -> Bool
 pub fn Progress::mark_active(Self) -> Unit
 pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
 pub fn Progress::maybe_update(Self, UInt64) -> Bool
-pub fn Progress::new(UInt64) -> Self
+pub fn Progress::new(UInt64, max_inflight? : Int) -> Self
 pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
 pub fn Progress::reset_active(Self) -> Unit
+pub fn Progress::sent_entries(Self, UInt64) -> Unit
 
 pub enum ProgressState {
   Probe
@@ -309,7 +340,7 @@ pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
 pub fn RaftNode::leader(Self) -> String?
-pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64) -> Self
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, pre_vote? : Bool) -> Self
 pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
 pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
@@ -358,6 +389,12 @@ pub(all) struct Snapshot {
 } derive(Eq)
 pub fn Snapshot::empty() -> Self
 pub fn Snapshot::is_empty(Self) -> Bool
+
+pub enum VoteState {
+  VoteWon
+  VoteLost
+  VotePending
+} derive(Eq)
 
 pub enum WalRecord {
   WalHardState(HardState)

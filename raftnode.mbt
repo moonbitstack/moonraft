@@ -38,6 +38,7 @@ pub fn RaftNode::new(
   election_timeout? : Int = 10,
   heartbeat_timeout? : Int = 1,
   max_entries? : UInt64 = 256,
+  pre_vote? : Bool = true,
 ) -> RaftNode {
   let all = [id]
   for p in peers {
@@ -50,7 +51,7 @@ pub fn RaftNode::new(
     config: Membership::new(all),
     progress: {},
     votes: {},
-    pre_vote: true,
+    pre_vote,
     check_quorum: false,
     in_pre_campaign: false,
     leader_id: None,
@@ -343,7 +344,8 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   }
   let entries = self.core.entries_after_limited(prev, self.max_entries)
   if p.state == Replicate && entries.length() > 0 {
-    p.optimistic_advance(entries[entries.length() - 1].index)
+    // Streaming: advance optimistically and consume a flow-control slot.
+    p.sent_entries(entries[entries.length() - 1].index)
   }
   Message::new(
     self.id,
@@ -363,8 +365,14 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
 /// Send an AppendEntries (or snapshot) to every follower.
 fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
   let out : Array[Message] = []
-  for p in self.peers {
-    out.push(self.send_to(p))
+  for peer in self.peers {
+    // Throttle a streaming follower whose in-flight window is full; a probing
+    // or snapshotting follower is handled by send_to as before.
+    let p = self.progress[peer]
+    if p.state == Replicate && p.inflights.full() {
+      continue
+    }
+    out.push(self.send_to(peer))
   }
   out
 }
@@ -410,26 +418,21 @@ fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
 /// a leader never commits an entry from an earlier term by counting replicas
 /// alone (Raft §5.4.2). Self counts as having stored up to its last index.
 fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
-  let last = self.core.last_log_index()
-  let mut candidate = self.core.commit_index
-  let mut n = last
-  while n > self.core.commit_index {
-    if self.core.term_at(n) == self.core.current_term() {
-      let acked : Array[String] = [self.id]
-      for peer, p in self.progress {
-        if p.match_index >= n {
-          acked.push(peer)
-        }
-      }
-      if self.config.has_majority(acked) {
-        candidate = n
-        break
-      }
-    }
-    n = n - 1
+  // The highest index a quorum of the configuration has stored (the leader
+  // itself included, at its last index). In a joint configuration this is the
+  // smaller of the two halves' agreed indices.
+  let acked : Map[String, UInt64] = {}
+  acked[self.id] = self.core.last_log_index()
+  for peer, p in self.progress {
+    acked[peer] = p.match_index
   }
-  if candidate > self.core.commit_index {
-    self.core.advance_commit(candidate)
+  let mci = self.config.committed_index(acked)
+  // §5.4.2: a leader only commits an index whose entry is from its own term;
+  // since terms are monotonic in the log, no lower current-term index can be
+  // committed if this one is not.
+  if mci > self.core.commit_index &&
+    self.core.term_at(mci) == self.core.current_term() {
+    self.core.advance_commit(mci)
     true
   } else {
     false
