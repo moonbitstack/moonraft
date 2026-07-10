@@ -129,11 +129,130 @@ Ported in `progress_port_wbtest.mbt`:
 The core file. Many need features being implemented: learners, ReadOnlySafe,
 leadTransferee state machine, confchange application. Ported incrementally.
 
-## node_test.go — IMPL (0/22)
-Needs the `Node`/`Ready`/`Advance` async API (RawNode layer).
+## rawnode_test.go — DONE (9/12 ported, 3 N/A; +2 benchmarks N/A)
+Feature added: `rawnode.mbt` (`RawNode`), `ready.mbt` (`Ready`/`SoftState`/
+`ReadState`/`HardState` change-detection + `must_sync`), `rawnode_driver.mbt`
+(`run_single_node`). `RawNode` wraps the existing `RaftNode`: the core's
+message-returning `tick`/`step`/`propose`/`campaign` are batched into the
+synchronous Ready/Advance cycle. A `stabled` watermark on `RawNode` splits
+entries-to-persist (`entries`) from committed-to-apply (`committed_entries` =
+`(applied, min(commit, stabled)]`); capping commit at `stabled` reproduces
+etcd's "persist before apply" sequencing (an entry surfaces as `entries` in one
+Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
+- `TestRawNodeStep` — DONE (adapted). etcd rejects *local* message types at
+  runtime; in our type system a local op cannot be built as a `Message` (they
+  are the distinct methods `campaign`/`tick`/`propose`/`read_index`), so
+  rejection is a compile-time guarantee. Test walks all 9 network `Payload`
+  variants through `Step`.
+- `TestRawNodeProposeAndConfChange` — DONE for the V1 `AddNode` case (voter set
+  `{1,2}`, command-then-confchange log layout). The 7 joint / `ConfChangeV2` /
+  learner / `LearnersNext` cases are **N/A**: they need `ConfChangeV2`, joint
+  consensus, and `ConfState` (`VotersOutgoing`/`Learners`/`AutoLeave`) that live
+  in `confchange.mbt` / `membership.mbt` — owned by another agent's boundary,
+  and the current confchange is V1 single-server (`+id`/`-id`) only.
+- `TestRawNodeJointAutoLeave` — **N/A**: pure joint auto-leave (ConfChangeV2 +
+  `AutoLeave`), same boundary as above.
+- `TestRawNodeProposeAddDuplicateNode` — DONE (V1). Duplicate `AddNode` still
+  appends its entry, so the log holds cc1, cc1, cc2.
+- `TestRawNodeReadIndex` — DONE (both halves): a recorded `ReadState` is
+  surfaced by `Ready` and reset on accept; `read_index` on a leader records a
+  `ReadState` at the commit index carrying the caller's context. etcd's second
+  half installs a `step` hook to observe a `MsgReadIndex`; we assert the
+  observable outcome (the `ReadState`) since read entry-points are methods.
+- `TestRawNodeStart` — DONE (adapted). etcd bootstraps from a `MemoryStorage`
+  snapshot at index 1 (`FirstIndex >= 2`); we start a fresh node, so indices are
+  one lower and the two committed entries surface across two Readys (our
+  single-node commits the election no-op eagerly). The lifecycle invariants are
+  identical and all checked: entry emitted for persistence before application,
+  `MustSync` set only while a durable write is pending, `HasReady` → false at
+  quiescence.
+- `TestRawNodeRestart` — DONE. Recovered committed prefix emits only
+  `committed_entries`, no HardState, `MustSync` false.
+- `TestRawNodeRestartFromSnapshot` — DONE (snapshot at index 2 + one entry).
+- `TestRawNodeStatus` — DONE for leader/role/term. etcd additionally asserts on
+  `status.Progress[1]` and `tracker.Config`; **that part is N/A** — `RaftStatus`
+  does not expose the progress map or a `quorum.JointConfig`, which are
+  membership-boundary types.
+- `TestRawNodeCommitPaginationAfterRestart` — **N/A**: exercises byte-size commit
+  pagination (`MaxSizePerMsg` + `ignoreSizeHintMemStorage`) and the
+  HardState-commit-regression bug it guards. Our layer applies committed entries
+  by index, not by a per-Ready byte budget, so there is no size-hint code path to
+  regress. Equivalent coverage: `TestRawNodeStart`/`TestNodeAdvance` prove the
+  applied cursor never gaps or regresses across Ready/Advance cycles.
+- `TestRawNodeBoundedLogGrowthWithPartition` — **N/A**: needs
+  `MaxUncommittedEntriesSize` + the raft-core `uncommittedSize` backpressure
+  counter, which does not exist in this build (proposals are never throttled by
+  an uncommitted-byte budget). Would require core changes outside the RawNode
+  layer.
+- `TestRawNodeConsumeReady` — DONE. `ready_without_accept` leaves the message
+  buffer; `ready` drains it; `advance` does not drop a message enqueued after.
+- `BenchmarkStatus`, `BenchmarkRawNode` — **N/A** (benchmarks).
 
-## rawnode_test.go — IMPL (0/12, +2 benchmarks N/A)
-Needs `RawNode` + `Ready`/`HasReady`/`Advance`/`acceptReady`.
+## node_test.go — DONE (12/22 ported, 10 N/A)
+etcd's `Node` is a goroutine loop over Go channels; `RawNode` is its documented
+goroutine-free equivalent, so protocol-level tests map directly. Ported in
+`node_port_wbtest.mbt`. Tests that assert channel/goroutine/context plumbing
+(which MoonBit has no analogue for — no channels, no goroutines) are N/A.
+- `TestSoftStateEqual` — DONE (3 cases).
+- `TestIsHardStateEqual` — DONE (4 cases).
+- `TestNodeStep` — DONE (adapted): proposals route through `Propose`, network
+  messages through `Step`; a stepped network message yields a buffered reply.
+- `TestNodePropose` — DONE (leader append surfaced by Ready).
+- `TestNodeProposeConfig` — DONE (V1 conf-change appended, payload preserved).
+- `TestNodeProposeAddDuplicateNode` — DONE (mapped to RawNode; 4 committed
+  entries: no-op + cc1 + cc1 + cc2).
+- `TestBlockProposal` — DONE (adapted): a pre-leader proposal produces no entry;
+  a post-leader one is appended. (etcd blocks the caller goroutine; the
+  observable equivalent without goroutines is the dropped proposal.)
+- `TestNodeTick` — DONE (one tick advances the election clock by one).
+- `TestNodeAdvance` — DONE (a committed entry is available to apply after
+  Advance).
+- `TestNodeStart` — DONE (adapted): HardState progression (vote+commit on
+  election, commit bump on proposal, apply-only final Ready with `MustSync`
+  false). The `StartNode` faux-ConfChange bootstrap is not modeled (V1 boundary).
+- `TestNodeRestart` — DONE.
+- `TestNodeRestartFromSnapshot` — DONE.
+- `TestNodeStepUnblock` — **N/A**: `Step` blocking on an unbuffered channel,
+  unblocked by `close(done)` or `context` cancel. No channels/goroutines.
+- `TestDisableProposalForwarding` — **N/A**: proposal forwarding from follower to
+  leader is not modeled — `propose` is leader-only (drops on a follower, which is
+  the `DisableProposalForwarding=true` behaviour, not the default forward).
+- `TestNodeReadIndexToOldLeader` — **N/A**: read-index forwarding across a leader
+  change; forwarding is not modeled.
+- `TestNodeProposeWaitDropped` — **N/A**: goroutine + `ErrProposalDropped` via a
+  `step`-hook injection + `context` timeout cancellation.
+- `TestNodeStop` — **N/A**: goroutine lifecycle and `Stop` idempotency; the empty
+  `Status{}` after stop has no analogue.
+- `TestNodeProposeAddLearnerNode` — **N/A**: learners
+  (`ConfChangeAddLearnerNode`, `ConfState.Learners`) — confchange/membership
+  boundary.
+- `TestAppendPagination` — **N/A**: `MaxSizePerMsg` append pagination measured
+  through the `rafttest` network harness `msgHook`. Our `entries_after_limited`
+  implements the per-message cap, but the end-to-end network-partition byte-budget
+  assertion needs the rafttest harness (separate porting target).
+- `TestCommitPagination` — **N/A**: `MaxCommittedSizePerReady` byte pagination;
+  not modeled (we apply by index, not byte budget).
+- `TestCommitPaginationWithAsyncStorageWrites` — **N/A**: `AsyncStorageWrites`
+  (see the async section below).
+- `TestNodeCommitPaginationAfterRestart` — **N/A**: byte-size commit pagination +
+  `ignoreSizeHintMemStorage` (same reason as the rawnode twin).
+
+### asyncStorageWrites — NOT implemented (deliberate), with equivalent coverage
+etcd's `AsyncStorageWrites` replaces `Advance` with `MsgStorageAppend`/
+`MsgStorageApply` local messages carrying `Responses`, delivered back through
+`Step`. It exists to overlap disk writes with computation across goroutine
+threads (`LocalAppendThread`/`LocalApplyThread`). Our build is single-threaded
+and the browser demo target is wasm, where MoonBit's `async` is unsupported;
+there is no thread to hand storage work to. Implementing the async message
+protocol would add a parallel `Ready` code path (`newStorageAppendMsg`/
+`newStorageAppendRespMsg`/`acceptReady` sidecar) with no runtime benefit here and
+would not unlock any protocol behaviour the synchronous path does not already
+cover. The two async-only tests
+(`TestCommitPaginationWithAsyncStorageWrites`) are the only upstream tests it
+would add; both are byte-pagination variants already N/A on the size-budget
+grounds above. Our synchronous `ready`/`advance` provides the same *ordering*
+guarantee the contract mandates (persist `entries` before sending `messages`,
+apply `committed_entries` only after they are stabled).
 
 ## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs, many cases)
 Needs the confchange applier (Simple/EnterJoint/LeaveJoint/Restore) + learners.
@@ -183,3 +302,10 @@ Deterministic network harness; overlaps our `sim.mbt`.
   failed**, on all four backends.
 - Batch 4 (tracker/progress_test port): **302 passed, 0 failed**, on all four
   backends.
+- Batch 5 (RawNode + Ready/Advance layer: `rawnode.mbt`, `ready.mbt`,
+  `rawnode_driver.mbt`; 9/12 rawnode_test.go + 12/22 node_test.go ported, rest
+  N/A with per-function reasons above): **325 passed, 0 failed** on wasm,
+  wasm-gc, and js. Native `moon check --target native` is green; native `moon
+  test` cannot run in this environment (missing C toolchain header `stddef.h`),
+  which also fails identically on the untouched `master` baseline — an
+  environment limitation, not a code regression.
