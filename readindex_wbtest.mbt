@@ -6,6 +6,23 @@ test "a follower refuses to serve a read" {
 }
 
 ///|
+/// A leader with followers holds a read lease only while a quorum has answered
+/// within the current liveness window. A fresh leader has heard from no follower,
+/// so its window holds only itself — one short of a majority in a three-node
+/// group — and the lease is denied. A single acknowledgement lifts the window to
+/// a majority and the lease is granted. Mirrors etcd
+/// tracker/tracker.go:207 `QuorumActive`, which wins only when the voters whose
+/// `RecentActive` flag is set form a majority.
+test "has_lease requires an active quorum" {
+  let l = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  l.node().become_candidate()
+  l.become_leader()
+  assert_false(l.has_lease())
+  l.step(ack_from("2", 1, l.term())) |> ignore
+  assert_true(l.has_lease())
+}
+
+///|
 test "a lone leader serves a read at its commit index" {
   let n = RaftNode::new("solo", [])
   let mut ticks = 0

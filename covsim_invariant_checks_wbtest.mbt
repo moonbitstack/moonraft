@@ -47,3 +47,23 @@ test "a disagreeing committed slot fails the prefix check" {
     all_slots_agree([[Some(b"x"), Some(b"x")], [Some(b"y"), Some(b"z")]]),
   )
 }
+
+///|
+/// State Machine Safety (Raft §5.4.3): two servers that have committed an entry
+/// at the same index have committed the same entry. A correct run never diverges
+/// over the committed prefix, so the `committed_agrees` checker (which compares
+/// the term at every committed index across live nodes) must still detect a
+/// forged divergence; otherwise the invariant would hold vacuously. Rewriting the
+/// term of one node's committed entry drives the checker to report the violation.
+test "committed_agrees detects a forged divergence in the committed prefix" {
+  let c = Cluster::new(["a", "b", "c"], seed=5)
+  let _ = c.run_until_leader(200)
+  let _ = c.propose(b"cmd")
+  assert_true(c.run_until_committed(2, 200))
+  c.run(40)
+  assert_true(c.committed_agrees())
+  let n = c.node("a").node()
+  let e = n.log[0]
+  n.log[0] = Entry::normal(e.term + 7, e.index, e.command)
+  assert_false(c.committed_agrees())
+}

@@ -144,3 +144,28 @@ test "cov: Propose carrying a conf change — accepted then refused" {
   // ...but no second membership change is pending beyond the first.
   assert_false(r.config.contains("5"))
 }
+
+///|
+/// `report_unreachable` and `report_snapshot` mutate follower progress, so they
+/// are leader-only; etcd routes MsgUnreachable and MsgSnapStatus through
+/// `stepLeader` alone, and a follower ignores them. Prepared progress states
+/// survive a report issued after the node has stepped down, confirming the
+/// leader guard short-circuits before any mutation.
+test "a non-leader ignores unreachability and snapshot reports" {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  r.node().become_candidate()
+  r.become_leader()
+  match r.progress.get("2") {
+    Some(p) => p.become_replicate()
+    None => abort("leader tracks follower 2")
+  }
+  match r.progress.get("3") {
+    Some(p) => p.become_snapshot(5)
+    None => abort("leader tracks follower 3")
+  }
+  r.become_follower(r.term() + 1)
+  r.report_unreachable("2")
+  r.report_snapshot("3", true)
+  assert_true(r.progress.get("2").unwrap().state == Replicate)
+  assert_true(r.progress.get("3").unwrap().state == Snapshot)
+}

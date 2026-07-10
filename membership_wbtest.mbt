@@ -67,3 +67,54 @@ test "voters de-duplicates across the joint halves" {
   assert_true(v.contains("a"))
   assert_true(v.contains("d"))
 }
+
+///|
+/// A voter demoted while it is still a member of the outgoing half is *staged* in
+/// `learners_next` rather than becoming a learner at once (etcd
+/// confchange/confchange.go:223 `makeLearner`). Re-adding it as a voter cancels
+/// the staging: the pending demotion is dropped and it stays a voter after the
+/// joint config is left (confchange/confchange.go:187 `makeVoter`,
+/// `nilAwareDelete(&cfg.LearnersNext, id)`). A second staged voter, left
+/// untouched, still becomes a learner on leave.
+test "re-adding a staged-demotion voter cancels the demotion" {
+  let m = Membership::new(["a", "b", "c"])
+  m.enter_joint(["c", "d"])
+  m.add_learner("a")
+  m.add_learner("b")
+  m.add("a")
+  m.leave_joint()
+  assert_true(m.contains("a"))
+  assert_false(m.is_learner("a"))
+  assert_true(m.is_learner("b"))
+  assert_false(m.contains("b"))
+}
+
+///|
+/// Removing a staged-demotion voter drops it from `learners_next` too
+/// (confchange/confchange.go:243 `remove`, `nilAwareDelete(&cfg.LearnersNext,
+/// id)`), so it does not resurface as a learner when the joint config is left. A
+/// second staged voter, left in place, does become a learner on leave.
+test "removing a staged-demotion voter clears the pending learner" {
+  let m = Membership::new(["a", "b", "c"])
+  m.enter_joint(["c", "d"])
+  m.add_learner("a")
+  m.add_learner("b")
+  m.remove("a")
+  m.leave_joint()
+  assert_false(m.contains("a"))
+  assert_false(m.is_learner("a"))
+  assert_true(m.is_learner("b"))
+}
+
+///|
+/// A joint election is won only when a majority of both halves grants the vote
+/// (etcd quorum/joint.go:61 `VoteResult`). A majority of the incoming half alone
+/// leaves the outcome pending; majorities of both halves win it.
+test "vote_result needs both halves to win a joint election" {
+  let m = Membership::new(["a", "b", "c"])
+  m.enter_joint(["c", "d", "e"])
+  assert_true(m.vote_result({ "c": true, "d": true, "e": true }) == VotePending)
+  assert_true(
+    m.vote_result({ "a": true, "b": true, "c": true, "d": true }) == VoteWon,
+  )
+}
