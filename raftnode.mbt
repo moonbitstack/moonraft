@@ -232,9 +232,16 @@ pub fn RaftNode::id(self : RaftNode) -> String {
 }
 
 ///|
-/// The current role of the underlying consensus core.
+/// The current role, as reported to callers (etcd's `SoftState.RaftState`).
+/// During the pre-vote probe the underlying core is still internally a follower
+/// (it has not adopted the hypothetical term), but the observable state is
+/// `PreCandidate` — a first-class Raft state, not a hidden flag.
 pub fn RaftNode::role(self : RaftNode) -> Role {
-  self.core.role()
+  if self.in_pre_campaign {
+    PreCandidate
+  } else {
+    self.core.role()
+  }
 }
 
 ///|
@@ -476,6 +483,7 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
 pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
   self.core.become_candidate()
   self.leader_id = None
+  self.in_pre_campaign = false
   self.pending_conf_index = 0
   self.lead_transferee = None
   self.reset_timeout()

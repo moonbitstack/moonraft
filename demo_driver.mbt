@@ -290,6 +290,7 @@ fn build_state_json(c : Cluster) -> String {
 fn role_json(r : Role) -> String {
   match r {
     Follower => "Follower"
+    PreCandidate => "PreCandidate"
     Candidate => "Candidate"
     Leader => "Leader"
   }

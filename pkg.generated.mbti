@@ -780,6 +780,7 @@ pub(all) struct RequestVoteReply {
 
 pub enum Role {
   Follower
+  PreCandidate
   Candidate
   Leader
 } derive(Eq)

@@ -31,6 +31,7 @@ pub fn RaftNode::status(self : RaftNode) -> RaftStatus {
 fn role_name(role : Role) -> String {
   match role {
     Follower => "follower"
+    PreCandidate => "precandidate"
     Candidate => "candidate"
     Leader => "leader"
   }
