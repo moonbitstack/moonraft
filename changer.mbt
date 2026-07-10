@@ -264,6 +264,102 @@ fn Changer::apply(self : Changer, changes : Array[(String, String)]) -> String? 
 }
 
 ///|
+/// The configuration as a `ConfState` (etcd's `ProgressTracker.ConfState`): the
+/// incoming voters, the outgoing half, the learners and the staged learners,
+/// plus the auto-leave flag. Used to round-trip a configuration through a
+/// snapshot.
+pub fn Changer::conf_state(self : Changer) -> ConfState {
+  {
+    voters: self.cfg.incoming.copy(),
+    voters_outgoing: self.cfg.outgoing.copy(),
+    learners: self.cfg.learners.copy(),
+    learners_next: self.cfg.learners_next.copy(),
+    auto_leave: self.cfg.auto_leave,
+  }
+}
+
+///|
+/// Validate that a configuration and its progress map are mutually consistent
+/// (etcd's `checkInvariants`). Returns an error message describing the first
+/// violation, or `None`. This is the same defensive check etcd runs on the
+/// result of every configuration change; it never fires in correct operation
+/// but pins the joint-consensus invariants (learners disjoint from voters, a
+/// staged learner still an outgoing voter, empty auxiliary sets when not joint).
+fn check_invariants(
+  cfg : ChangerConfig,
+  prs : Map[String, Progress],
+) -> String? {
+  // Every voter (either half), learner and staged learner needs a progress.
+  let ids : Array[String] = []
+  for id in cfg.incoming {
+    if !ids.contains(id) {
+      ids.push(id)
+    }
+  }
+  for id in cfg.outgoing {
+    if !ids.contains(id) {
+      ids.push(id)
+    }
+  }
+  for id in cfg.learners {
+    if !ids.contains(id) {
+      ids.push(id)
+    }
+  }
+  for id in cfg.learners_next {
+    if !ids.contains(id) {
+      ids.push(id)
+    }
+  }
+  for id in ids {
+    if prs.get(id) is None {
+      return Some("no progress for " + id)
+    }
+  }
+  // A staged learner was staged because an outgoing voter blocked a direct add.
+  for id in cfg.learners_next {
+    if !cfg.outgoing.contains(id) {
+      return Some(id + " is in LearnersNext, but not Voters[1]")
+    }
+    match prs.get(id) {
+      Some(pr) =>
+        if pr.is_learner {
+          return Some(
+            id + " is in LearnersNext, but is already marked as learner",
+          )
+        }
+      None => ()
+    }
+  }
+  // Conversely, learners never intersect the voter halves.
+  for id in cfg.learners {
+    if cfg.outgoing.contains(id) {
+      return Some(id + " is in Learners and Voters[1]")
+    }
+    if cfg.incoming.contains(id) {
+      return Some(id + " is in Learners and Voters[0]")
+    }
+    match prs.get(id) {
+      Some(pr) =>
+        if !pr.is_learner {
+          return Some(id + " is in Learners, but is not marked as learner")
+        }
+      None => ()
+    }
+  }
+  // Auxiliary sets are empty unless the config is joint.
+  if !cfg.is_joint() {
+    if cfg.learners_next.length() > 0 {
+      return Some("cfg.LearnersNext must be nil when not joint")
+    }
+    if cfg.auto_leave {
+      return Some("AutoLeave must be false when not joint")
+    }
+  }
+  None
+}
+
+///|
 fn symdiff(a : Array[String], b : Array[String]) -> Int {
   let mut n = 0
   for x in a {
@@ -305,6 +401,10 @@ pub fn Changer::simple(
   if symdiff(before, self.cfg.incoming) > 1 {
     return rollback("more than one voter changed without entering joint config")
   }
+  match check_invariants(self.cfg, self.prs) {
+    Some(e) => return rollback(e)
+    None => ()
+  }
   None
 }
 
@@ -339,6 +439,10 @@ pub fn Changer::enter_joint(
     None => ()
   }
   self.cfg.auto_leave = auto_leave
+  match check_invariants(self.cfg, self.prs) {
+    Some(e) => return rollback(e)
+    None => ()
+  }
   None
 }
 
@@ -346,6 +450,14 @@ pub fn Changer::enter_joint(
 /// Leave joint consensus: promote any staged `learners_next` to learners,
 /// preserving their progress, and drop the outgoing half.
 pub fn Changer::leave_joint(self : Changer) -> String? {
+  let saved_cfg = self.cfg.clone()
+  let saved_prs = clone_prs(self.prs)
+  fn rollback(msg : String) -> String? {
+    self.cfg = saved_cfg
+    self.prs = saved_prs
+    Some(msg)
+  }
+
   if !self.cfg.is_joint() {
     return Some("can't leave a non-joint config")
   }
@@ -366,6 +478,10 @@ pub fn Changer::leave_joint(self : Changer) -> String? {
   }
   self.cfg.outgoing.clear()
   self.cfg.auto_leave = false
+  match check_invariants(self.cfg, self.prs) {
+    Some(e) => return rollback(e)
+    None => ()
+  }
   None
 }
 

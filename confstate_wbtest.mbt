@@ -61,10 +61,25 @@ test "TestConfState_Equivalent" {
 }
 
 ///|
-test "TestLeaveJoint: an empty batch is a leave, a non-empty one is not" {
+// raftpb/confchange_test.go TestLeaveJoint (behavioural cases). A leave is the
+// `Auto` transition with no changes; every other shape — explicit/implicit joint
+// with no changes, or any non-empty batch — is not a leave.
+test "TestLeaveJoint" {
+  // "empty conf change (all zero values)" — Auto + no changes.
   assert_true(ConfChangeV2::leave_joint().is_leave())
-  assert_true(ConfChangeV2::enter_joint([], auto_leave=false).is_leave())
+  // "empty conf change with auto transition explicitly set".
+  assert_true(ConfChangeV2::auto([]).is_leave())
+  // "empty changes slice with auto transition".
+  assert_true(ConfChangeV2::auto([]).is_leave())
+  // "non-empty changes" (Auto, one change).
+  assert_false(ConfChangeV2::auto([ConfChange::add("0")]).is_leave())
+  // "joint implicit transition with empty changes".
+  assert_false(ConfChangeV2::enter_joint([], auto_leave=true).is_leave())
+  // "joint explicit transition with empty changes" — the case that exposed the
+  // divergence: it enters an (empty) joint config, it does not leave one.
+  assert_false(ConfChangeV2::enter_joint([], auto_leave=false).is_leave())
+  // "auto transition with multiple changes".
   assert_false(
-    ConfChangeV2::enter_joint([ConfChange::add("2")], auto_leave=true).is_leave(),
+    ConfChangeV2::auto([ConfChange::add("0"), ConfChange::remove("0")]).is_leave(),
   )
 }

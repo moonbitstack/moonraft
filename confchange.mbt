@@ -162,9 +162,13 @@ pub fn ConfChangeV2::leave_joint() -> ConfChangeV2 {
 }
 
 ///|
-/// Whether this is the empty batch that leaves joint consensus.
+/// Whether this change leaves a joint configuration (etcd's
+/// `ConfChangeV2.LeaveJoint`). This is the case only for the `Auto` transition
+/// with no changes: an *explicit* joint transition carrying no changes still
+/// *enters* an (empty) joint config and must not be mistaken for a leave, which
+/// is exactly the complement of `enters_joint`.
 pub fn ConfChangeV2::is_leave(self : ConfChangeV2) -> Bool {
-  self.changes.length() == 0
+  self.transition == Auto && self.changes.length() == 0
 }
 
 ///|
