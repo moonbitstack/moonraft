@@ -6,6 +6,11 @@
 /// the `Leader` for that term.
 pub enum Role {
   Follower
+  // The pre-vote probe phase (etcd's `StatePreCandidate`): the node solicits
+  // pre-votes under a hypothetical next term without adopting it, and only
+  // becomes a real `Candidate` if a majority would grant it. It is a first-class
+  // state reported through `SoftState`, distinct from `Follower`.
+  PreCandidate
   Candidate
   Leader
 } derive(Eq)

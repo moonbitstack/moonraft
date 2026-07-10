@@ -158,14 +158,14 @@ test "Tracer records state transitions and commits" {
 
 ///|
 /// ReadOnlyOption is a first-class, configurable enum. The server defaults to
-/// lease-based reads; `Safe` can be selected at construction or via the setter.
+/// `Safe` (etcd's default); `LeaseBased` can be selected via the setter.
 test "ReadOnlyOption is configurable" {
   let r = RaftNode::new("1", ["2", "3"])
+  assert_true(r.read_only_option() is Safe)
+  r.set_read_only_option(LeaseBased)
   assert_true(r.read_only_option() is LeaseBased)
   r.set_read_only_option(Safe)
   assert_true(r.read_only_option() is Safe)
-  let s = RaftNode::new("1", ["2", "3"], read_only_option=Safe)
-  assert_true(s.read_only_option() is Safe)
 }
 
 ///|

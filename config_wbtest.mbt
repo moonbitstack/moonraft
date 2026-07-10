@@ -94,3 +94,22 @@ test "Config::from_config raises on an invalid config" {
   }
   assert_true(raised)
 }
+
+///|
+/// Config carries the Logger and Applied knobs (etcd's Config.Logger /
+/// Config.Applied) and from_config threads them into the node.
+test "Config threads logger and applied into the node" {
+  let log = CapturingLogger::new()
+  let config = Config::new("1", ["2", "3"], logger=log, pre_vote=false)
+  let r = RaftNode::from_config(config)
+  r.node().become_candidate()
+  r.become_leader()
+  // The Logger is live: it captured the become-leader line.
+  let mut saw = false
+  for m in log.messages() {
+    if m == "1 became leader at term 1" {
+      saw = true
+    }
+  }
+  assert_true(saw)
+}

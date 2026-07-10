@@ -241,6 +241,7 @@ fn int_bytes(v : Int) -> Bytes {
 fn wrole(r : Role) -> String {
   match r {
     Follower => "Follower"
+    PreCandidate => "PreCandidate"
     Candidate => "Candidate"
     Leader => "Leader"
   }

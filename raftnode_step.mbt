@@ -213,7 +213,11 @@ fn RaftNode::step_propose(
       self.maybe_commit() |> ignore
       self.bcast_append()
     }
-    Candidate => []
+    // A (pre-)candidate has no leader to forward to and drops the proposal
+    // (etcd's stepCandidate). PreCandidate is unreachable via `core.role()` —
+    // the core stays a follower during pre-vote — but the arm keeps the match
+    // exhaustive and mirrors candidate behaviour.
+    Candidate | PreCandidate => []
     Follower =>
       match self.leader_id {
         Some(lead) =>
