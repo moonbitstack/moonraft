@@ -50,6 +50,18 @@ pub struct RawNode {
 /// snapshot baseline) is loaded into stable storage, so only entries appended
 /// afterwards land in the unstable tail and need writing.
 pub fn RawNode::new(raft : RaftNode) -> RawNode {
+  RawNode::new_sized(raft, no_limit)
+}
+
+///|
+/// Build a driver that paginates each Ready's committed entries to at most
+/// `max_committed_size` bytes (etcd's `MaxCommittedSizePerReady`). A burst of
+/// commits is then handed to the application over several `Ready`s instead of
+/// one unbounded batch.
+pub fn RawNode::new_sized(
+  raft : RaftNode,
+  max_committed_size : UInt64,
+) -> RawNode {
   let node = raft.node()
   let storage = MemoryStorage::new()
   if node.snapshot_index > 0 {
@@ -62,7 +74,7 @@ pub fn RawNode::new(raft : RaftNode) -> RawNode {
     }
   }
   storage.append(node.entries_after(node.snapshot_index))
-  let log = RaftLog::new(storage)
+  let log = RaftLog::new_with_size(storage, max_committed_size)
   log.seed(node.commit_index, node.last_applied)
   {
     raft,
@@ -72,6 +84,16 @@ pub fn RawNode::new(raft : RaftNode) -> RawNode {
     prev_soft: raft.soft_state(),
     prev_hard: node.hard_state(),
   }
+}
+
+///|
+/// View this server through the Ready/Advance contract, paginating committed
+/// entries to `max_committed_size` bytes per `Ready`.
+pub fn RaftNode::raw_with_max_committed_size(
+  self : RaftNode,
+  max_committed_size : UInt64,
+) -> RawNode {
+  RawNode::new_sized(self, max_committed_size)
 }
 
 ///|

@@ -89,61 +89,63 @@ mechanism (that test itself is pending a full 2-node harness). Our own
 `append_hint_wbtest.mbt` was corrected from the old one-step-backoff values to
 the etcd findConflictByTerm values.
 
-## log_test.go — DONE (7/21 ported, 14 N/A: no raftLog/unstable/apply-pacing)
-Ported in `log_port_wbtest.mbt`. This port has no separate `raftLog`/`unstable`
-split and no Ready/Advance apply-pacing pipeline; the log lives directly on the
-`Node`. Tests are run against the Node's log API.
-- `TestFindConflict` — DONE (all 10 cases). Added `Node::find_conflict` +
-  `Node::match_term` (`log.mbt`).
-- `TestFindConflictByTerm` — DONE (all 21 cases, both the index-1 and the
-  compacted-baseline blocks). Runs against the existing `find_conflict_by_term`;
-  each case also asserts the returned term equals `term_at(index)`, matching
-  etcd's `zeroTermOnOutOfBounds(l.term(index))`.
-- `TestIsUpToDate` — DONE (all 9 cases). Added `Node::is_up_to_date` wrapping the
-  existing `candidate_log_up_to_date`.
-- `TestLogMaybeAppend` — DONE (13/15 cases) against `handle_append_entries`. The
-  two remaining etcd cases — a probe strictly below the commit index, and a
-  conflict with an already-committed entry — **diverge, not weakened**: this port
-  carries newer etcd's "accept the already-committed prefix outright" rule
-  (`replication.mbt`), so it returns success with `match_index = commit` instead
-  of panicking. Documented rather than asserted, since matching the older
-  panic-contract would require changing out-of-boundary `replication.mbt` to an
-  arguably-worse behaviour.
-- `TestTerm` — DONE (values, 5 cases) via `term_at`. The `ErrCompacted`/
-  `ErrUnavailable` distinction is a Storage-layer concern (covered by
-  `TestStorageTerm`); `Node.term_at` is the "zero term on out of bounds" view.
-- `TestMatchTerm` — DONE (equivalent, via `match_term`; the etcd original lives
-  inside `TestCompactionSideEffects`).
-- `TestCommitTo` — DONE (monotonic-advance half, via `advance_commit`). The
-  commit-past-lastIndex panic case is N/A: `advance_commit` is defensive and
-  ignores it rather than panicking (a caller-error guard, not a consensus path).
-- N/A (no analogue in this port; each depends on `raftLog`+`unstable`+the
-  Ready/Advance apply-pacing subsystem that the port deliberately does not have):
-  `TestAppend` (asserts `unstable.offset`), `TestCompactionSideEffects`,
-  `TestHasNextCommittedEnts`, `TestNextCommittedEnts`, `TestAcceptApplying`,
-  `TestAppliedTo`, `TestNextUnstableEnts`, `TestStableTo`, `TestStableToWithSnap`,
-  `TestCompaction`, `TestLogRestore`, `TestIsOutOfBounds`,
-  `TestTermWithUnstableSnapshot`, `TestSlice`/`TestScan` (size-limited slicing —
-  the size-cap semantics are instead covered at the Storage layer by
-  `TestStorageEntries`/`TestLimitSize`).
+## Subsystem added: `unstable.mbt` + `raftlog.mbt` (etcd's `unstable` / `raftLog`)
+A full `Unstable` (three-part `snapshot` / `offset` / `entries` + `offsetInProgress`
+/ `snapshotInProgress` in-progress bookkeeping; snapshot as an `Option`, not a
+sentinel) and `RaftLog` (`storage` + `unstable` + `committed` / `applying` /
+`applied` + byte-level `max_applying_ents_size` pagination) were added.
+**Wired (not orphan):** `RawNode` (`rawnode.mbt`) now keeps its unstable-vs-stable
+split in a real `RaftLog` — the C-path `stabled` watermark is gone. `Ready.entries`
+= `next_unstable_ents`, `Ready.committed_entries` = `next_committed_ents(false)`;
+`advance` calls `commit_stable` (append to storage + `stable_to`) and `applied_to`.
+Non-test proof: `run_single_node` (`rawnode_driver.mbt`) → `RawNode::new` →
+`RaftLog::new_with_size`; grep `self.log.` in `rawnode.mbt`.
 
-## log_unstable_test.go — N/A (0/9 direct; equivalents ported)
-This port has no `unstable` structure: the Node keeps a single contiguous log
-anchored at the snapshot baseline, and there is no Ready/in-progress persistence
-pipeline (`offsetInProgress`, `snapshotInProgress`, `acceptInProgress`,
-`nextEntries`, `nextSnapshot`, `stableTo`, `restore`). The index/term/truncate
-semantics that DO have a counterpart are reproduced in `unstable_port_wbtest.mbt`:
-- `maybeLastIndex` ≈ `last_log_index` — DONE (entries / snapshot-only / empty).
-- `maybeTerm` ≈ `term_at` — DONE (term from entry, from snapshot baseline, and
-  zero outside range).
-- `truncateAndAppend` ≈ `store_entries` — DONE (append-to-end, replace, and
-  truncate-then-append shapes).
-- N/A: `TestUnstableMaybeFirstIndex`, `TestUnstableNextEntries`,
-  `TestUnstableNextSnapshot`, `TestUnstableAcceptInProgress`,
-  `TestUnstableStableTo`, `TestUnstableRestore` — all bookkeeping for the
-  stable-vs-in-progress hand-off to a Ready struct, which this port does not
-  model. The "offset without a snapshot" shapes are also not representable: the
-  port's log is always contiguous from its snapshot baseline.
+## log_test.go — DONE (21/21 ported against `RaftLog`)
+Ported in `raftlog_wbtest.mbt` against the real `RaftLog`, every table case. The
+`wpanic` cases assert a Go panic; MoonBit `abort` is not catchable (as with
+inflights), so each such single case is noted and omitted while the rest run.
+- `TestFindConflict` (10), `TestFindConflictByTerm` (21), `TestIsUpToDate` (9),
+  `TestAppend` (4, asserts `unstable.offset`), `TestMatchTerm` (via
+  `TestCompactionSideEffects`), `TestTerm` (5, real `ErrCompacted`/`ErrUnavailable`),
+  `TestTermWithUnstableSnapshot` (5), `TestSlice` (~40, all size-cap thresholds),
+  `TestScan` (scan≡slice sweep + early-break + max-out) — all DONE.
+- `TestLogMaybeAppend` — 14/15 (the committed-conflict `wpanic` case aborts).
+- `TestCompactionSideEffects`, `TestNextUnstableEnts`, `TestLogRestore`,
+  `TestStableTo`, `TestStableToWithSnap` — DONE.
+- `TestHasNextCommittedEnts` (14), `TestNextCommittedEnts` (14),
+  `TestAcceptApplying` (18), `TestAppliedTo` (8) — DONE (apply-pacing).
+- `TestCommitTo` — 2/3 (commit-past-last `wpanic` aborts).
+- `TestCompaction` — DONE (the ErrCompacted lower-bound path; the out-of-upper-
+  bound `wpanic` aborts).
+- `TestIsOutOfBounds` — DONE (the ErrCompacted + in-range checks; two `wpanic`
+  hi-out-of-bound cases abort).
+
+## log_unstable_test.go — DONE (9/9 against `Unstable`)
+Ported in `unstable_wbtest.mbt`, every table case:
+`TestUnstableMaybeFirstIndex`, `TestMaybeLastIndex`, `TestUnstableMaybeTerm`,
+`TestUnstableRestore`, `TestUnstableNextEntries`, `TestUnstableNextSnapshot`,
+`TestUnstableAcceptInProgress` (15), `TestUnstableStableTo` (13),
+`TestUnstableTruncateAndAppend` (9).
+
+## Byte-level commit pagination — DONE (2/5; 3 N/A in the off-limits core)
+Ported in `pagination_wbtest.mbt` (RawNode wired to `max_applying_ents_size` via
+`raw_with_max_committed_size`):
+- `TestCommitPagination` — DONE. Three 1000-byte proposals commit in two batches
+  (2 then 1) under a 2048-byte `MaxCommittedSizePerReady`.
+- `TestRawNodeCommitPaginationAfterRestart` — DONE (simplified). 11 committed
+  entries restart under a small cap and all apply in order, no gaps, none dropped;
+  commit is set on restart rather than nudged by a `MsgHeartbeat` (a
+  replication-core concern).
+- `TestAppendPagination` — N/A: `MaxSizePerMsg` bounds the leader's outbound
+  `MsgApp` batch size in `send`/`bcast_append` (`replication.mbt`, off-limits),
+  not the log layer.
+- `TestRawNodeBoundedLogGrowthWithPartition` — N/A: `MaxUncommittedEntriesSize` /
+  `raft.uncommittedSize` live in the consensus core (`replication.mbt`/raft.go),
+  off-limits — the log layer does not track uncommitted-tail bytes.
+- `TestCommitPaginationWithAsyncStorageWrites` — N/A: needs `AsyncStorageWrites`
+  with `MsgStorageAppend`/`MsgStorageApply` message-based storage, which this port
+  does not model.
 
 ## tracker/progress_test.go — DONE (5/8)
 Ported in `progress_port_wbtest.mbt`:
