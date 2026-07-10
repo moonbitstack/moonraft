@@ -69,13 +69,16 @@ pub fn RawNode::new_sized(
   let node = raft.node()
   let storage = MemoryStorage::new()
   if node.snapshot_index > 0 {
+    // The snapshot is applied to a freshly created `MemoryStorage`, whose empty
+    // baseline never predates it, so the apply cannot raise; the total catch is an
+    // assertion, not a tolerated failure.
     storage.apply_snapshot({
       last_index: node.snapshot_index,
       last_term: node.snapshot_term,
       data: b"",
       conf_state: ConfState::empty(),
     }) catch {
-      _ => ()
+      _ => abort("snapshot apply on a fresh storage cannot fail")
     }
   }
   storage.append(node.entries_after(node.snapshot_index))
@@ -162,6 +165,12 @@ fn RawNode::sync_log(self : RawNode) -> Unit {
       last
     },
   )
+  // A read confirmed by the core (a lease read, or a safe read a heartbeat quorum
+  // has now acknowledged) lives in the core's read-state buffer; fold it into the
+  // driver's so it surfaces in the next Ready and is cleared on accept.
+  for rs in self.raft.take_read_states() {
+    self.read_states.push(rs)
+  }
 }
 
 ///|
@@ -242,14 +251,16 @@ pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
 }
 
 ///|
-/// Request a linearizable read (etcd's `ReadIndex`). A leader that has committed
-/// an entry in its term and still holds quorum records a `ReadState` at its
-/// commit index, surfaced in the next `Ready`; a node that cannot answer records
-/// nothing (this build does not forward reads to the leader — see PORTING.md).
+/// Request a linearizable read (etcd's `ReadIndex`, which steps a `MsgReadIndex`).
+/// Under `ReadOnlySafe` the read is not answered from the leader's lease but
+/// confirmed by a fresh heartbeat quorum, so the confirming heartbeats are
+/// buffered for the next `Ready`; the read surfaces once a quorum acknowledges the
+/// position (drained from the core in `sync_log`). The synchronous lease accessor
+/// `RaftNode::read_index` was wrong here: it returns an index without emitting the
+/// confirmation round, so under `ReadOnlySafe` the read was never confirmed.
 pub fn RawNode::read_index(self : RawNode, rctx : Bytes) -> Unit {
-  match self.raft.read_index() {
-    Some(idx) => self.read_states.push({ index: idx, request_ctx: rctx })
-    None => ()
+  for m in self.raft.request_read_index(rctx) {
+    self.msgs.push(m)
   }
 }
 
