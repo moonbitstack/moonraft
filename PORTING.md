@@ -526,8 +526,28 @@ and commits everywhere; an isolated leader is demoted by check-quorum and its
 stale log never overwrites the majority's after rejoin (asserted via
 `one_leader_per_term` / `committed_agrees` / `logs_consistent`).
 
-## rafttest/{network,node}_test.go — TODO (0/5, +1 bench N/A)
-Deterministic network harness; overlaps our `sim.mbt`.
+## rafttest/{network,node}_test.go — N/A (Go network-harness) with named mapping
+These exercise etcd's `rafttest` harness: a `raftNetwork` of Go channels with
+per-connection drop/delay/pause goroutines (`network_test.go`), and a goroutine
+per node running `Node.run()` off `select` over channels (`node_test.go`:
+`TestBasicProgress`, `TestRestart`, `TestPause`). They test the *harness's*
+concurrency plumbing (channel scheduling, goroutine pause/resume), not new
+consensus properties — so they are N/A of the acceptable first kind (Go runtime
+threading), and our deterministic `sim.mbt` provides the named equivalent:
+- `raftNetwork` drop/delay/partition → `Cluster::set_drop` / `set_delay` /
+  `partition` / `isolate` / `heal` (`sim.mbt`).
+- `TestNetworkDrop` (a proposal replicates despite lossy links) →
+  `chaos_wbtest.mbt` + `network_safety_wbtest.mbt` (proposals commit under drop
+  and heal, with `committed_agrees`/`logs_consistent` invariants).
+- `TestNetworkDelay` (delivery within a delay bound) → `set_delay` + the
+  reordering/jitter paths exercised by `chaos_wbtest.mbt`.
+- `TestBasicProgress` (5 nodes elect + commit 100 proposals) →
+  `cluster_wbtest.mbt` / `property_wbtest.mbt` (elect + replicate + commit-agree).
+- `TestRestart` / `TestPause` (crash/pause then resume, no split-brain) →
+  `Cluster::crash` / `restart` in `chaos_wbtest.mbt` + the isolate/heal test in
+  `network_safety_wbtest.mbt`.
+The safety invariants these assert (one leader per term, committed logs agree)
+are checked continuously by `sim_check.mbt`.
 
 ## raftpb/{confchange,confstate,raft}_test.go — TODO/N/A (0/3)
 - `TestLeaveJoint`, `TestConfState_Equivalent` — TODO (confstate helpers).
