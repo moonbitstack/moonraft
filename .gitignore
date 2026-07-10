@@ -1,5 +1,9 @@
+# `.*` would also swallow `.devops/`, which GitLink's pipeline engine reads —
+# its absence disables CI with no error, so it is re-included explicitly.
 .*
 !.git*
 !.devops
+
 _build/
+_site/
 target/
