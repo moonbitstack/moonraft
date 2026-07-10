@@ -131,7 +131,7 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     Append(args) => self.handle_append(msg.from, args)
     AppendResp(reply) => self.handle_append_resp(msg.from, reply)
     Heartbeat(args) => self.handle_heartbeat(msg.from, args)
-    HeartbeatResp(_) => self.handle_heartbeat_resp(msg.from)
+    HeartbeatResp(reply) => self.handle_heartbeat_resp(msg.from, reply)
     Snapshot(args) => self.handle_snapshot(msg.from, args)
     SnapshotResp(reply) => self.handle_snapshot_resp(msg.from, reply)
     TimeoutNow(term) => self.handle_timeout_now(term)
@@ -294,7 +294,13 @@ fn RaftNode::handle_heartbeat(
     self.core.advance_commit(upto)
     self.apply_committed_conf()
   }
-  [Message::new(self.id, from, HeartbeatResp(self.core.current_term()))]
+  [
+    Message::new(
+      self.id,
+      from,
+      HeartbeatResp({ term: self.core.current_term(), context: args.context }),
+    ),
+  ]
 }
 
 ///|
@@ -305,8 +311,14 @@ fn RaftNode::handle_heartbeat(
 fn RaftNode::handle_heartbeat_resp(
   self : RaftNode,
   from : String,
+  reply : HeartbeatReply,
 ) -> Array[Message] {
   guard self.core.role() == Leader else { return [] }
+  // ReadOnlySafe: an ack echoing a read-index context counts toward confirming
+  // the leader still commands a quorum for that read (§6.4).
+  if reply.context.length() > 0 {
+    self.read_only.recv_ack(from, reply.context, self.config)
+  }
   match self.progress.get(from) {
     None => []
     Some(p) => {

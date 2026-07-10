@@ -168,6 +168,20 @@ Ported in `progress_port_wbtest.mbt`:
 - `TestMsgAppFlowControlMoveForward` — DONE.
 - `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
 
+## ReadOnly (§6.4) — DONE (both modes)
+`read_only.mbt` adds a `ReadOnly` tracker with both etcd modes.
+`request_read_index(ctx)`: in `ReadOnlySafe` it records the read at the current
+commit index and broadcasts heartbeats stamped with `ctx`; a follower echoes the
+context; `handle_heartbeat_resp` feeds `recv_ack`, and once a quorum has acked a
+context every read up to it (FIFO) is confirmed. In `ReadOnlyLeaseBased` (the
+default) a valid lease confirms the read at once; a single-node leader always
+does. Confirmed reads are drained via `take_read_states()` (reusing C's
+`ReadState`). Precondition enforced: the commit index must be from the current
+term (§5.4.2). Tests in `read_only_wbtest.mbt` cover Safe (quorum round-trip,
+FIFO batch confirm), LeaseBased, follower-serves-nothing, and single-node.
+Covers the core of etcd `TestReadOnlyOptionSafe` / `TestReadOnlyOptionLease` /
+`TestReadOnlyForNewLeader`.
+
 ## MsgHeartbeat / MsgHeartbeatResp — DONE
 Heartbeats are now a distinct message type (`Heartbeat`/`HeartbeatResp`), not an
 empty AppendEntries. `bcast_heartbeat` emits a `Heartbeat` carrying the leader's

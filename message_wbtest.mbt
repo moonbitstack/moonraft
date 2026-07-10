@@ -17,7 +17,7 @@ test "a heartbeat and an empty-append probe are distinct kinds" {
   let hb = Message::new(
     "L",
     "f",
-    Heartbeat({ term: 4, leader_id: "L", commit: 1 }),
+    Heartbeat({ term: 4, leader_id: "L", commit: 1, context: b"" }),
   )
   assert_eq(hb.kind(), "Heartbeat")
   assert_false(hb.is_response())

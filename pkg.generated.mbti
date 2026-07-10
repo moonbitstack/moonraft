@@ -181,6 +181,12 @@ pub(all) struct HeartbeatArgs {
   term : UInt64
   leader_id : String
   commit : UInt64
+  context : Bytes
+} derive(Eq)
+
+pub(all) struct HeartbeatReply {
+  term : UInt64
+  context : Bytes
 } derive(Eq)
 
 type InFlight
@@ -338,7 +344,7 @@ pub enum Payload {
   Append(AppendEntriesArgs)
   AppendResp(AppendEntriesReply)
   Heartbeat(HeartbeatArgs)
-  HeartbeatResp(UInt64)
+  HeartbeatResp(HeartbeatReply)
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
@@ -399,11 +405,13 @@ pub struct RaftNode {
   mut rng : UInt64
   mut conf_applied : UInt64
   mut lead_transferee : String?
+  read_only : ReadOnly
 }
 pub fn RaftNode::campaign(Self) -> Array[Message]
 pub fn RaftNode::commit_index(Self) -> UInt64
 pub fn RaftNode::election_deadline(Self) -> Int
 pub fn RaftNode::enable_check_quorum(Self) -> Unit
+pub fn RaftNode::enable_read_only_safe(Self) -> Unit
 pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
@@ -415,10 +423,12 @@ pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
 pub fn RaftNode::role(Self) -> Role
 pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
 pub fn RaftNode::step(Self, Message) -> Array[Message]
+pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
 pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[Message]
 pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
@@ -458,6 +468,8 @@ pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, Message) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
+
+type ReadOnly
 
 pub(all) struct ReadState {
   index : UInt64

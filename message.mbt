@@ -11,7 +11,7 @@ pub enum Payload {
   Append(AppendEntriesArgs)
   AppendResp(AppendEntriesReply)
   Heartbeat(HeartbeatArgs)
-  HeartbeatResp(UInt64)
+  HeartbeatResp(HeartbeatReply)
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
@@ -45,7 +45,7 @@ pub fn Message::term(self : Message) -> UInt64 {
     Append(a) => a.term
     AppendResp(r) => r.term
     Heartbeat(a) => a.term
-    HeartbeatResp(t) => t
+    HeartbeatResp(r) => r.term
     Snapshot(a) => a.term
     SnapshotResp(r) => r.term
     TimeoutNow(t) => t

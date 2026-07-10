@@ -46,6 +46,8 @@ pub struct RaftNode {
   // set, the leader stops accepting proposals and hands off once the target is
   // caught up; it is cleared on timeout, step-down, or the target's removal.
   mut lead_transferee : String?
+  // Linearizable read-index bookkeeping (Raft §6.4).
+  read_only : ReadOnly
 }
 
 ///|
@@ -86,6 +88,7 @@ pub fn RaftNode::new(
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
+    read_only: ReadOnly::new(),
   }
   node.reset_timeout()
   node
@@ -423,7 +426,10 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
 /// Send a heartbeat to every follower. The `commit` carried is capped at what
 /// the follower is known to hold, so it never learns of a commit index past its
 /// own log (Raft §5.3).
-fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
+fn RaftNode::bcast_heartbeat(
+  self : RaftNode,
+  context? : Bytes = b"",
+) -> Array[Message] {
   let out : Array[Message] = []
   for peer in self.peers {
     let p = self.progress[peer]
@@ -436,7 +442,12 @@ fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
       Message::new(
         self.id,
         peer,
-        Heartbeat({ term: self.core.current_term(), leader_id: self.id, commit }),
+        Heartbeat({
+          term: self.core.current_term(),
+          leader_id: self.id,
+          commit,
+          context,
+        }),
       ),
     )
   }

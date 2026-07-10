@@ -27,6 +27,18 @@ pub(all) struct HeartbeatArgs {
   term : UInt64
   leader_id : String
   commit : UInt64
+  // An opaque read-index context echoed back by the follower, used by the
+  // ReadOnlySafe path to confirm leadership with a fresh quorum round-trip
+  // (Raft §6.4). Empty for an ordinary liveness beat.
+  context : Bytes
+} derive(Eq)
+
+///|
+/// Reply to a Heartbeat RPC: the follower's term and the read-index context it
+/// is acknowledging (echoed verbatim).
+pub(all) struct HeartbeatReply {
+  term : UInt64
+  context : Bytes
 } derive(Eq)
 
 ///|
