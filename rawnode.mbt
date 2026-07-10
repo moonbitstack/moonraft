@@ -69,17 +69,15 @@ pub fn RawNode::new_sized(
   let node = raft.node()
   let storage = MemoryStorage::new()
   if node.snapshot_index > 0 {
-    // The snapshot is applied to a freshly created `MemoryStorage`, whose empty
-    // baseline never predates it, so the apply cannot raise; the total catch is an
-    // assertion, not a tolerated failure.
-    storage.apply_snapshot({
+    // Seed the fresh storage's baseline directly: `apply_snapshot`'s out-of-date
+    // guard is meaningless against an empty baseline, and its raising signature
+    // would force a vacuous catch here.
+    storage.seed_snapshot({
       last_index: node.snapshot_index,
       last_term: node.snapshot_term,
       data: b"",
       conf_state: ConfState::empty(),
-    }) catch {
-      _ => abort("snapshot apply on a fresh storage cannot fail")
-    }
+    })
   }
   storage.append(node.entries_after(node.snapshot_index))
   let log = RaftLog::new_with_size(storage, max_committed_size)

@@ -55,6 +55,11 @@ pub trait RaftStorage {
   /// The most recent snapshot. Raises `SnapshotTemporarilyUnavailable` when the
   /// backend is still preparing it.
   fn storage_snapshot(Self) -> Snapshot raise StorageError
+  /// Persist `entries`, extending the stable log. The port's `RaftLog` writes the
+  /// confirmed unstable prefix back through this (etcd persists through the
+  /// application; the port folds it into the storage abstraction), so the log can
+  /// be driven over any backend, not only `MemoryStorage`.
+  fn append(Self, Array[Entry]) -> Unit
 }
 
 ///|
@@ -171,6 +176,11 @@ impl RaftStorage for MemoryStorage with fn initial_state(self) {
 }
 
 ///|
+impl RaftStorage for MemoryStorage with fn append(self, entries) {
+  MemoryStorage::append(self, entries)
+}
+
+///|
 /// Report the snapshot as not-yet-ready (true) or ready (false). Lets a backend
 /// signal that `storage_snapshot()` should be retried rather than treated as an
 /// error.
@@ -263,6 +273,18 @@ pub fn MemoryStorage::apply_snapshot(
   if ms_index != 0 && ms_index >= snap_index {
     raise SnapOutOfDate
   }
+  self.seed_snapshot(snapshot)
+}
+
+///|
+/// Install a snapshot baseline unconditionally, resetting the sentinel to its
+/// index and term. This is the write half of `apply_snapshot` without the
+/// out-of-date guard, for seeding a freshly created storage whose empty baseline
+/// cannot predate anything.
+pub fn MemoryStorage::seed_snapshot(
+  self : MemoryStorage,
+  snapshot : Snapshot,
+) -> Unit {
   self.snap = snapshot
   self.ents = [Entry::normal(snapshot.last_term, snapshot.last_index, b"")]
 }

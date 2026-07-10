@@ -396,6 +396,7 @@ pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : ConfSta
 pub fn MemoryStorage::from_ents(Array[Entry]) -> Self
 pub fn MemoryStorage::new() -> Self
 pub fn MemoryStorage::raw_ents(Self) -> Array[Entry]
+pub fn MemoryStorage::seed_snapshot(Self, Snapshot) -> Unit
 pub fn MemoryStorage::set_hard_state(Self, HardState) -> Unit
 pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
 pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[Entry]
@@ -539,7 +540,7 @@ pub(all) struct ProgressStatus {
 } derive(Eq)
 
 pub struct RaftLog {
-  storage : MemoryStorage
+  storage : &RaftStorage
   unstable : Unstable
   mut committed : UInt64
   mut applying : UInt64
@@ -573,7 +574,7 @@ pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
 pub fn RaftLog::maybe_commit(Self, EntryId) -> Bool
 pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise StorageError
 pub fn RaftLog::new(MemoryStorage) -> Self
-pub fn RaftLog::new_with_size(MemoryStorage, UInt64) -> Self
+pub fn RaftLog::new_with_size(&RaftStorage, UInt64) -> Self
 pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[Entry]
 pub fn RaftLog::next_unstable_ents(Self) -> Array[Entry]
 pub fn RaftLog::next_unstable_snapshot(Self) -> Snapshot?
@@ -871,6 +872,7 @@ pub trait RaftStorage {
   fn first_index(Self) -> UInt64
   fn last_index(Self) -> UInt64
   fn storage_snapshot(Self) -> Snapshot raise StorageError
+  fn append(Self, Array[Entry]) -> Unit
 }
 
 pub trait StateMachine {
