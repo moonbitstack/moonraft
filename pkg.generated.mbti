@@ -72,6 +72,8 @@ pub suberror ConfigError {
   LeaseBasedNeedsCheckQuorum
 } derive(Eq)
 
+pub suberror LogCompacted
+
 pub suberror StorageError {
   Compacted
   Unavailable
@@ -558,7 +560,7 @@ pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::commit_stable(Self, Array[Entry]) -> Unit
 pub fn RaftLog::commit_to(Self, UInt64) -> Unit
 pub fn RaftLog::committed(Self) -> UInt64
-pub fn RaftLog::entries(Self, UInt64, UInt64) -> Array[Entry] raise StorageError
+pub fn RaftLog::entries(Self, UInt64, UInt64) -> Array[Entry] raise LogCompacted
 pub fn RaftLog::find_conflict(Self, ArrayView[Entry]) -> UInt64
 pub fn RaftLog::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
 pub fn RaftLog::first_index(Self) -> UInt64
@@ -572,7 +574,7 @@ pub fn RaftLog::last_index(Self) -> UInt64
 pub fn RaftLog::match_term(Self, EntryId) -> Bool
 pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
 pub fn RaftLog::maybe_commit(Self, EntryId) -> Bool
-pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise StorageError
+pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise LogCompacted
 pub fn RaftLog::new(MemoryStorage) -> Self
 pub fn RaftLog::new_with_size(&RaftStorage, UInt64) -> Self
 pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[Entry]
@@ -581,7 +583,7 @@ pub fn RaftLog::next_unstable_snapshot(Self) -> Snapshot?
 pub fn RaftLog::restore(Self, Snapshot) -> Unit
 pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[Entry]) -> Unit raise) -> Unit raise
 pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
-pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise StorageError
+pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise LogCompacted
 pub fn RaftLog::snapshot(Self) -> Snapshot raise StorageError
 pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, EntryId) -> Unit

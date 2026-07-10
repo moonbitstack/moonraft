@@ -853,3 +853,26 @@ TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
   divergence determination.
 - #57 TestReadOnlyWithLearner: portable but needs a read-index injection harness;
   not built this batch.
+
+## Breaking change (0.4.0): log-read error narrowed to `LogCompacted`
+
+`RaftLog::slice`, `RaftLog::entries`, and `RaftLog::must_check_out_of_bounds`
+previously declared `raise StorageError` (the four-variant storage error). Their
+only reachable failure is a compacted lower bound — etcd documents that
+`raftLog.slice` returns nothing but `ErrCompacted`; `ErrUnavailable` and any other
+storage error panic inside it. They now raise a dedicated single-variant suberror
+`LogCompacted`, converted from `StorageError` at the `storage_entries` boundary.
+
+Consequences:
+- New public type `pub suberror LogCompacted`.
+- Callers that matched `StorageError` variants on these functions must catch
+  `LogCompacted` instead (a single exhaustive arm — no wildcard). The `RaftStorage`
+  trait itself keeps the full `StorageError`, which is etcd's `Storage`-interface
+  contract; only the log layer narrows.
+- The narrowing makes the FINDINGS_LEDGER #19 class of defect — a wildcard catch
+  folding `ErrCompacted` into an abort and defeating the racing-compaction retry —
+  a compile error rather than a latent divergence, and removes the last otherwise
+  unreachable `_ => abort` exhaustiveness arm (`all_entries`).
+
+No deprecated transition form is provided: the change is a raise-type refinement on
+existing signatures, not a renamed or superseded symbol.

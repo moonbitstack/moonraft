@@ -319,8 +319,7 @@ test "slice propagates a compacted storage error" {
     failing_log(fs).slice(1, 3, no_limit) |> ignore
     false
   } catch {
-    Compacted => true
-    _ => false
+    LogCompacted => true
   }
   assert_true(raised)
 }

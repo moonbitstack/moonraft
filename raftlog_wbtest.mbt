@@ -42,6 +42,19 @@ fn log_appended(ents : Array[Entry]) -> RaftLog {
 }
 
 ///|
+/// Assert that `thunk` raises `LogCompacted` (the log read layer's narrowed
+/// failure, distinct from the storage layer's `StorageError`).
+fn assert_log_compacted(thunk : () -> Unit raise LogCompacted) -> Unit raise {
+  let raised = try {
+    thunk()
+    false
+  } catch {
+    LogCompacted => true
+  }
+  assert_true(raised)
+}
+
+///|
 test "TestFindConflict" {
   let prev = ents_at(1, [1, 2, 3])
   fn conflict(ents : Array[Entry]) -> UInt64 {
@@ -585,15 +598,9 @@ test "TestIsOutOfBounds" {
   let l = RaftLog::new(storage)
   l.append(ents_range(offset + 1, offset + 1, offset + num + 1)) |> ignore
   let first = offset + 1
-  // lo below firstIndex raises ErrCompacted.
-  assert_raises(
-    () => l.must_check_out_of_bounds(first - 2, first + 1),
-    Compacted,
-  )
-  assert_raises(
-    () => l.must_check_out_of_bounds(first - 1, first + 1),
-    Compacted,
-  )
+  // lo below firstIndex raises the narrowed compaction error.
+  assert_log_compacted(() => l.must_check_out_of_bounds(first - 2, first + 1))
+  assert_log_compacted(() => l.must_check_out_of_bounds(first - 1, first + 1))
   // In-range checks raise nothing.
   l.must_check_out_of_bounds(first, first)
   l.must_check_out_of_bounds(first + num / 2, first + num / 2)
@@ -677,14 +684,8 @@ test "TestSlice" {
   }
 
   // ErrCompacted.
-  assert_raises(
-    () => l.slice(offset - 1, offset + 1, no_limit) |> ignore,
-    Compacted,
-  )
-  assert_raises(
-    () => l.slice(offset, offset + 1, no_limit) |> ignore,
-    Compacted,
-  )
+  assert_log_compacted(() => l.slice(offset - 1, offset + 1, no_limit) |> ignore)
+  assert_log_compacted(() => l.slice(offset, offset + 1, no_limit) |> ignore)
   // No limit.
   assert_eq(sl(offset + 1, offset + 1, no_limit).length(), 0)
   assert_entries(
