@@ -58,6 +58,53 @@ other's acks. etcd long ago switched to an internal 8-byte position context
 design. Being pointed to the right file is the value here — the exact wording was
 not.
 
+## 0.1 Final audit on master `5fce34a` (post-restructure regression sweep)
+
+The differential framework (its 3 commits) was rebased from the `b10b66f`
+baseline onto **`5fce34a`** — 56 commits later. Those 56 commits are a directory
+restructure (the flat root `.mbt` corpus folded into 9 sub-packages `quorum /
+tracker / raftpb / confchange / storage / log / core` behind a single root
+`raft.mbt` facade), an idiomatic-MoonBit style regularization, and 20 defect
+fixes. The rebase touched only `difftest/` plus a one-line `.gitignore` union
+(both sides appended); the old flat `.mbt` files are gone (master authoritative),
+only the `difftest/` subtree is carried on top. Main-library gate after
+`moon clean`: **708 / 708 tests**, `moon check --deny-warn --target all` clean on
+all four backends. The MoonBit harness recompiled **unchanged** against the
+restructured facade — the `@raft.*` public contract survived the repackaging, so
+no harness edit and no main-library edit were needed. The etcd submodule stays
+pinned at `26647d5` with only the untracked `harness_export.go` overlay.
+
+**Result: 8 scenarios MATCH, 4 diverge. No scenario regressed from MATCH to
+DIVERGE.** Every field diff observed after the rebase was already present, byte
+for byte, in the `b10b66f` baseline; several baseline diffs were *eliminated* by
+the fixes. The restructure and style pass introduced **zero observable behavior
+drift** — this is the independent confirmation the "no behavior drift" claim
+required.
+
+| # | Scenario | `b10b66f` | `5fce34a` | Change | Nature of any residual diff |
+|---|----------|-----------|-----------|--------|-----------------------------|
+| 01 | elect + commit | MATCH | **MATCH** | — | — |
+| 02 | pre-vote on | DIVERGE (role) | **MATCH** | **fixed** | mb now enters `PreCandidate` on the campaign pre-vote path (both sides `PreCandidate`). |
+| 03 | partition → heal | DIVERGE | **DIVERGE** | unchanged | traversal-order only: 2 MB-only `HeartbeatResp` surface a round earlier (Map iteration); state converges identically. |
+| 04 | leader crash | MATCH | **MATCH** | — | — |
+| 05 | divergent-log truncation | DIVERGE (uncommitted) | **MATCH** | **fixed** | uncommitted-size accumulator now reset on truncation. |
+| 06 | flow control / batching | DIVERGE | **DIVERGE** | unchanged | the 256-entry `MsgApp` cap (etcd 300 in one append, mb 256 + a 44-entry follow-up); the single extra append shifts every downstream index, producing the ~256 `.commit` cascade + 2 traversal `HeartbeatResp`. Same as baseline. |
+| 07 | add voter | DIVERGE ×2 | **DIVERGE ×1** | **improved** | uncommitted conf-accounting diff gone; only the conf-change replication *shape* remains (etcd 1-entry append at prev-index 1 vs mb empty append at index 2). |
+| 08 | remove voter | DIVERGE (REAL) | **MATCH** | **fixed** | `pending_farewell` lands: removed node 3 now learns `commit=2`, `voters=[1,2]`, and the same 6-message exchange as etcd. |
+| 09 | add learner | DIVERGE ×2 | **DIVERGE ×1** | **improved** | same as 07: accounting fixed, conf-change append shape remains. |
+| 10 | ReadIndex (safe) | DIVERGE (REAL) | **MATCH** | **fixed** | leadership-confirmation heartbeat round now emitted on `read_index`. |
+| 11 | leadership transfer | MATCH | **MATCH** | — | (already fixed at `b10b66f`) |
+| 12 | repeated campaigns / stale | MATCH | **MATCH** | — | (already fixed at `b10b66f`) |
+
+The 4 residual divergences reduce to **three** distinct causes, all pre-existing
+and all documented in §4: (a) heartbeat-response Map-iteration order (03, and the
+tail of 06) — representation, not behavior; (b) the 256-entry per-`MsgApp` cap
+(06) — the standing known-DIVERGENT #3; (c) the conf-change replication shape
+(07, 09) — a timing/representation difference in how the committed conf entry is
+carried. None is new; none is a safety difference; final state converges on every
+deterministic scenario. The harness proved it is still sensitive — it flags these
+4 in the very same run in which 5 others became MATCH.
+
 ## 1. Schema (shared by both harnesses)
 
 One JSON object ("frame") is emitted per DSL command. Keys are in a fixed order,
