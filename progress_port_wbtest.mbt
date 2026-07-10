@@ -13,11 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Ported from etcd-io/raft (Apache-2.0): tracker/progress_test.go.
-// TestProgressString / TestProgressResume are omitted: they assert the debug
-// String() renderer and the MsgAppFlowPaused throttle flag, neither of which
-// this model carries (Probe pacing is done by the caller, not a per-Progress
-// flag). See PORTING.md.
+// Ported from etcd-io/raft (Apache-2.0): tracker/progress_test.go — all 8.
+// `Progress` now carries the `msg_app_flow_paused` throttle bit, a real
+// `pending_snapshot`, an `is_learner` flag and a `to_string` renderer, so the
+// String/Resume/BecomeProbe cases port faithfully.
 
 ///|
 fn probe_progress(match_ : UInt64, next : UInt64) -> Progress {
@@ -38,12 +37,80 @@ test "TestProgressIsPaused" {
   assert_false(repl.is_paused())
   let full = Progress::new(1, max_inflight=1)
   full.become_replicate()
-  full.sent_entries(1)
+  full.sent_entries(1, true)
   assert_true(full.is_paused())
   // Snapshot: always paused.
   let snap = probe_progress(1, 2)
   snap.become_snapshot(10)
   assert_true(snap.is_paused())
+}
+
+///|
+fn mk_progress(
+  state : ProgressState,
+  match_ : UInt64,
+  next : UInt64,
+  pending? : UInt64 = 0,
+  paused? : Bool = false,
+  learner? : Bool = false,
+  inflights? : Inflights = Inflights::new(256, 0),
+) -> Progress {
+  {
+    next_index: next,
+    match_index: match_,
+    state,
+    recent_active: false,
+    msg_app_flow_paused: paused,
+    pending_snapshot: pending,
+    is_learner: learner,
+    inflights,
+  }
+}
+
+///|
+test "TestProgressString" {
+  let ins = Inflights::new(1, 0)
+  ins.add(123, 1)
+  let pr = mk_progress(
+    Snapshot,
+    1,
+    2,
+    pending=123,
+    paused=true,
+    learner=true,
+    inflights=ins,
+  )
+  assert_eq(
+    pr.to_string(),
+    "StateSnapshot match=1 next=2 learner paused pendingSnap=123 inactive inflight=1[full]",
+  )
+}
+
+///|
+test "TestProgressResume" {
+  let p = mk_progress(Probe, 0, 2, paused=true)
+  let _ = p.maybe_decr_to(1, 1)
+  assert_false(p.msg_app_flow_paused)
+  p.msg_app_flow_paused = true
+  let _ = p.maybe_update(2)
+  assert_false(p.msg_app_flow_paused)
+}
+
+///|
+test "TestProgressBecomeProbe" {
+  // (progress, expected next after become_probe)
+  let cases : Array[(Progress, UInt64)] = [
+    (mk_progress(Replicate, 1, 5), 2),
+    (mk_progress(Snapshot, 1, 5, pending=10), 11), // snapshot finish
+    (mk_progress(Snapshot, 1, 5, pending=0), 2), // snapshot failure
+  ]
+  for tc in cases {
+    let (p, wnext) = tc
+    p.become_probe()
+    assert_true(p.state == Probe)
+    assert_eq(p.match_index, 1)
+    assert_eq(p.next_index, wnext)
+  }
 }
 
 ///|

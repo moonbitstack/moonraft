@@ -38,6 +38,16 @@ pub struct Progress {
   mut match_index : UInt64
   mut state : ProgressState
   mut recent_active : Bool
+  // Throttle flag: set when the MsgApp flow to this follower is paused (a probe
+  // was sent, or the in-flight window filled). A periodic message is still sent
+  // once it clears — on an ack or a heartbeat response — so progress resumes.
+  mut msg_app_flow_paused : Bool
+  // In `Snapshot`, the last index of the snapshot the leader shipped; replication
+  // is paused until the follower reconnects to the log past it.
+  mut pending_snapshot : UInt64
+  // Whether this follower is a learner (non-voting). Kept here too so a progress
+  // dump is self-describing; the authoritative set lives in `Membership`.
+  mut is_learner : Bool
   inflights : Inflights
 }
 
@@ -50,30 +60,102 @@ pub fn Progress::new(next : UInt64, max_inflight? : Int = 256) -> Progress {
     match_index: 0,
     state: Probe,
     recent_active: false,
+    msg_app_flow_paused: false,
+    pending_snapshot: 0,
+    is_learner: false,
     inflights: Inflights::new(max_inflight, 0),
   }
 }
 
 ///|
-/// Whether replication to this follower is currently throttled: in `Replicate`
-/// once the in-flight window is full, and always while a snapshot is pending.
-/// A `Probe` follower is never throttled here — it is paced one message per
-/// heartbeat by the caller.
-pub fn Progress::is_paused(self : Progress) -> Bool {
-  match self.state {
-    Replicate => self.inflights.full()
-    Snapshot => true
-    Probe => false
+fn progress_state_name(s : ProgressState) -> String {
+  match s {
+    Probe => "StateProbe"
+    Replicate => "StateReplicate"
+    Snapshot => "StateSnapshot"
   }
 }
 
 ///|
-/// Record that a replication message ending at `last` was sent, consuming a slot
-/// of the in-flight window. Only meaningful in `Replicate`.
-pub fn Progress::sent_entries(self : Progress, last : UInt64) -> Unit {
-  if self.state == Replicate {
-    self.optimistic_advance(last)
-    self.inflights.add(last, 1)
+/// A one-line, self-describing summary of this progress (etcd's Progress.String).
+pub fn Progress::to_string(self : Progress) -> String {
+  let mut s = progress_state_name(self.state) +
+    " match=" +
+    self.match_index.to_string() +
+    " next=" +
+    self.next_index.to_string()
+  if self.is_learner {
+    s = s + " learner"
+  }
+  if self.is_paused() {
+    s = s + " paused"
+  }
+  if self.pending_snapshot > 0 {
+    s = s + " pendingSnap=" + self.pending_snapshot.to_string()
+  }
+  if !self.recent_active {
+    s = s + " inactive"
+  }
+  let n = self.inflights.count()
+  if n > 0 {
+    s = s + " inflight=" + n.to_string()
+    if self.inflights.full() {
+      s = s + "[full]"
+    }
+  }
+  s
+}
+
+///|
+/// Move into `state`, clearing the throttle, pending snapshot and in-flight
+/// window (etcd's ResetState).
+fn Progress::reset_state(self : Progress, state : ProgressState) -> Unit {
+  self.msg_app_flow_paused = false
+  self.pending_snapshot = 0
+  self.state = state
+  self.inflights.reset()
+}
+
+///|
+/// Whether replication to this follower is currently throttled: while a snapshot
+/// is pending, or whenever the MsgApp flow has been paused (a probe in flight, or
+/// a full in-flight window).
+pub fn Progress::is_paused(self : Progress) -> Bool {
+  match self.state {
+    Probe => self.msg_app_flow_paused
+    Replicate => self.msg_app_flow_paused
+    Snapshot => true
+  }
+}
+
+///|
+/// Clear the flow-control throttle (on an ack or a heartbeat response), so one
+/// more message may be sent.
+pub fn Progress::unpause(self : Progress) -> Unit {
+  self.msg_app_flow_paused = false
+}
+
+///|
+/// Record that a replication message ending at `last` and carrying `has_entries`
+/// entries was sent. In `Replicate` this consumes an in-flight slot and pauses
+/// once the window fills; in `Probe` any non-empty send pauses until acked.
+pub fn Progress::sent_entries(
+  self : Progress,
+  last : UInt64,
+  has_entries : Bool,
+) -> Unit {
+  match self.state {
+    Replicate => {
+      if has_entries {
+        self.optimistic_advance(last)
+        self.inflights.add(last, 1)
+      }
+      // Re-evaluate the throttle even for an empty probe (etcd SentEntries): a
+      // full window keeps the flow paused.
+      self.msg_app_flow_paused = self.inflights.full()
+    }
+    Probe => if has_entries { self.msg_app_flow_paused = true }
+    Snapshot => ()
   }
 }
 
@@ -104,16 +186,28 @@ pub fn Progress::is_active(self : Progress) -> Bool {
 ///|
 /// Move to streaming replication, sending from just past the match point.
 pub fn Progress::become_replicate(self : Progress) -> Unit {
-  self.inflights.reset()
-  self.state = Replicate
+  self.reset_state(Replicate)
   self.next_index = self.match_index + 1
 }
 
 ///|
-/// Move back to cautious probing, one entry at a time.
+/// Move back to cautious probing, one entry at a time. Coming out of `Snapshot`,
+/// resume just past the snapshot the follower was sent (etcd's BecomeProbe).
 pub fn Progress::become_probe(self : Progress) -> Unit {
-  self.inflights.reset()
-  self.state = Probe
+  let from_snapshot = self.state == Snapshot
+  let pending = self.pending_snapshot
+  self.reset_state(Probe)
+  self.next_index = if from_snapshot {
+    let a = self.match_index + 1
+    let b = pending + 1
+    if a > b {
+      a
+    } else {
+      b
+    }
+  } else {
+    self.match_index + 1
+  }
 }
 
 ///|
@@ -123,8 +217,8 @@ pub fn Progress::become_snapshot(
   self : Progress,
   snapshot_index : UInt64,
 ) -> Unit {
-  self.inflights.reset()
-  self.state = Snapshot
+  self.reset_state(Snapshot)
+  self.pending_snapshot = snapshot_index
   self.next_index = snapshot_index + 1
 }
 
@@ -136,6 +230,8 @@ pub fn Progress::maybe_update(self : Progress, index : UInt64) -> Bool {
   let advanced = index > self.match_index
   if advanced {
     self.match_index = index
+    // A genuine advance means the follower is keeping up: resume the flow.
+    self.msg_app_flow_paused = false
   }
   if self.next_index < index + 1 {
     self.next_index = index + 1
@@ -179,6 +275,7 @@ pub fn Progress::maybe_decr_to(
   let capped = if rejected < match_hint + 1 { rejected } else { match_hint + 1 }
   let floor = self.match_index + 1
   self.next_index = if capped > floor { capped } else { floor }
+  self.msg_app_flow_paused = false
   true
 }
 

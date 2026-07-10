@@ -433,11 +433,18 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
       ),
     )
   }
-  let entries = self.core.entries_after_limited(prev, self.max_entries)
-  if p.state == Replicate && entries.length() > 0 {
-    // Streaming: advance optimistically and consume a flow-control slot.
-    p.sent_entries(entries[entries.length() - 1].index)
+  // A streaming follower whose in-flight window is full is sent a content-free
+  // probe (no new entries, no window slot consumed), rather than more entries it
+  // has no room to track — matching etcd's ShouldSendMsgApp (§5.3 flow control).
+  let entries = if p.state == Replicate && p.inflights.full() {
+    []
+  } else {
+    self.core.entries_after_limited(prev, self.max_entries)
   }
+  let has = entries.length() > 0
+  let last = if has { entries[entries.length() - 1].index } else { prev }
+  // Advance the flow controller: stream (consume a window slot) or pause a probe.
+  p.sent_entries(last, has)
   Message::new(
     self.id,
     peer,
@@ -498,36 +505,6 @@ fn RaftNode::bcast_heartbeat(
     )
   }
   out
-}
-
-///|
-/// A content-free AppendEntries anchored at the follower's match point, used as
-/// a probe (e.g. to resume flow after a heartbeat acknowledgement) without
-/// consuming a slot of the in-flight window.
-fn RaftNode::probe_append(self : RaftNode, peer : String) -> Message {
-  let p = self.progress[peer]
-  let prev = if p.match_index < self.core.last_log_index() {
-    p.match_index
-  } else {
-    self.core.last_log_index()
-  }
-  let anchor = if prev < self.core.snapshot_index {
-    self.core.snapshot_index
-  } else {
-    prev
-  }
-  Message::new(
-    self.id,
-    peer,
-    Append({
-      term: self.core.current_term(),
-      leader_id: self.id,
-      prev_log_index: anchor,
-      prev_log_term: self.core.term_at(anchor),
-      entries: [],
-      leader_commit: self.core.commit_index,
-    }),
-  )
 }
 
 ///|
@@ -650,6 +627,11 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
         self.progress[id] = Progress::new(self.core.last_log_index() + 1)
+      }
+      // Keep each progress's learner flag in step with the configuration.
+      match self.progress.get(id) {
+        Some(p) => p.is_learner = self.config.is_learner(id)
+        None => ()
       }
     }
   }

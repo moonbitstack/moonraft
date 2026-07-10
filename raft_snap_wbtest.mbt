@@ -76,8 +76,35 @@ test "TestSendingSnapshotSetPendingSnapshot" {
     ),
   )
   assert_true(pr2.state == Snapshot)
-  // Our pending-snapshot proxy: next_index - 1.
-  assert_eq(pr2.next_index - 1, 11)
+  assert_eq(pr2.pending_snapshot, 11)
   assert_eq(out.length(), 1)
   assert_true(out[0].kind() == "Snapshot")
+}
+
+///|
+/// TestSnapshotFailure: a rejected snapshot report discards the pending snapshot
+/// and probes again from the match point.
+test "TestSnapshotFailure" {
+  let r = snap_leader()
+  let pr2 = r.progress["2"]
+  pr2.next_index = 1
+  pr2.become_snapshot(11)
+  r.report_snapshot("2", true)
+  assert_eq(pr2.pending_snapshot, 0)
+  assert_eq(pr2.next_index, 1)
+  assert_true(pr2.msg_app_flow_paused)
+}
+
+///|
+/// TestSnapshotSucceed: a successful snapshot report probes from just past the
+/// snapshot.
+test "TestSnapshotSucceed" {
+  let r = snap_leader()
+  let pr2 = r.progress["2"]
+  pr2.next_index = 1
+  pr2.become_snapshot(11)
+  r.report_snapshot("2", false)
+  assert_eq(pr2.pending_snapshot, 0)
+  assert_eq(pr2.next_index, 12)
+  assert_true(pr2.msg_app_flow_paused)
 }

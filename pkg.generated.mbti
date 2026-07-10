@@ -391,6 +391,9 @@ pub struct Progress {
   mut match_index : UInt64
   mut state : ProgressState
   mut recent_active : Bool
+  mut msg_app_flow_paused : Bool
+  mut pending_snapshot : UInt64
+  mut is_learner : Bool
   inflights : Inflights
 }
 pub fn Progress::become_probe(Self) -> Unit
@@ -406,7 +409,9 @@ pub fn Progress::maybe_update(Self, UInt64) -> Bool
 pub fn Progress::new(UInt64, max_inflight? : Int) -> Self
 pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
 pub fn Progress::reset_active(Self) -> Unit
-pub fn Progress::sent_entries(Self, UInt64) -> Unit
+pub fn Progress::sent_entries(Self, UInt64, Bool) -> Unit
+pub fn Progress::to_string(Self) -> String
+pub fn Progress::unpause(Self) -> Unit
 
 pub enum ProgressState {
   Probe
@@ -507,6 +512,8 @@ pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
+pub fn RaftNode::report_unreachable(Self, String) -> Unit
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
 pub fn RaftNode::role(Self) -> Role
 pub fn RaftNode::soft_state(Self) -> SoftState

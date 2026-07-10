@@ -153,20 +153,17 @@ Ported in `pagination_wbtest.mbt` (RawNode wired to `max_applying_ents_size` via
   with `MsgStorageAppend`/`MsgStorageApply` message-based storage, which this port
   does not model.
 
-## tracker/progress_test.go — DONE (5/8)
-Ported in `progress_port_wbtest.mbt`:
-- `TestProgressMaybeDecr` — DONE (all 10 cases; exercises `maybe_decr_to`).
-- `TestProgressUpdate` — DONE (4 cases).
-- `TestProgressBecomeReplicate` — DONE.
-- `TestProgressBecomeSnapshot` — DONE (pending-snapshot index tracked as
-  `next_index - 1`).
-- `TestProgressIsPaused` — DONE (adapted: our model paces `Probe` from the
-  caller rather than a per-Progress `MsgAppFlowPaused` flag, so the Probe+paused
-  case is N/A; Replicate-window-full and Snapshot are covered).
-- Pending (3): `TestProgressString` (debug renderer), `TestProgressResume`
-  (`MsgAppFlowPaused` reset — not modelled), `TestProgressBecomeProbe` (asserts
-  `Next` reset semantics our `become_probe` intentionally leaves to
-  `maybe_decr_to` in the reject path).
+## tracker/progress_test.go — DONE (8/8)
+Ported in `progress_port_wbtest.mbt`. `Progress` now carries a real
+`msg_app_flow_paused` throttle, a `pending_snapshot` index, an `is_learner` flag
+and a `to_string` renderer, so every case ports faithfully (no downgrade):
+- `TestProgressMaybeDecr` (10), `TestProgressUpdate` (4),
+  `TestProgressBecomeReplicate`, `TestProgressBecomeSnapshot`,
+  `TestProgressIsPaused` — DONE.
+- `TestProgressString` — DONE (`Progress::to_string`, exact etcd format).
+- `TestProgressResume` — DONE (`maybe_update`/`maybe_decr_to` clear the throttle).
+- `TestProgressBecomeProbe` — DONE (3 cases; `become_probe` resumes from
+  `max(match+1, pending_snapshot+1)` out of `Snapshot`).
 
 ## raft_flow_control_test.go — DONE (3/3)
 `Inflights` is wired into `Progress` (`is_paused`/`sent_entries`/`free_le`),
@@ -212,10 +209,12 @@ skips a paused (snapshot-pending or window-full) follower. Ported in
 `raft_snap_wbtest.mbt`:
 - `TestSnapshotAbort` — DONE.
 - `TestPendingSnapshotPauseReplication` — DONE.
-- `TestSendingSnapshotSetPendingSnapshot` — DONE (pending index tracked as
-  `next_index - 1`).
-- Pending (2): `TestSnapshotFailure` / `TestSnapshotSucceed` need `MsgSnapStatus`
-  (ReportSnapshot), which this model does not send.
+- `TestSendingSnapshotSetPendingSnapshot` — DONE (real `pending_snapshot`).
+- `TestSnapshotFailure` / `TestSnapshotSucceed` — DONE. Added
+  `RaftNode::report_snapshot(id, reject)` (etcd's ReportSnapshot / MsgSnapStatus)
+  and `report_unreachable(id)` (ReportUnreachable): a report leaves the Snapshot
+  state, discards the pending snapshot on failure, and pauses until the next
+  AppendEntries response. **5/5.**
 
 ## B3 — check-quorum leader stickiness — DONE (core)
 With check-quorum on, a server still in contact with a leader (`leader_id` set,

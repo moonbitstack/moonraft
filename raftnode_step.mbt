@@ -323,16 +323,51 @@ fn RaftNode::handle_heartbeat_resp(
     None => []
     Some(p) => {
       p.mark_active()
-      if p.match_index < self.core.last_log_index() {
-        if p.is_paused() {
-          [self.probe_append(from)]
-        } else {
-          [self.send_to(from)]
-        }
+      // A heartbeat response clears the flow throttle (etcd), so one more
+      // message goes out to a follower that is still behind.
+      p.unpause()
+      if p.match_index < self.core.last_log_index() && p.state != Snapshot {
+        [self.send_to(from)]
       } else {
         []
       }
     }
+  }
+}
+
+///|
+/// Report the outcome of a snapshot the leader shipped (etcd's ReportSnapshot /
+/// MsgSnapStatus). A failure discards the pending snapshot; either way the
+/// follower leaves the Snapshot state and is probed, paused until its next
+/// AppendEntries response confirms where it now stands.
+pub fn RaftNode::report_snapshot(
+  self : RaftNode,
+  id : String,
+  reject : Bool,
+) -> Unit {
+  guard self.core.role() == Leader else { return }
+  match self.progress.get(id) {
+    None => ()
+    Some(p) =>
+      if p.state == Snapshot {
+        if reject {
+          p.pending_snapshot = 0
+        }
+        p.become_probe()
+        p.msg_app_flow_paused = true
+      }
+  }
+}
+
+///|
+/// Report that a follower is unreachable (etcd's ReportUnreachable). A streaming
+/// follower drops back to probing so the leader stops optimistically advancing
+/// into messages that are being lost.
+pub fn RaftNode::report_unreachable(self : RaftNode, id : String) -> Unit {
+  guard self.core.role() == Leader else { return }
+  match self.progress.get(id) {
+    None => ()
+    Some(p) => if p.state == Replicate { p.become_probe() }
   }
 }
 
