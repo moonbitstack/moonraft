@@ -46,12 +46,7 @@ fn majority_committed(
   }
   let srt = Array::new(capacity=n)
   for v in voters {
-    srt.push(
-      match acked.get(v) {
-        Some(i) => i
-        None => 0
-      },
-    )
+    srt.push(acked.get(v).unwrap_or(0))
   }
   srt.sort()
   // From the end, move n/2+1 to the left; that position is acked by a majority.
@@ -118,10 +113,11 @@ pub fn describe(voters : Array[String], acked : Map[String, UInt64]) -> String {
   }
   let info : Array[DescTup] = []
   for id in voters {
-    match acked.get(id) {
-      Some(i) => info.push({ id, idx: i, ok: true, bar: 0 })
-      None => info.push({ id, idx: 0, ok: false, bar: 0 })
+    let (idx, ok) = match acked.get(id) {
+      Some(i) => (i, true)
+      None => (0, false)
     }
+    info.push({ id, idx, ok, bar: 0 })
   }
   // Sort by (idx, id) to assign bar lengths, longest bar = highest index.
   insertion_sort(info, fn(a, b) {
