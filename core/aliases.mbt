@@ -10,7 +10,6 @@ using @tracker {type Progress, type ProgressState}
 using @raftpb {
   type Entry,
   type Message,
-  type Payload,
   type ReadIndexResp,
   type RequestVoteArgs,
   type RequestVoteReply,

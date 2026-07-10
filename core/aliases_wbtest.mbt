@@ -11,6 +11,7 @@ using @raftpb {
   entry_encoding_size,
   payloads_size,
   type EntryId,
+  type Payload,
 }
 
 ///|

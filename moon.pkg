@@ -1,5 +1,6 @@
-// raft-moonbit: Raft consensus, core package.
-
+// raft-moonbit: the public facade. `moon add Lfan-ke/raft-moonbit` and the
+// `@raft.*` names in the README resolve here; every symbol is re-exported from
+// the sub-packages below so a consumer never imports them directly.
 import {
   "Lfan-ke/raft-moonbit/quorum",
   "Lfan-ke/raft-moonbit/tracker",
@@ -7,27 +8,5 @@ import {
   "Lfan-ke/raft-moonbit/confchange",
   "Lfan-ke/raft-moonbit/storage",
   "Lfan-ke/raft-moonbit/log",
+  "Lfan-ke/raft-moonbit/core",
 }
-
-// Browser demo build (`moon build --target wasm`): each node runs in its own Web
-// Worker over its own instance, so the exports are the flat per-node API and the
-// linear memory the strings are read out of.
-
-options(
-  link: {
-    "wasm": {
-      "exports": [
-        "wnode_new",
-        "wnode_tick",
-        "wnode_campaign",
-        "wnode_propose",
-        "wnode_recv_reset",
-        "wnode_recv_push",
-        "wnode_recv_apply",
-        "wnode_drain",
-        "wnode_state",
-      ],
-      "export-memory-name": "memory",
-    },
-  },
-)

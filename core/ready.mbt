@@ -14,32 +14,6 @@
 // limitations under the License.
 
 ///|
-/// The volatile part of a server's state, useful for logging and monitoring but
-/// never persisted (etcd's `SoftState`). `lead` is `None` when no leader is
-/// known. A `Ready` carries a `SoftState` only when it has changed, which is why
-/// the leader/role transition is the trigger rather than the current value.
-pub(all) struct SoftState {
-  lead : String?
-  state : Role
-} derive(Eq)
-
-///|
-/// Whether two soft states are equal (etcd's `SoftState.equal`). A change in
-/// either the known leader or the role is what makes a new `Ready` report one.
-pub fn SoftState::equal(self : SoftState, other : SoftState) -> Bool {
-  self == other
-}
-
-///|
-/// A linearizable-read ticket (etcd's `ReadState`): the commit index a read must
-/// wait for the state machine to reach, tagged with the caller's opaque context
-/// so a returned index can be matched back to the request that asked for it.
-pub(all) struct ReadState {
-  index : UInt64
-  request_ctx : Bytes
-} derive(Eq)
-
-///|
 /// The batch of outstanding work the application must handle for one turn of the
 /// state machine (etcd's `Ready`). The contract is synchronous, not a coroutine:
 /// the caller persists `entries`/`hard_state`/`snapshot`, sends `messages`,
