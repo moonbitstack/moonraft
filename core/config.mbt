@@ -48,9 +48,6 @@ pub struct Config {
   election_tick : Int
   // Ticks between heartbeats; must be greater than 0.
   heartbeat_tick : Int
-  // Cap on entries per AppendEntries batch (etcd's MaxSizePerMsg is a byte cap;
-  // this is the count companion).
-  max_entries : UInt64
   // Byte cap on a single AppendEntries batch (etcd's MaxSizePerMsg).
   max_msg_bytes : UInt64
   // Byte cap on the uncommitted log tail (etcd's MaxUncommittedEntriesSize);
@@ -97,7 +94,6 @@ pub fn Config::new(
   peers : Array[String],
   election_tick? : Int = 10,
   heartbeat_tick? : Int = 1,
-  max_entries? : UInt64 = 256,
   max_msg_bytes? : UInt64 = 18446744073709551615UL,
   max_uncommitted_size? : UInt64 = 0,
   max_inflight? : Int = 256,
@@ -119,7 +115,6 @@ pub fn Config::new(
     peers,
     election_tick,
     heartbeat_tick,
-    max_entries,
     max_msg_bytes,
     max_uncommitted_size,
     max_inflight,
@@ -176,7 +171,6 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
     seed=config.seed,
     election_timeout=config.election_tick,
     heartbeat_timeout=config.heartbeat_tick,
-    max_entries=config.max_entries,
     max_msg_bytes=config.max_msg_bytes,
     max_uncommitted_size=config.max_uncommitted_size,
     max_inflight=config.max_inflight,

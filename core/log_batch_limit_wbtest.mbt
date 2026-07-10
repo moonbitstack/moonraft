@@ -14,8 +14,10 @@ test "entries_after_limited caps the batch size" {
 
 ///|
 test "bounded append batches still replicate a large log" {
+  // A tight byte cap (etcd's MaxSizePerMsg) forces the leader to split its
+  // AppendEntries into several small batches; replication still converges.
   let nodes : Map[String, RaftNode] = {
-    "a": RaftNode::new("a", ["b"], seed=1, max_entries=2),
+    "a": RaftNode::new("a", ["b"], seed=1, max_msg_bytes=24),
     "b": RaftNode::new("b", ["a"], seed=2),
   }
   let a = nodes.get("a").unwrap()
