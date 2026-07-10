@@ -146,9 +146,18 @@ Covers the core of etcd `TestLeaderTransferToUpToDateNode` /
 `ToSlowFollower` / `Timeout` / `ToSelf` / `ToNonExistingNode` /
 `IgnoreProposal` / `RemoveNode`.
 
-## raft_test.go — IMPL/TODO (0/118)
-The core file. Remaining ones need: ReadOnlySafe two-mode, RawNode/Ready (owned
-by another workstream). Ported incrementally.
+## raft_test.go — DONE (partial) + IMPL
+Ported onto a single RaftNode in `raft_core_port_wbtest.mbt` (plus B2/B3/
+leadTransferee tests above): `TestSingleNodeCommit`, `TestVoteFromAnyState`,
+`TestPreVoteFromAnyState`, `TestAddNode`/`TestRemoveNode`/`TestCommitAfterRemoveNode`
+(via `confchange_apply_wbtest.mbt`), `TestLearnerPromotion`/`TestLearnerElectionTimeout`
+(via `learner_wbtest.mbt`), the check-quorum superseding/disruptive family, and
+the leader-transfer family. Remaining (network-harness or another workstream):
+ReadOnlySafe two-mode, dueling-candidates / overwrite-newer-logs, RawNode/Ready.
+
+## raft_paper_test.go additional
+`TestCandidateStartNewElection` and `TestLeaderCommitPrecedingEntries` now ported
+in `raft_core_port_wbtest.mbt` (20/26 total).
 
 ## node_test.go — IMPL (0/22)
 Needs the `Node`/`Ready`/`Advance` async API (RawNode layer).
