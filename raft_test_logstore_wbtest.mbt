@@ -127,3 +127,162 @@ test "TestHandleMsgApp" {
   check_handle_app(2, 2, 3, [], 2, 2, false) // match entry 2, commit to last new 2
   check_handle_app(2, 2, 4, [], 2, 2, false) // commit up to log.last()
 }
+
+///|
+/// The follower's reject hint for a probe `(prev_index, prev_term)`, via the
+/// actual `handle_append_entries` reject path.
+fn fast_reject_hint(
+  follower_terms : Array[UInt64],
+  compact : UInt64,
+  compact_term : UInt64,
+  leader_term : UInt64,
+  prev_index : UInt64,
+  prev_term : UInt64,
+) -> (UInt64, UInt64) raise {
+  let f = Node::new("2")
+  let mut idx : UInt64 = 0
+  for t in follower_terms {
+    idx = idx + 1
+    f.append(t, b"") |> ignore
+  }
+  f.become_follower(leader_term)
+  if compact > 0 {
+    f.install_snapshot({
+      last_index: compact,
+      last_term: compact_term,
+      data: b"",
+      conf_state: ConfState::empty(),
+    })
+    // etcd deliberately keeps commit at 0 here (an unrealistic edge case), so the
+    // probe is not short-circuited by the accept-committed-prefix path.
+    f.commit_index = 0
+  }
+  let reply = f.handle_append_entries({
+    term: leader_term,
+    leader_id: "1",
+    prev_log_index: prev_index,
+    prev_log_term: prev_term,
+    entries: [],
+    leader_commit: 0,
+  })
+  assert_false(reply.success)
+  (reply.conflict_index, reply.conflict_term)
+}
+
+///|
+/// The leader's next append `(prev_index, prev_term)` after a reject with hint
+/// `(reject_index, reject_term)`, via the actual `handle_append_resp` back-off.
+fn fast_next_append(
+  leader_terms : Array[UInt64],
+  leader_term : UInt64,
+  probe_index : UInt64,
+  reject_index : UInt64,
+  reject_term : UInt64,
+) -> (UInt64, UInt64) {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  for t in leader_terms {
+    r.node().append(t, b"") |> ignore
+  }
+  r
+  .node()
+  .apply_hard_state({ term: leader_term - 1, vote: None, commit: probe_index })
+  r.node().become_candidate()
+  r.become_leader()
+  r.progress["2"].next_index = probe_index + 1
+  let msgs = r.step(
+    Message::new(
+      "2",
+      "1",
+      AppendResp({
+        term: leader_term,
+        success: false,
+        match_index: 0,
+        conflict_index: reject_index,
+        conflict_term: reject_term,
+      }),
+    ),
+  )
+  for m in msgs {
+    if m.to == "2" {
+      match m.payload {
+        Append(a) => return (a.prev_log_index, a.prev_log_term)
+        _ => ()
+      }
+    }
+  }
+  abort("leader did not send an append to the follower")
+}
+
+///|
+fn check_fast_log_rejection(
+  leader_terms : Array[UInt64],
+  follower_terms : Array[UInt64],
+  compact : UInt64,
+  compact_term : UInt64,
+  reject_hint_term : UInt64,
+  reject_hint_index : UInt64,
+  next_append_term : UInt64,
+  next_append_index : UInt64,
+) -> Unit raise {
+  let leader_term = leader_terms[leader_terms.length() - 1]
+  let probe_index = leader_terms.length().to_uint64()
+  let (ci, ct) = fast_reject_hint(
+    follower_terms, compact, compact_term, leader_term, probe_index, leader_term,
+  )
+  assert_eq(ci, reject_hint_index)
+  assert_eq(ct, reject_hint_term)
+  let (ni, nt) = fast_next_append(
+    leader_terms, leader_term, probe_index, reject_hint_index, reject_hint_term,
+  )
+  assert_eq(ni, next_append_index)
+  assert_eq(nt, next_append_term)
+}
+
+///|
+test "TestFastLogRejection" {
+  check_fast_log_rejection(
+    [1, 2, 2, 4, 4, 4, 4],
+    [1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3],
+    0,
+    0,
+    3,
+    7,
+    2,
+    3,
+  )
+  check_fast_log_rejection(
+    [1, 2, 2, 3, 4, 4, 4, 5],
+    [1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3],
+    0,
+    0,
+    3,
+    8,
+    3,
+    4,
+  )
+  check_fast_log_rejection([1, 1, 1, 1], [1, 2, 2, 4], 0, 0, 1, 1, 1, 1)
+  check_fast_log_rejection([1, 1, 1, 1, 1, 1], [1, 2, 2, 4], 0, 0, 1, 1, 1, 1)
+  check_fast_log_rejection([1, 1, 1, 1], [1, 2, 2, 4, 4, 4], 0, 0, 1, 1, 1, 1)
+  check_fast_log_rejection([1, 1, 1, 4, 5], [1, 1, 1, 4], 0, 0, 4, 4, 4, 4)
+  check_fast_log_rejection(
+    [2, 5, 5, 5, 5, 5, 5, 5, 5],
+    [2, 4, 4, 4, 4, 4],
+    0,
+    0,
+    4,
+    6,
+    2,
+    1,
+  )
+  check_fast_log_rejection(
+    [2, 2, 2, 2, 2],
+    [2, 4, 4, 4, 4, 4, 4, 4],
+    0,
+    0,
+    2,
+    1,
+    2,
+    1,
+  )
+  check_fast_log_rejection([1, 1, 3], [1, 1, 3, 3, 3], 5, 3, 0, 3, 1, 2)
+}
