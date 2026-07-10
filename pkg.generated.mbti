@@ -442,6 +442,7 @@ pub fn Node::apply_hard_state(Self, HardState) -> Unit
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
+pub fn Node::become_pre_candidate(Self) -> Unit
 pub fn Node::compact(Self, UInt64, Bytes, conf_state? : ConfState) -> Snapshot
 pub fn Node::current_term(Self) -> UInt64
 pub fn Node::entries_after(Self, UInt64) -> Array[Entry]

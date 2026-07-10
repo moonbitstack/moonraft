@@ -55,6 +55,14 @@ pub fn Node::become_follower(self : Node, term : UInt64) -> Unit {
 }
 
 ///|
+/// Enter the pre-vote probe phase (etcd's `becomePreCandidate`): change the role
+/// but NOT the term or vote — a pre-candidate solicits votes under a hypothetical
+/// next term it has not adopted.
+pub fn Node::become_pre_candidate(self : Node) -> Unit {
+  self.role = PreCandidate
+}
+
+///|
 /// Start a new election: advance the term and vote for self.
 pub fn Node::become_candidate(self : Node) -> Unit {
   self.current_term = self.current_term + 1

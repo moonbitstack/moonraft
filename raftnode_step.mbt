@@ -355,7 +355,9 @@ fn RaftNode::handle_pre_vote_resp(
   match self.config.vote_result(self.votes) {
     VoteWon => self.start_real_campaign()
     VoteLost => {
-      self.in_pre_campaign = false
+      // A majority declined the pre-vote: step back to follower rather than
+      // linger in the PreCandidate state (the cluster already has a leader).
+      self.become_follower(self.core.current_term())
       []
     }
     VotePending => []

@@ -232,16 +232,12 @@ pub fn RaftNode::id(self : RaftNode) -> String {
 }
 
 ///|
-/// The current role, as reported to callers (etcd's `SoftState.RaftState`).
-/// During the pre-vote probe the underlying core is still internally a follower
-/// (it has not adopted the hypothetical term), but the observable state is
-/// `PreCandidate` — a first-class Raft state, not a hidden flag.
+/// The current role (etcd's `SoftState.RaftState`). During the pre-vote probe
+/// the core genuinely occupies the `PreCandidate` state — a first-class Raft
+/// state, not a derived flag — having changed role without adopting the
+/// hypothetical term.
 pub fn RaftNode::role(self : RaftNode) -> Role {
-  if self.in_pre_campaign {
-    PreCandidate
-  } else {
-    self.core.role()
-  }
+  self.core.role()
 }
 
 ///|
@@ -379,6 +375,11 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
 
 ///|
 fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
+  // Genuinely enter the PreCandidate state (etcd's becomePreCandidate) — the
+  // core changes role without adopting the hypothetical term. `in_pre_campaign`
+  // stays as the pre-vote bookkeeping flag, kept in step with the role.
+  self.core.become_pre_candidate()
+  self.leader_id = None
   self.in_pre_campaign = true
   self.votes.clear()
   self.votes[self.id] = true
