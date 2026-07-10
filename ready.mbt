@@ -73,6 +73,54 @@ pub(all) struct Ready {
   committed_entries : Array[Entry]
   messages : Array[Message]
   must_sync : Bool
+  // Local storage directives, populated only under AsyncStorageWrites. Instead
+  // of the caller persisting `entries` / applying `committed_entries` inline and
+  // then calling `advance`, the work is handed to a local storage thread as a
+  // directive; the thread does it and delivers the paired response back through
+  // `step_append_resp` / `step_apply_resp`. `None` in the synchronous mode.
+  storage_append : StorageAppend?
+  storage_apply : StorageApply?
+}
+
+///|
+/// The acknowledgement a storage thread sends back once a `StorageAppend` has
+/// been made durable (etcd's `MsgStorageAppendResp`). It attests the last log
+/// `(index, log_term)` written and the `term` the raft node held when the
+/// directive was issued — the two together defeat the ABA race: a response that
+/// arrives after the term has moved on, or after the unstable log at that index
+/// was overwritten, is ignored rather than mistaken for an ack of the new log.
+pub(all) struct StorageAppendResp {
+  index : UInt64
+  log_term : UInt64
+  term : UInt64
+} derive(Eq)
+
+///|
+/// A directive to the local append thread: write these unstable entries (and the
+/// hard state / snapshot, if present) to stable storage, then return `resp`
+/// (etcd's `MsgStorageAppend`).
+pub(all) struct StorageAppend {
+  entries : Array[Entry]
+  hard_state : HardState?
+  snapshot : Snapshot?
+  resp : StorageAppendResp
+}
+
+///|
+/// The acknowledgement a state machine sends back once a `StorageApply` batch has
+/// been applied (etcd's `MsgStorageApplyResp`). It carries the applied entries so
+/// the raft node can advance its applied cursor and release their quota; committed
+/// entries are term-independent, so no ABA guard is needed.
+pub(all) struct StorageApplyResp {
+  entries : Array[Entry]
+}
+
+///|
+/// A directive to the local apply thread: apply these committed entries to the
+/// state machine, then return `resp` (etcd's `MsgStorageApply`).
+pub(all) struct StorageApply {
+  entries : Array[Entry]
+  resp : StorageApplyResp
 }
 
 ///|

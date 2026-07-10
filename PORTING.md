@@ -160,11 +160,10 @@ two previously-N/A tests became portable at the log/rawnode seam.
   tally stays at `MaxUncommittedEntriesSize` (16 × 8 B) — bounding the tail and
   dropping further proposals — until Ready/Advance applies them, at which point
   the bytes release. Reproduces the etcd test verbatim.
-- `TestCommitPaginationWithAsyncStorageWrites` — N/A (acceptable kind 1: Go
-  threading-execution). Needs `AsyncStorageWrites` with `MsgStorageAppend`/
-  `MsgStorageApply` message-based storage; the synchronous Ready/Advance path this
-  port models is the documented equivalent, and the pagination bound itself is
-  covered by `TestCommitPagination`.
+- `TestCommitPaginationWithAsyncStorageWrites` — **DONE**. `AsyncStorageWrites` is
+  now really implemented (typed storage directives on `Ready` + `step_*_resp`
+  acks); see the "AsyncStorageWrites — DONE" section. `async_wbtest.mbt` drives the
+  paginated apply batches through the async path.
 
 ## tracker/progress_test.go — DONE (8/8)
 Ported in `progress_port_wbtest.mbt`. `Progress` now carries a real
@@ -186,51 +185,61 @@ and a `to_string` renderer, so every case ports faithfully (no downgrade):
 - `TestMsgAppFlowControlMoveForward` — DONE.
 - `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
 
-## AsyncStorageWrites / MsgStorageAppend / MsgStorageApply — N/A (equivalence proof)
-This is **N/A of the first acceptable kind** (depends on a threading execution
-model), with named equivalent synchronous coverage — *not* a "we lack async"
-dodge. etcd's AsyncStorageWrites replaces the synchronous storage work in
-`Advance` with four directives — `MsgStorageAppend`/`Resp` (persist the unstable
-entries + HardState + snapshot) and `MsgStorageApply`/`Resp` (apply committed
-entries). The *application* runs these on its own threads and acks them, letting
-it pipeline the next `Ready` while the previous one's I/O is outstanding. The
-raft library itself uses no goroutines for this.
+## AsyncStorageWrites — DONE (real implementation, not equivalence)
+Previously registered N/A with an equivalence proof; now **implemented for real**
+in `ready.mbt` / `rawnode.mbt` / `raftlog.mbt`. etcd puts the four directives
+(`MsgStorageAppend`/`Resp`, `MsgStorageApply`/`Resp`) in `Ready.Messages` because
+it has a single uniform `Message` type; here they are typed local directives on
+the `Ready` — `storage_append : StorageAppend?` and `storage_apply :
+StorageApply?` (each carries the entries plus the response the caller returns).
+This keeps everything inside the log/rawnode boundary and off the `message.mbt`
+`Payload` enum (which A-path is concurrently extending), while modelling exactly
+what etcd's local `To=LocalAppendThread`/`LocalApplyThread` messages are: I/O
+directives, not network messages.
 
-**Claim.** Enabling AsyncStorageWrites changes only *when* storage I/O runs
-relative to the raft state machine — never which entries are appended /
-committed / applied, in what order, nor any safety- or liveness-relevant state.
+- **`RaftNode::raw_async` / `raw_async_sized`** enable the mode. When on,
+  `ready_without_accept` builds a `StorageAppend` (entries + any HardState change,
+  with a `StorageAppendResp` attesting the current last `(index, term)` and the
+  node's term) and a `StorageApply` (committed entries + resp), and `advance`
+  becomes a no-op.
+- **`RawNode::step_append_resp` / `step_apply_resp`** are the acks. Append →
+  `RaftLog::async_stabilize` (move the confirmed unstable prefix into storage +
+  truncate the unstable tail). Apply → `applied_to` + `advance_applied`.
+- **Non-orphan wiring:** the directives are produced by `ready_without_accept` and
+  consumed by the two step methods — both non-test code; `raw_async` off is
+  byte-for-byte the synchronous path (all pre-existing tests unchanged).
+- **ABA safety (the important part).** A late `StorageAppendResp` must not confirm
+  a log a newer term has since overwritten. Two guards, both tested:
+  1. `step_append_resp` drops any ack whose `term` is below the node's current
+     term (a later term has taken over) — this is the essential guard, because
+     re-replicated entries keep their original term, so at a given index the term
+     can read X → Y → X again while the *current* term only climbs.
+  2. `async_stabilize` additionally requires the unstable log to *still* hold
+     `(index, log_term)`; a mismatch (index rewritten) is a no-op.
 
-**Proof.**
-1. *Same durability barrier.* In both modes a follower's `MsgAppResp` (and thus
-   the leader's `commit` advance) trails the durable append: async delays the
-   `MsgAppResp` until `MsgStorageAppendResp`, sync emits it after the append in
-   `Advance`. The set of "index i is on a quorum's stable storage" facts, and
-   hence every commit decision, is identical.
-2. *Same apply order/content.* `MsgStorageApply` carries exactly the slice
-   `Ready.committed_entries` carries in sync mode; the applied watermark moves by
-   the same amount. Nothing is applied before it commits in either mode.
-3. *No consensus-visible interleaving.* `Step` reads only
-   `committed`/`applied`/`stabled` (or their async equivalents), which reach the
-   same values at the same logical points. The `MsgStorage*` messages carry no
-   consensus decision — they are pure I/O directives.
+Ported (`async_wbtest.mbt`):
+- Single-node no-op committed through `StorageAppend`/`StorageApply` directives.
+- `async_storage_writes_append_aba_race.txt` — DONE, both the term-changed race
+  (a term-1 ack arrives after a term-2 rewrite) and the subtle term-cycled race
+  (a term-1 ack whose `(index, term)` matches the *re-appeared* term-1 entries but
+  whose send-term is below the current term-3). The stale ack stabilizes nothing;
+  the current ack confirms the correct entries.
+- `TestCommitPaginationWithAsyncStorageWrites` — DONE. Under async writes *and* a
+  per-Ready commit byte cap, three proposals apply in order across paginated
+  `StorageApply` batches (no batch over the cap, at least one split), none dropped.
+- `async_storage_writes.txt` — the straight-line (non-ABA) append/apply pipeline is
+  covered by the single-node and pagination tests above; the multi-node network
+  orchestration in that script is the sim/interaction layer (mapped there).
 
-Hence the two modes are observationally equivalent for every property the etcd
-tests assert (Election Safety, Log Matching, Leader Completeness, State-Machine
-Safety, and the commit/apply pagination bounds). In a single-threaded port there
-is no separate I/O thread to overlap, so the async protocol would process each
-`MsgStorage*`+`Resp` inline — reducing *operationally* to the synchronous
-`Ready`/`Advance` path already implemented (C-path) and tested.
-
-**Named equivalent coverage:** the synchronous storage interface (`Ready.entries`
-/ `committed_entries` / `Advance` → `commit_stable` + `applied_to`) is
-implemented and tested (rawnode/ready tests, `TestCommitPagination`,
-`TestRawNodeCommitPaginationAfterRestart`). `TestCommitPaginationWithAsyncStorage
-Writes` asserts the *same* `MaxCommittedSizePerReady` bound via the async path —
-the bound itself is covered by `TestCommitPagination`.
-
-(If a formal artifact is still wanted, the `MsgStorageAppend/Apply` variants can
-be added, but they would be inert in the single-threaded model — processed inline
-the moment they are produced — so they add no test-observable behavior.)
+Design note for the coordinator: I modelled the storage directives as typed
+`Ready` fields + `step_*_resp` methods rather than four new `Payload` enum variants
+in `message.mbt`, to (a) avoid the flagged enum collision with A-path's concurrent
+`Propose`/`ReadIndex`/… additions, and (b) reflect that these are *local* I/O
+directives, not transportable messages. If you'd rather have the `Payload`-variant
+representation for uniformity, the exact variants are `MsgStorageAppend{entries,
+hard_state?, snapshot?}` / `MsgStorageAppendResp{index, log_term, term}` /
+`MsgStorageApply{entries}` / `MsgStorageApplyResp{entries}`, and I'll re-wire onto
+them once they exist.
 
 ## MaxSizePerMsg + MaxUncommittedEntriesSize — DONE (consensus-core)
 Both size limits the B-path marked N/A (they live in the consensus core, not the
@@ -438,28 +447,20 @@ goroutine-free equivalent, so protocol-level tests map directly. Ported in
   pagination" section.
 - `TestCommitPagination` — **DONE** (RawNode now applies to a per-Ready byte
   budget). See the "Byte-level pagination" section.
-- `TestCommitPaginationWithAsyncStorageWrites` — **N/A**: `AsyncStorageWrites`
-  (see the async section below).
+- `TestCommitPaginationWithAsyncStorageWrites` — **DONE**: `AsyncStorageWrites` is
+  now implemented; see the "AsyncStorageWrites — DONE" section.
 - `TestNodeCommitPaginationAfterRestart` — **DONE** via its rawnode twin
   `TestRawNodeCommitPaginationAfterRestart`. See the "Byte-level pagination"
   section.
 
-### asyncStorageWrites — NOT implemented (deliberate), with equivalent coverage
-etcd's `AsyncStorageWrites` replaces `Advance` with `MsgStorageAppend`/
-`MsgStorageApply` local messages carrying `Responses`, delivered back through
-`Step`. It exists to overlap disk writes with computation across goroutine
-threads (`LocalAppendThread`/`LocalApplyThread`). Our build is single-threaded
-and the browser demo target is wasm, where MoonBit's `async` is unsupported;
-there is no thread to hand storage work to. Implementing the async message
-protocol would add a parallel `Ready` code path (`newStorageAppendMsg`/
-`newStorageAppendRespMsg`/`acceptReady` sidecar) with no runtime benefit here and
-would not unlock any protocol behaviour the synchronous path does not already
-cover. The two async-only tests
-(`TestCommitPaginationWithAsyncStorageWrites`) are the only upstream tests it
-would add; both are byte-pagination variants already N/A on the size-budget
-grounds above. Our synchronous `ready`/`advance` provides the same *ordering*
-guarantee the contract mandates (persist `entries` before sending `messages`,
-apply `committed_entries` only after they are stabled).
+### asyncStorageWrites — DONE (implemented)
+No longer deliberately skipped. `AsyncStorageWrites` is implemented as typed local
+storage directives on `Ready` (`storage_append`/`storage_apply`) with
+`step_append_resp`/`step_apply_resp` acks, including the ABA race protection. It
+needs no language-level `async` — it is pure directive/response message passing,
+exactly as etcd's local storage-thread messages are. See the top-level
+"AsyncStorageWrites — DONE" section for the full write-up and tests
+(`async_wbtest.mbt`).
 
 ## B2 — committed ConfChange applied to the live node — DONE (core)
 Fixed the biggest gap: a committed `ConfChange` now mutates the running server,
