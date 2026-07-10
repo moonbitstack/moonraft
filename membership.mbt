@@ -87,13 +87,8 @@ pub fn Membership::nodes(self : Membership) -> Array[String] {
       out.push(l)
     }
   }
-  // Staged learners are still replicated to (they are outgoing voters now, but
-  // list them explicitly so they survive the leave even if dropped elsewhere).
-  for l in self.learners_next {
-    if !out.contains(l) {
-      out.push(l)
-    }
-  }
+  // NB: staged learners (learners_next) need no separate pass — by construction
+  // they are always outgoing voters, hence already returned by `voters()`.
   out
 }
 
