@@ -4,34 +4,6 @@ package "Lfan-ke/raft-moonbit"
 // Values
 pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
 
-pub fn demo_crash(String) -> Unit
-
-pub fn demo_heal() -> Unit
-
-pub fn demo_isolate(String) -> Unit
-
-pub fn demo_new(Int, Int) -> Unit
-
-pub fn demo_partition(String, String) -> Unit
-
-pub fn demo_propose(String) -> Bool
-
-pub fn demo_propose_on(String, String) -> Bool
-
-pub fn demo_restart(String) -> Unit
-
-pub fn demo_run(Int) -> Unit
-
-pub fn demo_set_delay(Int) -> Unit
-
-pub fn demo_set_drop(Int) -> Unit
-
-pub fn demo_state() -> String
-
-pub fn demo_tick() -> Unit
-
-pub fn demo_transfer(String) -> Bool
-
 pub fn describe(Array[String], Map[String, UInt64]) -> String
 
 pub fn describe_conf_state(ConfState) -> String
