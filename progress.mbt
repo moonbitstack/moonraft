@@ -138,6 +138,36 @@ pub fn Progress::optimistic_advance(self : Progress, last : UInt64) -> Unit {
 }
 
 ///|
+/// Adjust to a rejected AppendEntries (etcd `MaybeDecrTo`). `rejected` is the
+/// prev-index the follower rejected; `match_hint` is where we want to retry
+/// (the leader-side findConflictByTerm result). A rejection is stale — and
+/// ignored — if it cannot pertain to an entry still in flight. Returns whether
+/// `next_index` moved.
+pub fn Progress::maybe_decr_to(
+  self : Progress,
+  rejected : UInt64,
+  match_hint : UInt64,
+) -> Bool {
+  if self.state == Replicate {
+    // In flight streaming: a rejection at or below the match point is stale.
+    if rejected <= self.match_index {
+      return false
+    }
+    self.next_index = self.match_index + 1
+    return true
+  }
+  // Probing sends one entry at a time, so a rejection must be for the entry we
+  // last probed; otherwise it is a stale duplicate.
+  if self.next_index - 1 != rejected {
+    return false
+  }
+  let capped = if rejected < match_hint + 1 { rejected } else { match_hint + 1 }
+  let floor = self.match_index + 1
+  self.next_index = if capped > floor { capped } else { floor }
+  true
+}
+
+///|
 /// Back off after a rejected AppendEntries, using the follower's conflict hint
 /// to jump rather than decrement by one. Never rewinds below the match point or
 /// below index 1. Returns whether `next_index` actually moved.

@@ -41,4 +41,8 @@ pub(all) struct AppendEntriesReply {
   success : Bool
   match_index : UInt64
   conflict_index : UInt64
+  // The term at `conflict_index` (0 if unknown), so the leader can run the same
+  // findConflictByTerm jump on its own log and skip a whole run of mismatched
+  // terms in one retry (Raft §5.3, two-sided).
+  conflict_term : UInt64
 } derive(Eq)

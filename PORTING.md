@@ -53,9 +53,41 @@ Ported in `quorum_wbtest.mbt`, every datadriven case expanded explicitly:
 
 ---
 
-## raft_paper_test.go — TODO (0/26)  [next batch]
-Raft-paper Figure-2 property tests. Highest value. Being ported onto
-`RaftNode`/`Node`.
+## raft_paper_test.go — DONE (18/26)
+Raft-paper property tests, ported onto `RaftNode`/`Node` in `paper_wbtest.mbt`
+(pre-vote disabled to match etcd's `newTestRaft` default):
+- `TestFollowerUpdateTermFromMessage`, `TestCandidateUpdateTermFromMessage`,
+  `TestLeaderUpdateTermFromMessage` — DONE.
+- `TestStartAsFollower` — DONE.
+- `testNonleaderStartElection` (follower) — DONE.
+- `TestLeaderElectionInOneRoundRPC` — DONE (all 12 table cases).
+- `TestFollowerVote` — DONE (6 cases).
+- `TestCandidateFallback` — DONE.
+- `TestLeaderStartReplication` — DONE.
+- `TestLeaderCommitEntry` — DONE.
+- `TestLeaderAcknowledgeCommit` — DONE (9 cases).
+- `TestFollowerCommitEntry` — DONE.
+- `TestFollowerCheckMsgApp` — DONE (5 cases; asserts the findConflictByTerm
+  reject hint + term).
+- `TestFollowerAppendEntries` — DONE (4 cases).
+- `TestVoteRequest` — DONE (2 cases).
+- `TestVoter` — DONE (9 cases).
+- `TestLeaderOnlyCommitsLogFromCurrentTerm` — DONE (Figure 8, 3 cases).
+- `TestLeaderSyncFollowerLog` — DONE (Figure 7, 6 cases; exercises the two-sided
+  conflict backoff and full log overwrite).
+- Pending (8): `TestRejectStaleTermMessage` (covered instead by
+  `b1_stale_term_wbtest.mbt`), `TestCandidateStartNewElection`,
+  `TestLeaderBcastBeat`, `TestFollower/CandidateElectionTimeoutRandomized`,
+  `TestFollowers/CandidatesElectionTimeoutNonconflict`,
+  `TestLeaderCommitPrecedingEntries`.
+
+### findConflictByTerm (two-sided) — implemented
+`Node::find_conflict_by_term` + `conflict_term` on `AppendEntriesReply` +
+`Progress::maybe_decr_to`. The follower now hints `(index, term)` and the leader
+refines it against its own log, matching etcd's `raft_test.go:TestFastLogRejection`
+mechanism (that test itself is pending a full 2-node harness). Our own
+`append_hint_wbtest.mbt` was corrected from the old one-step-backoff values to
+the etcd findConflictByTerm values.
 
 ## log_test.go — TODO (0/21)
 Maps to `log.mbt` / `replication.mbt` (`term_at`, `entries_after`, `store_entries`,
@@ -135,3 +167,6 @@ Deterministic network harness; overlaps our `sim.mbt`.
 - Batch 2 (B1 fix + quorum wired into commit/vote + Inflights wired into the
   send/ack path + flow-control tests): **279 passed, 0 failed**, on all four
   backends (`--target all`: wasm, wasm-gc, js, native).
+- Batch 3 (two-sided findConflictByTerm + committed-prefix early accept + 18
+  raft_paper_test property tests incl. Figure 7 & Figure 8): **297 passed, 0
+  failed**, on all four backends.

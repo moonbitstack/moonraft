@@ -55,6 +55,7 @@ pub(all) struct AppendEntriesReply {
   success : Bool
   match_index : UInt64
   conflict_index : UInt64
+  conflict_term : UInt64
 } derive(Eq)
 
 pub struct Cluster {
@@ -246,6 +247,7 @@ pub fn Node::current_term(Self) -> UInt64
 pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
 pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
 pub fn Node::entry_at(Self, UInt64) -> Entry?
+pub fn Node::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
 pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
 pub fn Node::handle_install_snapshot(Self, InstallSnapshotArgs) -> InstallSnapshotReply
 pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
@@ -300,6 +302,7 @@ pub fn Progress::free_le(Self, UInt64) -> Unit
 pub fn Progress::is_active(Self) -> Bool
 pub fn Progress::is_paused(Self) -> Bool
 pub fn Progress::mark_active(Self) -> Unit
+pub fn Progress::maybe_decr_to(Self, UInt64, UInt64) -> Bool
 pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
 pub fn Progress::maybe_update(Self, UInt64) -> Bool
 pub fn Progress::new(UInt64, max_inflight? : Int) -> Self

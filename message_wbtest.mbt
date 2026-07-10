@@ -47,7 +47,13 @@ test "responses are recognised" {
   let r = Message::new(
     "f",
     "L",
-    AppendResp({ term: 4, success: true, match_index: 3, conflict_index: 0 }),
+    AppendResp({
+      term: 4,
+      success: true,
+      match_index: 3,
+      conflict_index: 0,
+      conflict_term: 0,
+    }),
   )
   assert_true(r.is_response())
   assert_eq(r.term(), 4)

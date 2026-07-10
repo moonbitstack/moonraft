@@ -1,18 +1,27 @@
 ///|
-/// The first index this node holds that carries `term`, walking back from
-/// `from`. Used to build a fast-backoff hint: when an AppendEntries is rejected
-/// on a term mismatch, the leader is told the start of the conflicting term so
-/// it can skip the whole run in one retry.
-fn Node::first_index_of_term(
+/// A best guess at where our log stops matching another log whose only known
+/// point is `(index, term)` (Raft §5.3, `findConflictByTerm`). Returns the
+/// greatest `i <= index` whose term is `<= term` (or is unknown because that
+/// index is compacted), together with that term. Both the follower (building a
+/// reject hint) and the leader (jumping back on that hint) use it, so a whole
+/// run of mismatched terms is skipped in one retry instead of one index at a
+/// time.
+pub fn Node::find_conflict_by_term(
   self : Node,
-  from : UInt64,
+  index : UInt64,
   term : UInt64,
-) -> UInt64 {
-  let mut i = from
-  while i > self.snapshot_index + 1 && self.term_at(i - 1) == term {
+) -> (UInt64, UInt64) {
+  let mut i = index
+  while i > 0 {
+    let our = self.term_at(i)
+    // term_at yields 0 for a compacted/out-of-range index, which `<= term`
+    // treats as a possible match — exactly etcd's "unknown term" case.
+    if our <= term {
+      return (i, our)
+    }
     i = i - 1
   }
-  i
+  (0, 0)
 }
 
 ///|
@@ -30,6 +39,7 @@ pub fn Node::handle_append_entries(
       success: false,
       match_index: 0,
       conflict_index: 0,
+      conflict_term: 0,
     }
   }
   // A legitimate leader whose term is at least ours: adopt the term and step
@@ -39,38 +49,54 @@ pub fn Node::handle_append_entries(
   } else {
     self.role = Follower
   }
-  // Log matching: reject unless our log holds an entry at `prev_log_index`
-  // carrying `prev_log_term`. On rejection, hint where to retry.
-  if args.prev_log_index > self.last_log_index() {
+  // The prefix at or below our commit index is immutable and, by the Log
+  // Matching property, already agrees with any legitimate leader. Accept it
+  // outright and report our commit index, so the leader re-anchors there
+  // instead of probing into committed history (etcd).
+  if args.prev_log_index < self.commit_index {
     return {
       term: self.current_term,
-      success: false,
-      match_index: 0,
-      conflict_index: self.last_log_index() + 1,
+      success: true,
+      match_index: self.commit_index,
+      conflict_index: 0,
+      conflict_term: 0,
     }
   }
-  if self.term_at(args.prev_log_index) != args.prev_log_term {
-    let bad_term = self.term_at(args.prev_log_index)
+  // Log matching: accept only if our log holds an entry at `prev_log_index`
+  // carrying `prev_log_term`.
+  if args.prev_log_index <= self.last_log_index() &&
+    self.term_at(args.prev_log_index) == args.prev_log_term {
+    let last_new = self.store_entries(args.prev_log_index, args.entries)
+    if args.leader_commit > self.commit_index {
+      self.commit_index = if args.leader_commit < last_new {
+        args.leader_commit
+      } else {
+        last_new
+      }
+    }
     return {
       term: self.current_term,
-      success: false,
-      match_index: 0,
-      conflict_index: self.first_index_of_term(args.prev_log_index, bad_term),
+      success: true,
+      match_index: last_new,
+      conflict_index: 0,
+      conflict_term: 0,
     }
   }
-  let last_new = self.store_entries(args.prev_log_index, args.entries)
-  if args.leader_commit > self.commit_index {
-    self.commit_index = if args.leader_commit < last_new {
-      args.leader_commit
-    } else {
-      last_new
-    }
+  // Rejection: hint the leader with the highest (index, term) at or below the
+  // probe whose term does not exceed the leader's, so it can skip our divergent
+  // tail in one jump.
+  let hint = if args.prev_log_index < self.last_log_index() {
+    args.prev_log_index
+  } else {
+    self.last_log_index()
   }
+  let (ci, ct) = self.find_conflict_by_term(hint, args.prev_log_term)
   {
     term: self.current_term,
-    success: true,
-    match_index: last_new,
-    conflict_index: 0,
+    success: false,
+    match_index: 0,
+    conflict_index: ci,
+    conflict_term: ct,
   }
 }
 

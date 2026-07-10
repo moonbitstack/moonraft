@@ -54,7 +54,13 @@ test "B1: stale AppendResp does not inflate progress or commit" {
   let stale = Message::new(
     "2",
     "1",
-    AppendResp({ term: 1, success: true, match_index: 99, conflict_index: 0 }),
+    AppendResp({
+      term: 1,
+      success: true,
+      match_index: 99,
+      conflict_index: 0,
+      conflict_term: 0,
+    }),
   )
   n.step(stale) |> ignore
   assert_eq(n.commit_index(), commit_before)

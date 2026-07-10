@@ -117,7 +117,13 @@ test "a stale leader steps down when it learns of a newer term" {
     Message::new(
       "b",
       "a",
-      AppendResp({ term: 9, success: false, match_index: 0, conflict_index: 0 }),
+      AppendResp({
+        term: 9,
+        success: false,
+        match_index: 0,
+        conflict_index: 0,
+        conflict_term: 0,
+      }),
     ),
   )
   assert_true(a.role() == Follower)

@@ -252,13 +252,28 @@ fn RaftNode::handle_append_resp(
         }
         out
       } else {
-        // Back off using the follower's hint and retry. Even when next_index is
-        // already at its floor (so no decrease is possible) we still retry, so a
-        // follower whose needed entry has been compacted is handed a snapshot by
-        // send_to rather than being left stuck.
-        let _ = p.maybe_decrease(reply.conflict_index)
-        p.become_probe()
-        [self.send_to(from)]
+        // Back off. The follower's hint is refined against the leader's own log
+        // (two-sided findConflictByTerm): if it reported the term at its
+        // conflict point, jump to the last leader index whose term does not
+        // exceed it, skipping a whole run of superseded entries in one retry.
+        let rejected = p.next_index - 1
+        let next_probe = if reply.conflict_term > 0 {
+          let (idx, _) = self.core.find_conflict_by_term(
+            reply.conflict_index,
+            reply.conflict_term,
+          )
+          idx
+        } else {
+          reply.conflict_index
+        }
+        if p.maybe_decr_to(rejected, next_probe) {
+          if p.state == Replicate {
+            p.become_probe()
+          }
+          [self.send_to(from)]
+        } else {
+          []
+        }
       }
     }
   }

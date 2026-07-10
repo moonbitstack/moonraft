@@ -15,7 +15,7 @@ test "a successful append reports the follower's match index" {
 }
 
 ///|
-test "a gap past the log hints one past the last index" {
+test "a gap past the log hints the last matching (index, term)" {
   let node = Node::new("n1")
   let _ = node.append(1, b"a")
   let reply = node.handle_append_entries({
@@ -27,14 +27,17 @@ test "a gap past the log hints one past the last index" {
     leader_commit: 0,
   })
   assert_false(reply.success)
-  assert_eq(reply.conflict_index, 2)
+  // findConflictByTerm(min(5, last=1), leader term 1) = (1, 1).
+  assert_eq(reply.conflict_index, 1)
+  assert_eq(reply.conflict_term, 1)
 }
 
 ///|
-test "a term mismatch hints the start of the conflicting run" {
+test "a term mismatch hints the highest index at or below the leader's term" {
   let node = Node::new("n1")
-  // Three entries of term 2 at indices 1..3, then a leader probes at index 3
-  // expecting term 5: the hint should point at the start of the term-2 run.
+  // Three entries of term 2 at indices 1..3; a leader probes at index 3
+  // expecting term 5. findConflictByTerm(3, 5) returns the first index (from 3
+  // downward) whose term <= 5, i.e. (3, 2). The leader then jumps on its own log.
   let _ = node.append(2, b"a")
   let _ = node.append(2, b"b")
   let _ = node.append(2, b"c")
@@ -48,5 +51,6 @@ test "a term mismatch hints the start of the conflicting run" {
     leader_commit: 0,
   })
   assert_false(reply.success)
-  assert_eq(reply.conflict_index, 1)
+  assert_eq(reply.conflict_index, 3)
+  assert_eq(reply.conflict_term, 2)
 }

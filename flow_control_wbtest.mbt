@@ -12,7 +12,13 @@ fn accept_append(
   Message::new(
     from,
     to,
-    AppendResp({ term, success: true, match_index: index, conflict_index: 0 }),
+    AppendResp({
+      term,
+      success: true,
+      match_index: index,
+      conflict_index: 0,
+      conflict_term: 0,
+    }),
   )
 }
 
