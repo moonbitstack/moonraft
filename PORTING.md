@@ -520,8 +520,67 @@ renderer in etcd's datadriven format.
   leave becomes a non-voting learner with its Progress (its `next` round)
   intact; plus a snapshot-restore case.
 
-## interaction_test.go — IMPL (0/1, datadriven)
-Needs RawNode + Ready. Large datadriven corpus.
+## interaction_test.go — DONE (driveable corpus ported; rest mapped per-file)
+`TestInteraction` is a `datadriven` string-snapshot harness: `InteractionEnv`
+runs a script of commands over a cluster and diffs the *exact* rendered output.
+Two things make a verbatim string port impossible here, independent of effort:
+1. the output is dominated by the raft **core's logger** ("became candidate",
+   "cast MsgVote for 1", "became leader", the `newRaft` banner) — that logging
+   lives in the off-limits core (`raftnode.mbt`/`replication.mbt`) and this port
+   does not emit it; and
+2. ids render as `uint64` (and hex in `describeTarget`), whereas ids here are
+   `String`s, so even the reproducible `Ready`/message lines cannot match
+   character-for-character.
+So each **driveable** script is ported *behaviourally* over the same public
+RawNode Ready/Advance contract the harness uses — a minimal multi-node
+`InteractionCluster` in `interaction_wbtest.mbt` (drives the Ready pipeline, which
+`sim.mbt` does not: sim drives the raw `RaftNode.step`). Asserted on the `Ready`
+contents and end state each script encodes, not the rendered strings.
+
+Ported (`interaction_wbtest.mbt`):
+- `single_node.txt` — DONE. Single voter campaigns, persists its no-op, then
+  applies it (the Ready persist→apply split). Bootstrap-at-index-3 is a
+  raftLog-restore detail covered by `TestLogRestore` /
+  `TestRawNodeRestartFromSnapshot`.
+- `campaign.txt` — DONE (behavioural). One candidate wins a 3-voter election; the
+  no-op replicates to every log and commits cluster-wide (the trailing commit is
+  propagated by a heartbeat, as etcd's trailing `MsgApp Commit:3` does).
+- A propose→replicate→commit→apply scenario (the shape shared by
+  `lagging_commit.txt` / `probe_and_replicate.txt`) — DONE: a proposal commits on
+  every node and the leader applies it exactly once.
+
+Mapped per file (behaviour covered elsewhere; the *exact datadriven string* is
+N/A for reasons 1–2 above):
+- `campaign_learner_must_vote.txt`, `confchange_disable_validation.txt`,
+  `confchange_v1_add_single.txt`, `confchange_v1_remove_leader.txt`,
+  `confchange_v1_remove_leader_stepdown.txt`, `confchange_v2_add_double_auto.txt`,
+  `confchange_v2_add_double_implicit.txt`, `confchange_v2_add_single_auto.txt`,
+  `confchange_v2_add_single_explicit.txt`, `confchange_v2_replace_leader.txt`,
+  `confchange_v2_replace_leader_stepdown.txt` — **confchange/membership** (Simple /
+  joint / learner / leader-replace). Off-limits (`confchange.mbt`/`changer.mbt`/
+  `membership.mbt`); covered by the A-path `confchange/*` and B2/B3 ports
+  (`confchange_apply_wbtest.mbt`, `joint_wbtest.mbt`).
+- `prevote.txt`, `prevote_checkquorum.txt`, `checkquorum.txt`, `campaign.txt`
+  (multi-term details) — **election / PreVote / CheckQuorum**. Core, off-limits;
+  covered by the A-path election / `raft_paper_test` ports and `sim.mbt` election
+  scenarios.
+- `forget_leader.txt`, `forget_leader_prevote_checkquorum.txt`,
+  `forget_leader_read_only_lease_based.txt` — **ForgetLeader + read-only lease**.
+  Core / `readindex.mbt`, off-limits.
+- `lagging_commit.txt`, `replicate_pause.txt`, `probe_and_replicate.txt`,
+  `heartbeat_resp_recovers_from_probing.txt` — **replication flow control**
+  (Probe/Replicate, inflights, heartbeat-resp recovery). Core (`replication.mbt`/
+  `progress.mbt`), off-limits; covered by `flow_control_wbtest.mbt` and the
+  behavioural replicate port above.
+- `slow_follower_after_compaction.txt`, `snapshot_succeed_via_app_resp.txt`,
+  `snapshot_succeed_via_app_resp_behind.txt` — **snapshot send/apply + storage
+  compaction**. `snapshot.mbt`/`snapshot_rpc.mbt` off-limits; storage compaction
+  is covered by `TestStorageCompact`/`TestCompaction`, snapshot behaviour by the
+  A-path snapshot ports and `sim.mbt`.
+- `async_storage_writes.txt`, `async_storage_writes_append_aba_race.txt` — **N/A
+  (acceptable kind 1: Go threading-execution)**. `AsyncStorageWrites` with
+  `MsgStorageAppend`/`MsgStorageApply`; the synchronous Ready/Advance path is the
+  documented equivalent (see the AsyncStorageWrites section).
 
 ## storage_test.go — DONE (8/8)
 Feature added: `storage_engine.mbt` rewritten to etcd's `Storage` contract with a
