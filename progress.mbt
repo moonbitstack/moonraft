@@ -48,13 +48,34 @@ pub struct Progress {
   // Whether this follower is a learner (non-voting). Kept here too so a progress
   // dump is self-describing; the authoritative set lives in `Membership`.
   mut is_learner : Bool
+  // The highest commit index the leader has put in flight to this follower
+  // (etcd's `sentCommit`). Generally monotonic but may regress when converting
+  // to `Probe` or on a rejection. In `Snapshot`, sent_commit == pending_snapshot
+  // == next_index - 1.
+  //
+  // CONTRACT for the ③-path replication (raftnode.mbt / replication.mbt), which
+  // owns the send loop: before emitting a commit-bearing MsgApp, gate an eager
+  // commit-only send on `can_bump_commit(commit)`; after emitting, record it with
+  // `note_commit_sent(commit)`. This field is *staged* here per the 0.4.0 plan;
+  // until the ③-path wires it, it stays 0 and does not affect consensus (commit
+  // still propagates on every append), but the state-machine regressions below
+  // are already applied so wiring is a pure call-site change.
+  mut sent_commit : UInt64
   inflights : Inflights
 }
 
 ///|
 /// A fresh progress that will start probing from `next`, with a replication
-/// flow-control window of `max_inflight` outstanding AppendEntries.
-pub fn Progress::new(next : UInt64, max_inflight? : Int = 256) -> Progress {
+/// flow-control window of `max_inflight` outstanding AppendEntries and, when
+/// `max_inflight_bytes` is non-zero, at most that many outstanding bytes
+/// (etcd's `MaxInflightBytes`; 0 = no byte limit). The byte budget is threaded
+/// straight into the `Inflights` window so the ③-path only has to pass the real
+/// entry size to `sent_entries` once its `Config` carries the knob.
+pub fn Progress::new(
+  next : UInt64,
+  max_inflight? : Int = 256,
+  max_inflight_bytes? : UInt64 = 0,
+) -> Progress {
   {
     next_index: next,
     match_index: 0,
@@ -63,7 +84,8 @@ pub fn Progress::new(next : UInt64, max_inflight? : Int = 256) -> Progress {
     msg_app_flow_paused: false,
     pending_snapshot: 0,
     is_learner: false,
-    inflights: Inflights::new(max_inflight, 0),
+    sent_commit: 0,
+    inflights: Inflights::new(max_inflight, max_inflight_bytes),
   }
 }
 
@@ -147,24 +169,31 @@ pub fn Progress::copy(self : Progress) -> Progress {
     msg_app_flow_paused: self.msg_app_flow_paused,
     pending_snapshot: self.pending_snapshot,
     is_learner: self.is_learner,
+    sent_commit: self.sent_commit,
     inflights: self.inflights.clone(),
   }
 }
 
 ///|
-/// Record that a replication message ending at `last` and carrying `has_entries`
-/// entries was sent. In `Replicate` this consumes an in-flight slot and pauses
-/// once the window fills; in `Probe` any non-empty send pauses until acked.
+/// Record that a replication message ending at `last`, carrying `has_entries`
+/// entries totalling `bytes` bytes, was sent. In `Replicate` this consumes an
+/// in-flight slot (against both the message-count and the byte budget) and
+/// pauses once the window fills; in `Probe` any non-empty send pauses until
+/// acked. `bytes` defaults to 0: while the ③-path send loop does not yet supply
+/// the real encoded size (see `Progress::new`), byte accounting is inert because
+/// the byte budget is disabled — the message-count limit still applies exactly
+/// as before. Pass the real size to activate `MaxInflightBytes`.
 pub fn Progress::sent_entries(
   self : Progress,
   last : UInt64,
   has_entries : Bool,
+  bytes? : UInt64 = 0,
 ) -> Unit {
   match self.state {
     Replicate => {
       if has_entries {
         self.optimistic_advance(last)
-        self.inflights.add(last, 1)
+        self.inflights.add(last, bytes)
       }
       // Re-evaluate the throttle even for an empty probe (etcd SentEntries): a
       // full window keeps the flow paused.
@@ -224,6 +253,12 @@ pub fn Progress::become_probe(self : Progress) -> Unit {
   } else {
     self.match_index + 1
   }
+  // The in-flight commit cannot exceed the entry the follower is being probed
+  // for; regress it (etcd BecomeProbe).
+  let ceil = self.next_index - 1
+  if self.sent_commit > ceil {
+    self.sent_commit = ceil
+  }
 }
 
 ///|
@@ -236,6 +271,9 @@ pub fn Progress::become_snapshot(
   self.reset_state(Snapshot)
   self.pending_snapshot = snapshot_index
   self.next_index = snapshot_index + 1
+  // In Snapshot, sent_commit == pending_snapshot == next_index - 1 (etcd
+  // BecomeSnapshot).
+  self.sent_commit = snapshot_index
 }
 
 ///|
@@ -281,6 +319,12 @@ pub fn Progress::maybe_decr_to(
       return false
     }
     self.next_index = self.match_index + 1
+    // The rejected entry is unlikely to have been applied; regress the in-flight
+    // commit with it (etcd MaybeDecrTo).
+    let ceil = self.next_index - 1
+    if self.sent_commit > ceil {
+      self.sent_commit = ceil
+    }
     return true
   }
   // Probing sends one entry at a time, so a rejection must be for the entry we
@@ -291,8 +335,29 @@ pub fn Progress::maybe_decr_to(
   let capped = if rejected < match_hint + 1 { rejected } else { match_hint + 1 }
   let floor = self.match_index + 1
   self.next_index = if capped > floor { capped } else { floor }
+  let ceil = self.next_index - 1
+  if self.sent_commit > ceil {
+    self.sent_commit = ceil
+  }
   self.msg_app_flow_paused = false
   true
+}
+
+///|
+/// Whether sending `index` as the commit index could still advance this
+/// follower's commit (etcd `CanBumpCommit`). True only when `index` is past what
+/// we last put in flight *and* that in-flight commit has not already reached the
+/// last acknowledged-in-flight entry (`next_index - 1`) — so the ③-path can skip
+/// redundant commit-only MsgApps. Staged for the 0.4.0 replication wiring.
+pub fn Progress::can_bump_commit(self : Progress, index : UInt64) -> Bool {
+  index > self.sent_commit && self.sent_commit < self.next_index - 1
+}
+
+///|
+/// Record the highest commit index put in flight to this follower (etcd
+/// `SentCommit`). The ③-path calls this after emitting an append/commit MsgApp.
+pub fn Progress::note_commit_sent(self : Progress, commit : UInt64) -> Unit {
+  self.sent_commit = commit
 }
 
 ///|

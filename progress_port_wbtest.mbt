@@ -53,6 +53,7 @@ fn mk_progress(
   pending? : UInt64 = 0,
   paused? : Bool = false,
   learner? : Bool = false,
+  sent_commit? : UInt64 = 0,
   inflights? : Inflights = Inflights::new(256, 0),
 ) -> Progress {
   {
@@ -63,6 +64,7 @@ fn mk_progress(
     msg_app_flow_paused: paused,
     pending_snapshot: pending,
     is_learner: learner,
+    sent_commit,
     inflights,
   }
 }
