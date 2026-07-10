@@ -287,7 +287,6 @@ test "codec round-trips a Heartbeat, its reply, and TimeoutNow" {
 test "codec drops the payloads the demo never puts on the wire" {
   let dropped : Array[Payload] = [
     Snapshot(InstallSnapshotArgs::whole(1, "S1", Snapshot::empty())),
-    SnapshotResp({ term: 1 }),
     Propose([Entry::normal(1, 1, b"x")]),
     ReadIndex(b"rctx"),
     ReadIndexResp({ term: 1, index: 1, context: b"" }),

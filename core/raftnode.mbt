@@ -37,7 +37,6 @@ pub struct RaftNode {
   election_timeout : Int
   heartbeat_timeout : Int
   mut randomized_election_timeout : Int
-  max_entries : UInt64
   // Byte cap on a single outbound AppendEntries batch (etcd's MaxSizePerMsg).
   max_msg_bytes : UInt64
   // Byte cap on the uncommitted log tail (etcd's MaxUncommittedEntriesSize); 0
@@ -108,7 +107,6 @@ pub fn RaftNode::new(
   seed? : UInt64 = 1,
   election_timeout? : Int = 10,
   heartbeat_timeout? : Int = 1,
-  max_entries? : UInt64 = 256,
   max_msg_bytes? : UInt64 = 18446744073709551615UL,
   max_uncommitted_size? : UInt64 = 0,
   max_inflight? : Int = 256,
@@ -169,7 +167,6 @@ pub fn RaftNode::new(
     election_timeout,
     heartbeat_timeout,
     randomized_election_timeout: election_timeout,
-    max_entries,
     max_msg_bytes,
     max_uncommitted_size,
     uncommitted_size: 0,
@@ -697,16 +694,10 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
   let entries = if p.state == Replicate && p.inflights.full() {
     []
   } else {
-    // Cap the batch by encoded byte size (etcd's MaxSizePerMsg) and, as an
-    // extra bound etcd does NOT have, by entry count (max_entries, default 256).
-    // DIVERGENT (we do more): etcd caps a MsgApp only by bytes; the count cap is
-    // a belt-and-suspenders limit, latent while max_msg_bytes is finite and the
-    // in-flight message/byte windows bound throughput anyway. limit_size always
-    // keeps at least one entry.
-    limit_size(
-      self.core.entries_after_limited(prev, self.max_entries)[:],
-      self.max_msg_bytes,
-    )
+    // Cap the batch by encoded byte size alone (etcd's MaxSizePerMsg), matching
+    // `sendAppend`'s `entries(pr.Next, r.maxMsgSize)` (raft.go:640); limit_size
+    // always keeps at least one entry.
+    limit_size(self.core.entries_after(prev)[:], self.max_msg_bytes)
   }
   let has = entries.length() > 0
   let last = if has { entries[entries.length() - 1].index } else { prev }

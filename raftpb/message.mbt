@@ -12,8 +12,12 @@ pub(all) enum Payload {
   AppendResp(AppendEntriesReply)
   Heartbeat(HeartbeatArgs)
   HeartbeatResp(HeartbeatReply)
+  // A follower answers a `Snapshot` with an `AppendResp`, not a dedicated reply:
+  // etcd's `handleSnapshot` (raft.go:1840) responds to `MsgSnap` with a
+  // `MsgAppResp` carrying `lastIndex()` on install or `committed` when the
+  // snapshot is refused, so the leader's ordinary append-response path folds it
+  // back into the follower's progress.
   Snapshot(InstallSnapshotArgs)
-  SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
   // Routable client-request messages (etcd's local, term-0 messages): a follower
   // that receives one forwards it to the leader rather than dropping it, so a
@@ -79,7 +83,6 @@ pub fn Message::term(self : Message) -> UInt64 {
     Heartbeat(a) => a.term
     HeartbeatResp(r) => r.term
     Snapshot(a) => a.term
-    SnapshotResp(r) => r.term
     TimeoutNow(t) => t
     // Local, routable messages carry no term (etcd sends MsgProp/MsgReadIndex
     // with Term 0); the read-index reply does carry the leader's term.
@@ -97,7 +100,6 @@ pub fn Message::is_response(self : Message) -> Bool {
     | VoteResp(_)
     | AppendResp(_)
     | HeartbeatResp(_)
-    | SnapshotResp(_)
     | ReadIndexResp(_) => true
     _ => false
   }
@@ -116,7 +118,6 @@ pub fn Message::kind(self : Message) -> String {
     Heartbeat(_) => "Heartbeat"
     HeartbeatResp(_) => "HeartbeatResp"
     Snapshot(_) => "Snapshot"
-    SnapshotResp(_) => "SnapshotResp"
     TimeoutNow(_) => "TimeoutNow"
     Propose(_) => "Propose"
     ReadIndex(_) => "ReadIndex"

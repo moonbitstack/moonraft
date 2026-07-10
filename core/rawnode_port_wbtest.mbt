@@ -93,7 +93,6 @@ test "TestRawNodeStep every network payload routes through Step" {
     conf_state: ConfState::empty(),
   }
   let sargs = InstallSnapshotArgs::whole(1, "2", snap)
-  let sreply : InstallSnapshotReply = { term: 1 }
   let payloads : Array[Payload] = [
     PreVote(args),
     PreVoteResp(vreply),
@@ -102,7 +101,6 @@ test "TestRawNodeStep every network payload routes through Step" {
     Append(aargs),
     AppendResp(areply),
     Snapshot(sargs),
-    SnapshotResp(sreply),
     TimeoutNow(1),
   ]
   for p in payloads {
@@ -110,7 +108,7 @@ test "TestRawNodeStep every network payload routes through Step" {
     // Step must accept every network payload without panicking.
     rn.step(Message::new("2", "1", p))
   }
-  assert_eq(payloads.length(), 9)
+  assert_eq(payloads.length(), 8)
 }
 
 // TestRawNodeProposeAndConfChange (V1 case): propose a command and a simple

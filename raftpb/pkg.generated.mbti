@@ -125,7 +125,6 @@ pub(all) enum Payload {
   Heartbeat(HeartbeatArgs)
   HeartbeatResp(HeartbeatReply)
   Snapshot(InstallSnapshotArgs)
-  SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
   Propose(Array[Entry])
   ReadIndex(Bytes)

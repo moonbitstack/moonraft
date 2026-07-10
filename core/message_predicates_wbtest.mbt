@@ -91,7 +91,6 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     done: true,
     conf_state: ConfState::empty(),
   }
-  let snap_reply : InstallSnapshotReply = { term: 1 }
   let payloads : Array[Payload] = [
     PreVote(vote_args),
     PreVoteResp(vote_reply),
@@ -100,7 +99,6 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     Append(app_args),
     AppendResp(app_reply),
     Snapshot(snap_args),
-    SnapshotResp(snap_reply),
     TimeoutNow(1),
   ]
   for p in payloads {
@@ -143,7 +141,6 @@ test "TestIsResponseMsg" {
     done: true,
     conf_state: ConfState::empty(),
   }
-  let snap_reply : InstallSnapshotReply = { term: 1 }
   fn resp(p : Payload) -> Bool {
     Message::new("a", "b", p).is_response()
   }
@@ -153,9 +150,9 @@ test "TestIsResponseMsg" {
   assert_false(resp(Vote(vote_args)))
   assert_true(resp(VoteResp(vote_reply)))
   assert_false(resp(Append(app_args)))
+  // A follower's InstallSnapshot reply travels as an AppendResp, covered above.
   assert_true(resp(AppendResp(app_reply)))
   assert_false(resp(Snapshot(snap_args)))
-  assert_true(resp(SnapshotResp(snap_reply)))
   assert_false(resp(TimeoutNow(1)))
 }
 
