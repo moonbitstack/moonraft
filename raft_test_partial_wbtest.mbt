@@ -80,6 +80,29 @@ test "TestLeaderTransferToUpToDateNodeFromFollower" {
 }
 
 ///|
+/// TestLeaderTransferWithCheckQuorum: a leadership transfer completes even while
+/// the current leader holds a check-quorum lease, because the transfer campaign's
+/// votes are forced and so bypass the followers' leases (raft_test.go:3104).
+test "TestLeaderTransferWithCheckQuorum" {
+  let net = Net::new(["1", "2", "3"])
+  for id in ["1", "2", "3"] {
+    net.node(id).enable_check_quorum()
+  }
+  net.campaign("1")
+  assert_true(net.node("1").is_leader())
+  // Transfer to 2 while the cluster is under node 1's lease: forced votes carry
+  // it through.
+  net.transfer("2", "1")
+  assert_true(net.node("2").is_leader())
+  assert_true(net.node("1").role() == Follower)
+  assert_true(net.node("1").lead_transferee == None)
+  // Replicate, then transfer back to 1.
+  net.propose("2", b"x")
+  net.transfer("1", "2")
+  assert_true(net.node("1").is_leader())
+}
+
+///|
 /// TestLeaderTransferSecondTransferToAnotherNode: a second transfer naming a
 /// different target aborts the first (pending) one and completes to the new
 /// target (raft_test.go:3347).
