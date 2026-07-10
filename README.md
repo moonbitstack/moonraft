@@ -9,25 +9,29 @@ It ships two ways to run the protocol on top of one consensus core:
 - a **synchronous driver** (`run_election`, `replicate`) that composes the RPC handlers into whole rounds — small and easy to read or embed; and
 - a **message-driven server** (`RaftNode`) that talks only in `Message`s through `tick` and `step`, so a real transport — or the bundled deterministic simulator — can drive it exactly the way etcd separates protocol logic from I/O.
 
-## Live demo — Raft, running in your browser
+## Live demo — a Raft cluster running in your browser
 
-**▶ https://lfan-ke.github.io/raft-moonbit/**
+**▶ https://lfan-ke.github.io/raft-moonbit/demo.html**
 
-The consensus core and the deterministic `Cluster` simulator are compiled to JavaScript with `moon build --target js` and run entirely in the page — no server, no mock. Drive leader elections, replicate a log, split the network into a brain-split, crash and restart nodes, add packet loss — and watch Raft's safety invariants (**Election Safety**, **State-Machine Safety**, command agreement) hold through all of it while the logs reconcile on heal.
+Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to WebAssembly, ticks on its own wall-clock timer, and talks to its peers only by `postMessage`. The main thread is the network — it can drop, delay and partition messages, and `terminate()` a worker to crash a node — and holds no Raft state of its own. Elections race, messages reorder, and nothing about the schedule is deterministic.
 
-![Raft consensus demo: a network partition with two leaders in different terms — the hard safety invariants still hold](docs/demo-screenshot.png)
+![A network partition with two leaders in different terms — the hard safety invariants still hold](docs/site-demo-partition.png)
 
-The visualization is not a JavaScript re-implementation: it calls straight into the MoonBit code every tick, and everything on screen comes from `demo_state()`, the JSON snapshot the simulator returns. The browser bridge is `demo_driver.mbt`; the front end lives under [`docs/`](docs/).
+That screenshot is the point of the whole exercise: under a partition, `S1` leads term 1 and `S3` leads term 2 **at the same time**, and Election Safety still holds. Two leaders are only a contradiction if they share a term; the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
-### Build and run the demo locally
+The demo is not a JavaScript re-implementation. Messages cross the boundary as flat integers, node state comes back as a JSON string read straight out of the wasm module's linear memory, and every state transition happens inside the same MoonBit code the tests exercise. The bridge is `worker_driver.mbt`; the site lives under [`docs/`](docs/).
+
+**Honest about what it is not.** Those five nodes share one machine and one browser, and `postMessage` is not TCP. This is a faithful model of *concurrency*, not of a distributed deployment. A restarted node comes back empty and catches up from the leader, because the workers have no persistent storage.
+
+### Build and run the site locally
 
 ```
-moon build --target js --release                 # -> _build/js/release/build/raft-moonbit.js
-cp _build/js/release/build/raft-moonbit.js docs/raft-moonbit.js
-python3 -m http.server 8099 --directory docs     # then open http://localhost:8099/
+moon build --target wasm --release              # -> _build/wasm/release/build/raft-moonbit.wasm
+cp _build/wasm/release/build/raft-moonbit.wasm docs/raft-moonbit.wasm
+python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 
-An ES-module import needs `http(s)`; opening `index.html` as a `file://` URL will not work.
+Workers `fetch` the wasm, so a `file://` URL will not work.
 
 ## Features
 
@@ -35,10 +39,14 @@ An ES-module import needs `http(s)`; opening `index.html` as a `file://` URL wil
 - **Pre-vote** so a partitioned node cannot inflate the cluster term, plus randomized election timeouts and heartbeats off a per-node deterministic PRNG.
 - **Log replication** through AppendEntries: the log-matching check, conflicting-suffix truncation, and majority commit within the current term (§5.3, §5.4.2). Replies carry a `conflict_index` hint for one-jump backoff, and per-follower `Progress` (probe / replicate / snapshot) drives repair — including from heartbeat acks.
 - **Snapshots and log compaction** (§7): `compact`, the `InstallSnapshot` RPC, and automatic snapshot fallback for a follower whose next entry has already been compacted away.
-- **Membership changes** (§6): single-server add/remove and full **joint consensus** (a C(old,new) transition needing a majority of both halves), carried as `ConfChange` log entries and folded in by a configuration state machine.
-- **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and an etcd-style `MemoryStorage` engine with index/term/slice reads, conflict-truncating append, compaction and snapshotting — plus a storage-backed recovery path.
-- **Linearizable reads** via ReadIndex / leader lease, and **check-quorum** so a leader that loses contact with a majority steps down.
-- **Leadership transfer** (`TimeoutNow`, §3.10) for an orderly handover to a caught-up follower.
+- **Membership changes** (§4, §6): single-server add/remove and full **joint consensus** with `ConfChangeV2` and auto-leave — the C(old,new) transition needs a majority of *both* halves, and the leader appends the leave entry itself once it commits. A committed change reconfigures the running node: quorums resize, a leader that removed itself steps down, and an in-flight leadership transfer to a removed target aborts.
+- **Learners** (§4.2.1): non-voting members that receive the log, never campaign and never count toward a quorum, with promotion to voter and — through `learners_next` — demotion that is staged across a joint change so the demoted voter keeps voting in the outgoing half until the transition leaves.
+- **Flow control**: a sliding-window `Inflights` limit on in-flight AppendEntries, a byte cap on each batch (`MaxSizePerMsg`), and a bound on the uncommitted tail a leader will accept (`MaxUncommittedEntriesSize`).
+- **A `raftLog` split into stable storage and an `unstable` tail**, with in-progress bookkeeping, so a caller learns exactly which entries to persist and which to apply, and byte-level pagination on both.
+- **`RawNode` with `Ready` / `Advance`**: the caller asks whether there is work, takes a batch (entries to persist, a `HardState` and `SoftState` if they changed, messages to send, committed entries to apply, read states), does it, and acknowledges. No threads, no async — a synchronous state machine, exactly as etcd's contract describes it.
+- **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and an etcd-style `MemoryStorage` engine with index/term/slice reads, conflict-truncating append, compaction and snapshotting. Storage reads report `Compacted`, `Unavailable` and `SnapOutOfDate` as distinct errors, so a caller can tell "send a snapshot" from "wait".
+- **Linearizable reads** in both of Raft's modes — `ReadOnlySafe`, which confirms leadership with a fresh quorum round-trip, and the lease-based path — plus **check-quorum**, which makes a leader that loses contact with a majority step down and makes its followers refuse disruptive votes.
+- **Leadership transfer** (`TimeoutNow`, §3.10): the target is caught up first, proposals are blocked while a transfer is in flight, and the transfer aborts on timeout, step-down or removal of the target.
 - **Pluggable `StateMachine`, `Transport`, `LogStore` and `RaftStorage`** traits, with a replicated key-value store as the worked example.
 - **Deterministic simulation harness** (`Cluster`): a single-seed, discrete-time network that drops, delays, reorders, partitions and crashes/restarts nodes, with built-in safety-invariant checks (one leader per term, an agreeing committed prefix, log matching) and a suite of scenario and chaos tests.
 
@@ -119,12 +127,17 @@ The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `
 - [x] Safety: up-to-date-log restriction and log matching
 - [x] Pluggable state machine, transport and storage traits
 - [x] Snapshot, log compaction and the InstallSnapshot RPC
-- [x] Membership changes: single-server and joint consensus
+- [x] Membership changes: single-server, joint consensus, `ConfChangeV2` auto-leave
+- [x] Learners: non-voting members, promotion, and `learners_next` staged demotion
 - [x] Durable persistence: HardState, write-ahead log and a MemoryStorage engine
+- [x] Typed storage errors: `Compacted`, `Unavailable`, `SnapOutOfDate`
 - [x] Message-driven server: pre-vote, randomized timers, heartbeats
-- [x] ReadIndex / lease reads, check-quorum, leadership transfer
+- [x] ReadIndex in both modes (`ReadOnlySafe` and lease), check-quorum, leadership transfer
+- [x] Flow control: `Inflights` window, `MaxSizePerMsg`, `MaxUncommittedEntriesSize`
+- [x] `raftLog` with an `unstable` tail, in-progress bookkeeping and byte pagination
+- [x] `RawNode` with the `Ready` / `Advance` contract
 - [x] Deterministic simulation harness: partition, loss, reorder, crash — with a chaos suite
-- [x] Interactive browser demo compiled from the same code with `moon build --target js`
+- [x] Browser demo: the core compiled to WebAssembly, one Web Worker per node
 
 ## License
 
