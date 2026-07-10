@@ -1,4 +1,4 @@
-name = "heke1228/raft-moonbit"
+name = "Lfan-ke/raft-moonbit"
 
 version = "0.1.0"
 
@@ -6,7 +6,7 @@ readme = "README.md"
 
 repository = "https://gitlink.org.cn/heke1228/raft-moonbit"
 
-license = "MIT"
+license = "Apache-2.0"
 
 keywords = [
   "raft",

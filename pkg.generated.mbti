@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "heke1228/raft-moonbit"
+package "Lfan-ke/raft-moonbit"
 
 // Values
 pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
