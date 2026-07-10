@@ -3,6 +3,7 @@ package "Lfan-ke/raft-moonbit"
 
 import {
   "Lfan-ke/raft-moonbit/quorum",
+  "Lfan-ke/raft-moonbit/tracker",
 }
 
 // Values
@@ -99,7 +100,7 @@ pub(all) struct AppendEntriesReply {
 
 pub struct Changer {
   mut cfg : ChangerConfig
-  mut prs : Map[String, Progress]
+  mut prs : Map[String, @tracker.Progress]
   mut last_index : UInt64
   max_inflight : Int
   max_inflight_bytes : UInt64
@@ -302,27 +303,6 @@ pub(all) struct HeartbeatReply {
 
 type InFlight
 
-pub(all) struct Inflight {
-  mut index : UInt64
-  mut bytes : UInt64
-} derive(Eq)
-
-pub struct Inflights {
-  mut start : Int
-  mut count : Int
-  mut bytes : UInt64
-  size : Int
-  max_bytes : UInt64
-  mut buffer : Array[Inflight]
-}
-pub fn Inflights::add(Self, UInt64, UInt64) -> Unit
-pub fn Inflights::clone(Self) -> Self
-pub fn Inflights::count(Self) -> Int
-pub fn Inflights::free_le(Self, UInt64) -> Unit
-pub fn Inflights::full(Self) -> Bool
-pub fn Inflights::new(Int, UInt64) -> Self
-pub fn Inflights::reset(Self) -> Unit
-
 pub(all) struct InstallSnapshotArgs {
   term : UInt64
   leader_id : String
@@ -492,48 +472,11 @@ pub(all) struct Persisted {
   log : Array[Entry]
 }
 
-pub struct Progress {
-  mut next_index : UInt64
-  mut match_index : UInt64
-  mut state : ProgressState
-  mut recent_active : Bool
-  mut msg_app_flow_paused : Bool
-  mut pending_snapshot : UInt64
-  mut is_learner : Bool
-  mut sent_commit : UInt64
-  inflights : Inflights
-}
-pub fn Progress::become_probe(Self) -> Unit
-pub fn Progress::become_replicate(Self) -> Unit
-pub fn Progress::become_snapshot(Self, UInt64) -> Unit
-pub fn Progress::can_bump_commit(Self, UInt64) -> Bool
-pub fn Progress::copy(Self) -> Self
-pub fn Progress::free_le(Self, UInt64) -> Unit
-pub fn Progress::is_active(Self) -> Bool
-pub fn Progress::is_paused(Self) -> Bool
-pub fn Progress::mark_active(Self) -> Unit
-pub fn Progress::maybe_decr_to(Self, UInt64, UInt64) -> Bool
-pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
-pub fn Progress::maybe_update(Self, UInt64) -> Bool
-pub fn Progress::new(UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
-pub fn Progress::note_commit_sent(Self, UInt64) -> Unit
-pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
-pub fn Progress::reset_active(Self) -> Unit
-pub fn Progress::sent_entries(Self, UInt64, Bool, bytes? : UInt64) -> Unit
-pub fn Progress::to_string(Self) -> String
-pub fn Progress::unpause(Self) -> Unit
-
-pub enum ProgressState {
-  Probe
-  Replicate
-  Snapshot
-} derive(Eq)
-
 pub(all) struct ProgressStatus {
   id : String
   match_index : UInt64
   next_index : UInt64
-  state : ProgressState
+  state : @tracker.ProgressState
   paused : Bool
   pending_snapshot : UInt64
   is_learner : Bool
@@ -594,7 +537,7 @@ pub struct RaftNode {
   id : String
   peers : Array[String]
   config : Membership
-  progress : Map[String, Progress]
+  progress : Map[String, @tracker.Progress]
   votes : Map[String, Bool]
   pre_vote : Bool
   mut check_quorum : Bool

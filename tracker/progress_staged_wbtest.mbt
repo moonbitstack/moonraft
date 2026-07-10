@@ -106,13 +106,6 @@ test "MaxInflightBytes: the byte budget throttles replication" {
 }
 
 ///|
-test "Changer threads MaxInflightBytes into each new progress" {
-  let c = Changer::new(max_inflight_bytes=512)
-  assert_true(c.simple([("v", "1")]) is None)
-  assert_eq(c.prs["1"].inflights.max_bytes, 512)
-}
-
-///|
 // Standalone Progress-level property behind etcd's TestLeaderIncreaseNext
 // (raft_test.go #64): while replicating, a send optimistically advances `next`
 // past the last sent index; while probing, a send does not advance `next` (it

@@ -82,6 +82,12 @@ pub fn Inflights::count(self : Inflights) -> Int {
 }
 
 ///|
+/// The configured byte budget (etcd's `MaxInflightBytes`); 0 means no limit.
+pub fn Inflights::max_bytes(self : Inflights) -> UInt64 {
+  self.max_bytes
+}
+
+///|
 /// Record that a message ending at `index` and carrying `bytes` bytes has been
 /// dispatched. `full` must be false first, and consecutive calls must pass a
 /// monotonic sequence of indexes.

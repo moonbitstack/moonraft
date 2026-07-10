@@ -21,7 +21,7 @@
 /// `Snapshot` means the follower is so far behind that the next thing it needs
 /// has already been compacted, so a snapshot must be shipped first (etcd's
 /// three progress states).
-pub enum ProgressState {
+pub(all) enum ProgressState {
   Probe
   Replicate
   Snapshot
@@ -33,7 +33,7 @@ pub enum ProgressState {
 /// stored on the follower. `recent_active` records whether the follower has
 /// answered since the last liveness sweep, which the read-index and lease paths
 /// use to confirm the leader still commands a quorum.
-pub struct Progress {
+pub(all) struct Progress {
   mut next_index : UInt64
   mut match_index : UInt64
   mut state : ProgressState
