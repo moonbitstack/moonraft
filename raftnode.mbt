@@ -542,7 +542,10 @@ pub fn RaftNode::transfer_leadership(
       if p.match_index == self.core.last_log_index() {
         [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
       } else {
-        [self.send_to(target)]
+        match self.send_to(target) {
+          Some(m) => [m]
+          None => []
+        }
       }
   }
 }
@@ -571,11 +574,18 @@ pub fn RaftNode::forget_leader(self : RaftNode) -> Unit {
 ///|
 /// Build the AppendEntries or InstallSnapshot message for one follower, based on
 /// its progress. If the entry the follower needs has been compacted away, a
-/// snapshot is sent instead (Raft §7).
-fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
+/// snapshot is sent instead (Raft §7). Returns `None` when nothing should be
+/// sent — currently only when a snapshot would be needed but the follower has
+/// not been heard from this liveness window (etcd's `maybeSendSnapshot` refuses
+/// to ship a snapshot to a `!RecentActive` follower, since it is probably gone
+/// and the snapshot would be wasted bandwidth).
+fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
   let p = self.progress[peer]
   let prev = p.next_index - 1
   if prev < self.core.snapshot_index {
+    if !p.is_active() {
+      return None
+    }
     p.become_snapshot(self.core.snapshot_index)
     let snap : Snapshot = {
       last_index: self.core.snapshot_index,
@@ -584,11 +594,13 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
       // Stamp the current membership so the follower rebuilds it on install.
       conf_state: self.conf_state(),
     }
-    return Message::new(
-      self.id,
-      peer,
-      Snapshot(
-        InstallSnapshotArgs::whole(self.core.current_term(), self.id, snap),
+    return Some(
+      Message::new(
+        self.id,
+        peer,
+        Snapshot(
+          InstallSnapshotArgs::whole(self.core.current_term(), self.id, snap),
+        ),
       ),
     )
   }
@@ -619,17 +631,19 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   // eager commit-only send can be skipped when it would tell the follower
   // nothing new (etcd's SentCommit / CanBumpCommit optimization).
   p.note_commit_sent(self.core.commit_index)
-  Message::new(
-    self.id,
-    peer,
-    Append({
-      term: self.core.current_term(),
-      leader_id: self.id,
-      prev_log_index: prev,
-      prev_log_term: self.core.term_at(prev),
-      entries,
-      leader_commit: self.core.commit_index,
-    }),
+  Some(
+    Message::new(
+      self.id,
+      peer,
+      Append({
+        term: self.core.current_term(),
+        leader_id: self.id,
+        prev_log_index: prev,
+        prev_log_term: self.core.term_at(prev),
+        entries,
+        leader_commit: self.core.commit_index,
+      }),
+    ),
   )
 }
 
@@ -644,7 +658,10 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
     if p.is_paused() {
       continue
     }
-    out.push(self.send_to(peer))
+    match self.send_to(peer) {
+      Some(m) => out.push(m)
+      None => ()
+    }
   }
   out
 }

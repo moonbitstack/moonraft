@@ -503,7 +503,10 @@ fn RaftNode::handle_heartbeat_resp(
       // message goes out to a follower that is still behind.
       p.unpause()
       if p.match_index < self.core.last_log_index() && p.state != Snapshot {
-        out.push(self.send_to(from))
+        match self.send_to(from) {
+          Some(m) => out.push(m)
+          None => ()
+        }
       }
       out
     }
@@ -611,7 +614,10 @@ fn RaftNode::handle_append_resp(
           // (etcd's `CanBumpCommit`, which skips a redundant commit-only MsgApp
           // when the follower already knows the latest in-flight commit). Push it
           // the next append now rather than waiting for a client proposal.
-          out.push(self.send_to(from))
+          match self.send_to(from) {
+            Some(m) => out.push(m)
+            None => ()
+          }
         }
         out
       } else {
@@ -633,7 +639,10 @@ fn RaftNode::handle_append_resp(
           if p.state == Replicate {
             p.become_probe()
           }
-          [self.send_to(from)]
+          match self.send_to(from) {
+            Some(m) => [m]
+            None => []
+          }
         } else {
           []
         }
@@ -710,7 +719,10 @@ fn RaftNode::handle_snapshot_resp(
       let _ = p.maybe_update(self.core.snapshot_index)
       p.become_probe()
       p.mark_active()
-      [self.send_to(from)]
+      match self.send_to(from) {
+        Some(m) => [m]
+        None => []
+      }
     }
   }
 }
