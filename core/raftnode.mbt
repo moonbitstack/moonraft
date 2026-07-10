@@ -604,14 +604,11 @@ pub fn RaftNode::transfer_leadership(
   // A transfer already in progress (§3.10): a repeat to the same target is
   // ignored (the handoff continues); a request naming a different target aborts
   // the old one before the new is considered (etcd's stepLeader).
-  match self.lead_transferee {
-    Some(last) =>
-      if last == target {
-        return []
-      } else {
-        self.lead_transferee = None
-      }
-    None => ()
+  if self.lead_transferee is Some(last) {
+    if last == target {
+      return []
+    }
+    self.lead_transferee = None
   }
   // Transferring to ourselves is a no-op — but note it still aborts a pending
   // transfer above, which is how a leader cancels a handoff (etcd's
@@ -752,9 +749,8 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
     if p.is_paused() {
       continue
     }
-    match self.send_to(peer) {
-      Some(m) => out.push(m)
-      None => ()
+    if self.send_to(peer) is Some(m) {
+      out.push(m)
     }
   }
   // Flush any final appends owed to servers just reconciled out of the peer set
@@ -906,20 +902,16 @@ pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
 fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
   while self.conf_applied < self.core.commit_index {
     let idx = self.conf_applied + 1
-    match self.core.entry_at(idx) {
-      Some(e) =>
-        if e.is_conf_change() {
-          // A batch (ConfChangeV2) is tagged 'V'; anything else is a single change.
-          match ConfChangeV2::decode(e.command) {
-            Some(v2) => self.apply_conf_change_v2(v2)
-            None =>
-              if ConfChange::decode(e.command) is Some(cc) {
-                cc.apply_to(self.config)
-                self.reconcile_peers()
-              }
+    if self.core.entry_at(idx) is Some(e) && e.is_conf_change() {
+      // A batch (ConfChangeV2) is tagged 'V'; anything else is a single change.
+      match ConfChangeV2::decode(e.command) {
+        Some(v2) => self.apply_conf_change_v2(v2)
+        None =>
+          if ConfChange::decode(e.command) is Some(cc) {
+            cc.apply_to(self.config)
+            self.reconcile_peers()
           }
-        }
-      None => ()
+      }
     }
     self.conf_applied = idx
   }
@@ -961,10 +953,8 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
   }
   let mut i = self.core.last_applied + 1
   while i <= self.core.commit_index {
-    if self.core.entry_at(i) is Some(e) {
-      if e.is_conf_change() {
-        return true
-      }
+    if self.core.entry_at(i) is Some(e) && e.is_conf_change() {
+      return true
     }
     i = i + 1
   }
@@ -977,14 +967,11 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
 fn RaftNode::has_pending_leave(self : RaftNode) -> Bool {
   let mut i = self.core.commit_index + 1
   while i <= self.core.last_log_index() {
-    if self.core.entry_at(i) is Some(e) {
-      if e.is_conf_change() {
-        if ConfChangeV2::decode(e.command) is Some(v2) {
-          if v2.is_leave() {
-            return true
-          }
-        }
-      }
+    if self.core.entry_at(i) is Some(e) &&
+      e.is_conf_change() &&
+      ConfChangeV2::decode(e.command) is Some(v2) &&
+      v2.is_leave() {
+      return true
     }
     i = i + 1
   }
@@ -1084,10 +1071,7 @@ pub fn RaftNode::progress_of(self : RaftNode, id : String) -> ProgressStatus? {
       is_learner: false,
     })
   }
-  match self.progress.get(id) {
-    Some(p) => Some(progress_status_of(id, p))
-    None => None
-  }
+  self.progress.get(id).map(p => progress_status_of(id, p))
 }
 
 ///|
@@ -1214,15 +1198,13 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.progress[id] = p
       }
       // Keep each progress's learner flag in step with the configuration.
-      match self.progress.get(id) {
-        Some(p) => p.is_learner = self.config.is_learner(id)
-        None => ()
+      if self.progress.get(id) is Some(p) {
+        p.is_learner = self.config.is_learner(id)
       }
     }
   }
-  match self.lead_transferee {
-    Some(t) => if !self.config.contains(t) { self.lead_transferee = None }
-    None => ()
+  if self.lead_transferee is Some(t) && !self.config.contains(t) {
+    self.lead_transferee = None
   }
   // etcd's `switchToConfig`: a leader that is removed (or demoted to a learner)
   // steps down only when `StepDownOnRemoval` is set. By default it stays leader

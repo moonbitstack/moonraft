@@ -156,10 +156,7 @@ fn Cluster::reachable(self : Cluster, from : String, to : String) -> Bool {
   // such an id defaults to group 0 (its messages are later dropped when the node
   // lookup fails in `deliver_due`).
   let ga = self.part[from]
-  let gb = match self.part.get(to) {
-    Some(g) => g
-    None => 0
-  }
+  let gb = self.part.get(to).unwrap_or(0)
   ga == gb
 }
 
@@ -194,13 +191,9 @@ fn Cluster::deliver_due(self : Cluster) -> Unit {
     let m = f.msg
     let dropped = !self.reachable(m.from, m.to) ||
       (self.drop_permil > 0 && (self.rand() % 1000).to_int() < self.drop_permil)
-    if !dropped {
-      match self.nodes.get(m.to) {
-        Some(n) =>
-          for r in n.step(m) {
-            self.schedule(r)
-          }
-        None => ()
+    if !dropped && self.nodes.get(m.to) is Some(n) {
+      for r in n.step(m) {
+        self.schedule(r)
       }
     }
   }
@@ -224,10 +217,8 @@ pub fn Cluster::tick(self : Cluster) -> Unit {
 ///|
 /// Advance the cluster by `ticks` ticks.
 pub fn Cluster::run(self : Cluster, ticks : Int) -> Unit {
-  let mut i = 0
-  while i < ticks {
+  for _ in 0..<ticks {
     self.tick()
-    i = i + 1
   }
 }
 
@@ -235,15 +226,11 @@ pub fn Cluster::run(self : Cluster, ticks : Int) -> Unit {
 /// Propose a command on the current leader, if there is one. Returns whether a
 /// leader accepted it.
 pub fn Cluster::propose(self : Cluster, command : Bytes) -> Bool {
-  match self.leader() {
-    Some(id) => {
-      for msg in self.nodes[id].propose(command) {
-        self.schedule(msg)
-      }
-      true
-    }
-    None => false
+  guard self.leader() is Some(id) else { return false }
+  for msg in self.nodes[id].propose(command) {
+    self.schedule(msg)
   }
+  true
 }
 
 ///|
@@ -276,28 +263,20 @@ pub fn Cluster::compact_leader(
   upto : UInt64,
   data : Bytes,
 ) -> Bool {
-  match self.leader() {
-    Some(id) => {
-      let _ = self.nodes[id].node().compact(upto, data)
-      true
-    }
-    None => false
-  }
+  guard self.leader() is Some(id) else { return false }
+  let _ = self.nodes[id].node().compact(upto, data)
+  true
 }
 
 ///|
 /// Ask the current leader to transfer leadership to `target`. Returns whether a
 /// leader started the transfer.
 pub fn Cluster::transfer_leadership(self : Cluster, target : String) -> Bool {
-  match self.leader() {
-    Some(id) => {
-      for msg in self.nodes[id].transfer_leadership(target) {
-        self.schedule(msg)
-      }
-      true
-    }
-    None => false
+  guard self.leader() is Some(id) else { return false }
+  for msg in self.nodes[id].transfer_leadership(target) {
+    self.schedule(msg)
   }
+  true
 }
 
 ///|
@@ -312,15 +291,11 @@ pub fn Cluster::enable_check_quorum(self : Cluster) -> Unit {
 /// Propose a configuration change on the current leader. Returns whether a
 /// leader accepted it.
 pub fn Cluster::propose_conf(self : Cluster, change : ConfChange) -> Bool {
-  match self.leader() {
-    Some(id) => {
-      for msg in self.nodes[id].propose_conf(change) {
-        self.schedule(msg)
-      }
-      true
-    }
-    None => false
+  guard self.leader() is Some(id) else { return false }
+  for msg in self.nodes[id].propose_conf(change) {
+    self.schedule(msg)
   }
+  true
 }
 
 ///|
@@ -338,25 +313,18 @@ pub fn Cluster::leaders(self : Cluster) -> Array[String] {
 ///|
 /// The id of a current leader, if exactly the usual single one is running.
 pub fn Cluster::leader(self : Cluster) -> String? {
-  let ls = self.leaders()
-  if ls.length() >= 1 {
-    Some(ls[0])
-  } else {
-    None
-  }
+  self.leaders().get(0)
 }
 
 ///|
 /// Tick until a leader emerges or `max_ticks` elapse; returns the leader id.
 pub fn Cluster::run_until_leader(self : Cluster, max_ticks : Int) -> String? {
-  let mut i = 0
-  while i < max_ticks {
+  for _ in 0..<max_ticks {
     self.tick()
     let ls = self.leaders()
     if ls.length() > 0 {
       return Some(ls[0])
     }
-    i = i + 1
   }
   None
 }
@@ -369,13 +337,11 @@ pub fn Cluster::run_until_committed(
   index : UInt64,
   max_ticks : Int,
 ) -> Bool {
-  let mut i = 0
-  while i < max_ticks {
+  for _ in 0..<max_ticks {
     self.tick()
     if self.all_committed(index) {
       return true
     }
-    i = i + 1
   }
   false
 }
@@ -432,9 +398,8 @@ pub fn demo_run(
   let first = c.run_until_leader(elect_ticks)
   let accepted = first is Some(_) && c.propose(b"set x = 1")
   let committed = accepted && c.run_until_committed(1, commit_ticks)
-  match first {
-    Some(leader) => c.crash(leader)
-    None => ()
+  if first is Some(leader) {
+    c.crash(leader)
   }
   let second = if committed { c.run_until_leader(reelect_ticks) } else { None }
   {

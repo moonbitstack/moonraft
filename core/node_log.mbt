@@ -96,9 +96,8 @@ pub fn Node::entries_after(self : Node, index : UInt64) -> Array[Entry] {
   let last = self.last_log_index()
   let mut i = index
   while i < last {
-    match self.entry_at(i + 1) {
-      Some(e) => out.push(e)
-      None => ()
+    if self.entry_at(i + 1) is Some(e) {
+      out.push(e)
     }
     i = i + 1
   }
@@ -118,9 +117,8 @@ pub fn Node::entries_after_limited(
   let last = self.last_log_index()
   let mut i = index
   while i < last && out.length().to_uint64() < max {
-    match self.entry_at(i + 1) {
-      Some(e) => out.push(e)
-      None => ()
+    if self.entry_at(i + 1) is Some(e) {
+      out.push(e)
     }
     i = i + 1
   }

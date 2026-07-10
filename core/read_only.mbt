@@ -117,10 +117,7 @@ fn ReadOnly::add_request(
 fn ReadOnly::recv_ack(self : ReadOnly, id : String, ctx : Bytes) -> Unit {
   if ctx.length() != 0 {
     let pos = decode_u64_le(ctx)
-    let cur = match self.acks.get(id) {
-      Some(v) => v
-      None => 0
-    }
+    let cur = self.acks.get(id).unwrap_or(0)
     if pos > cur {
       self.acks[id] = pos
     }
