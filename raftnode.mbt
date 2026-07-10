@@ -46,6 +46,9 @@ pub struct RaftNode {
   // set, the leader stops accepting proposals and hands off once the target is
   // caught up; it is cleared on timeout, step-down, or the target's removal.
   mut lead_transferee : String?
+  // Set when an applied EnterJoint asked to auto-leave, so the leader appends
+  // the matching LeaveJoint on the next apply pass (Raft §4.3).
+  mut auto_leave_pending : Bool
   // Linearizable read-index bookkeeping (Raft §6.4).
   read_only : ReadOnly
 }
@@ -88,6 +91,7 @@ pub fn RaftNode::new(
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
+    auto_leave_pending: false,
     read_only: ReadOnly::new(),
   }
   node.reset_timeout()
@@ -337,6 +341,23 @@ pub fn RaftNode::propose_conf(
 }
 
 ///|
+/// Append a batch configuration change (joint consensus, Raft §4.3) and
+/// replicate it. Entering joint with a non-empty batch moves the cluster to
+/// C(old,new); once committed, `auto_leave` has the leader append the matching
+/// leave automatically. A no-op on a non-leader or mid-transfer.
+pub fn RaftNode::propose_conf_v2(
+  self : RaftNode,
+  change : ConfChangeV2,
+) -> Array[Message] {
+  if self.core.role() != Leader || self.lead_transferee is Some(_) {
+    return []
+  }
+  let _ = self.core.append_conf(self.core.current_term(), change.encode())
+  self.maybe_commit() |> ignore
+  self.bcast_append()
+}
+
+///|
 /// Begin transferring leadership to `target` (Raft §3.10). If the target is
 /// already caught up it is sent a TimeoutNow so it campaigns immediately;
 /// otherwise it is first sent the entries it lacks and the caller retries the
@@ -530,58 +551,88 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
     match self.core.entry_at(idx) {
       Some(e) =>
         if e.is_conf_change() {
-          match ConfChange::decode(e.command) {
-            Some(cc) => self.apply_conf_change(cc)
-            None => ()
+          // A batch (ConfChangeV2) is tagged 'V'; anything else is a single change.
+          match ConfChangeV2::decode(e.command) {
+            Some(v2) => self.apply_conf_change_v2(v2)
+            None =>
+              match ConfChange::decode(e.command) {
+                Some(cc) => {
+                  cc.apply_to(self.config)
+                  self.reconcile_peers()
+                }
+                None => ()
+              }
           }
         }
       None => ()
     }
     self.conf_applied = idx
   }
-}
-
-///|
-/// Apply one committed configuration change to the live server state.
-fn RaftNode::apply_conf_change(self : RaftNode, cc : ConfChange) -> Unit {
-  match cc.change_type {
-    AddNode => {
-      // Adding an existing learner as a voter promotes it (§4.2.1).
-      self.config.add(cc.node_id)
-      self.ensure_peer(cc.node_id)
-    }
-    AddLearnerNode => {
-      self.config.add_learner(cc.node_id)
-      self.ensure_peer(cc.node_id)
-    }
-    RemoveNode => {
-      self.config.remove(cc.node_id)
-      self.peers.retain(fn(p) { p != cc.node_id })
-      self.progress.remove(cc.node_id)
-      // Abort an in-flight transfer whose target just left the cluster (§3.10).
-      if self.lead_transferee == Some(cc.node_id) {
-        self.lead_transferee = None
-      }
-      // A leader that removed itself steps down: it cannot safely lead a cluster
-      // it no longer belongs to (Raft §6).
-      if cc.node_id == self.id && self.core.role() == Leader {
-        self.step_down()
-      }
-    }
+  // Auto-leave: once an EnterJoint that requested it has been applied, the
+  // leader appends the matching LeaveJoint so the cluster settles on the new
+  // configuration without a second client request (§4.3).
+  if self.auto_leave_pending && self.core.role() == Leader {
+    self.auto_leave_pending = false
+    let _ = self.core.append_conf(
+      self.core.current_term(),
+      ConfChangeV2::leave_joint().encode(),
+    )
   }
 }
 
 ///|
-/// Make sure a (voter or learner) member other than ourselves is in the peer
-/// set and, if we are leading, has replication progress so it is caught up.
-fn RaftNode::ensure_peer(self : RaftNode, id : String) -> Unit {
-  if id == self.id {
-    return
+/// Apply one committed batch configuration change (joint enter/leave).
+fn RaftNode::apply_conf_change_v2(self : RaftNode, v2 : ConfChangeV2) -> Unit {
+  if v2.is_leave() {
+    self.config.leave_joint()
+  } else {
+    // Enter joint consensus: the current voters become the outgoing half, and
+    // the batch's changes are folded into the incoming half. Decisions then
+    // need a majority of *both* halves until the matching leave commits (§4.3).
+    let outgoing = self.config.members.copy()
+    for c in v2.changes {
+      c.apply_to(self.config)
+    }
+    self.config.begin_joint(outgoing)
+    if v2.auto_leave {
+      self.auto_leave_pending = true
+    }
   }
-  if !self.peers.contains(id) {
-    self.peers.push(id)
+  self.reconcile_peers()
+}
+
+///|
+/// Bring the peer set and replication progress into line with the current
+/// configuration after a change: add newcomers (with progress, if leading),
+/// drop departed servers, abort a transfer to a removed target, and step down if
+/// we ourselves are no longer part of the configuration (Raft §6).
+fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
+  let desired = self.config.nodes()
+  self.peers.retain(fn(p) { desired.contains(p) })
+  let stale : Array[String] = []
+  for peer, _ in self.progress {
+    if !desired.contains(peer) {
+      stale.push(peer)
+    }
   }
-  if self.core.role() == Leader && !self.progress.contains(id) {
-    self.progress[id] = Progress::new(self.core.last_log_index() + 1)
+  for peer in stale {
+    self.progress.remove(peer)
+  }
+  for id in desired {
+    if id != self.id {
+      if !self.peers.contains(id) {
+        self.peers.push(id)
+      }
+      if self.core.role() == Leader && !self.progress.contains(id) {
+        self.progress[id] = Progress::new(self.core.last_log_index() + 1)
+      }
+    }
+  }
+  match self.lead_transferee {
+    Some(t) => if !self.config.contains(t) { self.lead_transferee = None }
+    None => ()
+  }
+  if self.core.role() == Leader && !self.config.contains(self.id) {
+    self.step_down()
   }
 }

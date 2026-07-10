@@ -100,6 +100,106 @@ pub fn ConfChange::apply_to(self : ConfChange, config : Membership) -> Unit {
 }
 
 ///|
+/// The one-character tag for a single change ('+'/'-'/'L').
+fn ConfChange::tag(self : ConfChange) -> String {
+  match self.change_type {
+    AddNode => "+"
+    RemoveNode => "-"
+    AddLearnerNode => "L"
+  }
+}
+
+///|
+/// A batch configuration change (etcd's `ConfChangeV2`): several single changes
+/// applied atomically. A non-empty batch enters joint consensus C(old,new); an
+/// empty batch leaves it. `auto_leave` asks the leader to append the matching
+/// leave automatically once the entry commits (Raft §4.3, joint consensus).
+pub(all) struct ConfChangeV2 {
+  changes : Array[ConfChange]
+  auto_leave : Bool
+} derive(Eq)
+
+///|
+/// Enter joint consensus with `changes`, optionally leaving automatically once
+/// committed.
+pub fn ConfChangeV2::enter_joint(
+  changes : Array[ConfChange],
+  auto_leave? : Bool = true,
+) -> ConfChangeV2 {
+  { changes, auto_leave }
+}
+
+///|
+/// Leave joint consensus (an empty batch).
+pub fn ConfChangeV2::leave_joint() -> ConfChangeV2 {
+  { changes: [], auto_leave: false }
+}
+
+///|
+/// Whether this is the empty batch that leaves joint consensus.
+pub fn ConfChangeV2::is_leave(self : ConfChangeV2) -> Bool {
+  self.changes.length() == 0
+}
+
+///|
+/// Serialize as `V` + `1`/`0` (auto-leave) + `;`-separated `<tag><id>` changes.
+/// The `V` prefix distinguishes a batch from a single change on decode.
+pub fn ConfChangeV2::encode(self : ConfChangeV2) -> Bytes {
+  let mut s = "V" + (if self.auto_leave { "1" } else { "0" })
+  for c in self.changes {
+    s = s + ";" + c.tag() + c.node_id
+  }
+  let arr : Array[Byte] = []
+  for ch in s {
+    let code = ch.to_int()
+    arr.push((code & 0xff).to_byte())
+    arr.push(((code >> 8) & 0xff).to_byte())
+  }
+  Bytes::from_array(arr)
+}
+
+///|
+/// Recover a batch change, or `None` if the bytes are not a well-formed batch.
+pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
+  let s = command.to_unchecked_string()
+  if !s.has_prefix("V") {
+    return None
+  }
+  let auto_leave = s.length() >= 2 && s[1:2].to_owned() == "1"
+  let changes : Array[ConfChange] = []
+  // Split the remainder on ';', skipping the leading flag segment.
+  let mut cur = ""
+  let mut seg = 0
+  fn flush() -> Unit {
+    if seg > 0 && cur.length() >= 1 {
+      let id = cur[1:].to_owned()
+      let ct = match cur[0:1].to_owned() {
+        "+" => Some(AddNode)
+        "-" => Some(RemoveNode)
+        "L" => Some(AddLearnerNode)
+        _ => None
+      }
+      match ct {
+        Some(t) => changes.push({ change_type: t, node_id: id })
+        None => ()
+      }
+    }
+    cur = ""
+  }
+
+  for ch in s {
+    if ch == ';' {
+      flush()
+      seg = seg + 1
+    } else {
+      cur = cur + ch.to_string()
+    }
+  }
+  flush()
+  Some({ changes, auto_leave })
+}
+
+///|
 /// Append a configuration change to the leader's log as a `ConfChange` entry
 /// under `term`, returning the stored entry. The change takes effect on the
 /// cluster only once the entry is committed and applied.

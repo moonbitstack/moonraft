@@ -394,11 +394,23 @@ promotes it. Wired through `apply_conf_change`/`ensure_peer`. End-to-end tests i
 - learner never campaigns — DONE.
 - leader replicates to a learner — DONE.
 
-## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs, many cases)
-The single add/remove/add-learner voter path is live (B2 + learners). Still
-needs the confchange *package* applier (batched `ConfChangeSingle` via
-Simple/EnterJoint/LeaveJoint/Restore over voters+learners+learners_next) before
-the datadriven corpus can be expanded case-by-case.
+## Joint consensus + ConfChangeV2 auto-leave (§4.3) — DONE (core)
+`ConfChangeV2` (a batch of single changes + `auto_leave`) with its own log
+encoding (`V` prefix). `propose_conf_v2` enters joint C(old,new): the current
+voters become the outgoing half and the batch is folded into the incoming half
+(`begin_joint`); commit then needs a majority of *both* halves (already handled
+by `committed_index`/`vote_result`). With `auto_leave`, the leader appends the
+matching LeaveJoint automatically once the EnterJoint applies; committing it
+settles on the new configuration. `reconcile_peers` keeps progress/peers in line
+across a change (add/drop, transfer-abort, leader self-removal step-down). Tests
+in `joint_wbtest.mbt` (encoding round-trip, enter→auto-leave, both-majorities
+safety). Covers the core of `TestRawNodeJointAutoLeave` and the confchange
+EnterJoint/LeaveJoint path.
+
+## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs)
+The live joint/learner path is done (above). The remaining gap is the confchange
+*package* datadriven corpus, which asserts internal `learners_next` bookkeeping
+and `Restore`-from-ConfState; portable case-by-case as a follow-up.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

@@ -160,6 +160,21 @@ pub fn Membership::enter_joint(
 }
 
 ///|
+/// Enter joint consensus keeping the already-updated incoming set, recording
+/// `outgoing` as the old half. Used when the incoming voters have been mutated
+/// in place by a batch of changes (etcd's ConfChangeV2 EnterJoint).
+pub fn Membership::begin_joint(
+  self : Membership,
+  outgoing : Array[String],
+) -> Unit {
+  self.outgoing.clear()
+  for m in outgoing {
+    self.outgoing.push(m)
+  }
+  self.joint = true
+}
+
+///|
 /// Leave joint consensus once C(old,new) is committed: the outgoing half is
 /// dropped and the cluster runs on the incoming configuration alone.
 pub fn Membership::leave_joint(self : Membership) -> Unit {

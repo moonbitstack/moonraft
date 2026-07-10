@@ -140,6 +140,16 @@ pub enum ConfChangeType {
   AddLearnerNode
 } derive(Eq)
 
+pub(all) struct ConfChangeV2 {
+  changes : Array[ConfChange]
+  auto_leave : Bool
+} derive(Eq)
+pub fn ConfChangeV2::decode(Bytes) -> Self?
+pub fn ConfChangeV2::encode(Self) -> Bytes
+pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
+pub fn ConfChangeV2::is_leave(Self) -> Bool
+pub fn ConfChangeV2::leave_joint() -> Self
+
 pub struct ConfDriver {
   config : Membership
   mut applied : UInt64
@@ -244,6 +254,7 @@ pub(all) struct Membership {
 }
 pub fn Membership::add(Self, String) -> Unit
 pub fn Membership::add_learner(Self, String) -> Unit
+pub fn Membership::begin_joint(Self, Array[String]) -> Unit
 pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
 pub fn Membership::contains(Self, String) -> Bool
 pub fn Membership::enter_joint(Self, Array[String]) -> Unit
@@ -405,6 +416,7 @@ pub struct RaftNode {
   mut rng : UInt64
   mut conf_applied : UInt64
   mut lead_transferee : String?
+  mut auto_leave_pending : Bool
   read_only : ReadOnly
 }
 pub fn RaftNode::campaign(Self) -> Array[Message]
@@ -420,6 +432,7 @@ pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : 
 pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
 pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
+pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
