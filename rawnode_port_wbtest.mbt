@@ -135,6 +135,7 @@ test "TestRawNodeProposeAndConfChange add a voter" {
         }
       }
     }
+    rn.store(rd)
     rn.advance(rd)
     if !proposed && rn.node().is_leader() {
       rn.propose(b"somedata")
@@ -169,6 +170,7 @@ test "TestRawNodeProposeAddDuplicateNode" {
           }
         }
       }
+      node.store(rd)
       node.advance(rd)
     }
   }
@@ -208,6 +210,7 @@ test "TestRawNodeReadIndex surfaces and resets read states" {
   assert_eq(rd.read_states.length(), 1)
   assert_eq(rd.read_states[0].index, 1)
   assert_eq(rd.read_states[0].request_ctx, b"somedata")
+  rn.store(rd)
   rn.advance(rd)
   // read states are reset once accepted.
   assert_eq(rn.read_states.length(), 0)
@@ -226,43 +229,45 @@ test "TestRawNodeReadIndex records a read on the leader" {
 }
 
 // TestRawNodeStart: the Ready lifecycle of a fresh single node. Adapted from the
-// snapshot-bootstrapped etcd test (which needs MemoryStorage FirstIndex >= 2);
-// the invariants are the same — an entry is emitted for persistence before it is
-// emitted for application, MustSync is set only while there is a durable write,
-// and HasReady falls to false once everything is applied. Indices differ by one
-// (no snapshot at index 1).
+// snapshot-bootstrapped etcd test (which needs MemoryStorage FirstIndex >= 2) to
+// a fresh log (indices one lower). etcd's contract: a `Ready` gives `entries`
+// (to persist) and `committed_entries` (to apply) together, and the caller
+// persists *then* applies *then* advances — so a freshly appended-and-committed
+// entry surfaces in both fields of the same `Ready`. MustSync is set while a
+// durable write is pending; HasReady falls to false once everything is applied.
 
 ///|
 test "TestRawNodeStart" {
   let rn = fresh_raw()
   assert_true(!rn.has_ready())
 
-  // Campaign: persist the vote and the election no-op.
+  // Campaign: one Ready carries the vote/HardState and the election no-op, both
+  // to persist (`entries`) and — since we persist before applying — to apply
+  // (`committed_entries`).
   rn.campaign()
   let rd1 = rn.ready()
   assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader }))
   assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1 }))
+  assert_eq(rd1.entries.length(), 1)
   assert_true(entry_is(rd1.entries[0], 1, 1, b""))
+  assert_eq(rd1.committed_entries.length(), 1)
+  assert_true(entry_is(rd1.committed_entries[0], 1, 1, b""))
   assert_true(rd1.must_sync)
-  rn.advance(rd1)
+  rn.store(rd1) // persist entries
+  rn.store(rd1)
+  rn.advance(rd1) // (apply happened between) then advance the cursors
 
-  // Propose a command; it must be appended (persisted) before it is applied.
+  // Propose a command: persisted and applied within one Ready.
   rn.propose(b"foo")
   assert_true(rn.has_ready())
   let rd2 = rn.ready()
   assert_eq(rd2.entries.length(), 1)
   assert_true(entry_is(rd2.entries[0], 1, 2, b"foo"))
+  assert_eq(rd2.committed_entries.length(), 1)
+  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
   assert_true(rd2.must_sync)
+  rn.store(rd2)
   rn.advance(rd2)
-
-  // Now the command comes back to be applied; nothing left to persist.
-  assert_true(rn.has_ready())
-  let rd3 = rn.ready()
-  assert_true(rd3.entries.is_empty())
-  assert_true(!rd3.must_sync)
-  assert_eq(rd3.committed_entries.length(), 1)
-  assert_true(entry_is(rd3.committed_entries[0], 1, 2, b"foo"))
-  rn.advance(rd3)
   assert_true(!rn.has_ready())
 }
 
@@ -280,6 +285,7 @@ test "TestRawNodeRestart" {
   assert_eq(rd.committed_entries.length(), 1)
   assert_true(entry_is(rd.committed_entries[0], 1, 1, b""))
   assert_true(!rd.must_sync)
+  rn.store(rd)
   rn.advance(rd)
   assert_true(!rn.has_ready())
 }
@@ -307,6 +313,7 @@ test "TestRawNodeRestartFromSnapshot" {
   assert_eq(rd.committed_entries.length(), 1)
   assert_true(entry_is(rd.committed_entries[0], 1, 3, b"foo"))
   assert_true(!rd.must_sync)
+  raw.store(rd)
   raw.advance(rd)
   assert_true(!raw.has_ready())
 }
@@ -351,6 +358,7 @@ test "TestRawNodeConsumeReady" {
   assert_eq(rd.messages[0].from, "foo")
   // a message enqueued after Ready survives Advance.
   rn.msgs.push(m2)
+  rn.store(rd)
   rn.advance(rd)
   assert_eq(rn.msgs.length(), 1)
   assert_eq(rn.msgs[0].from, "bar")

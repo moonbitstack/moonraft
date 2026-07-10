@@ -73,6 +73,7 @@ fn InteractionCluster::stabilize(self : InteractionCluster) -> Int {
         for m in rd.messages {
           pending.push(m)
         }
+        n.store(rd) // persist before advancing (the Ready contract)
         n.advance(rd)
       }
     }
@@ -98,21 +99,19 @@ test "interaction/single_node: a single voter campaigns and commits its no-op" {
   let rn = RaftNode::new("1", [], pre_vote=false).raw()
   assert_true(!rn.has_ready())
   rn.campaign()
-  // A single voter reaches leadership; the no-op is offered for persistence
-  // before it is offered for application.
+  // A single voter reaches leadership; the no-op is persisted then applied within
+  // one Ready (the caller stores before applying, so committed entries are not
+  // held back to the next Ready).
   let rd1 = rn.ready()
   assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader }))
   assert_eq(rd1.entries.length(), 1)
   assert_true(rd1.entries[0].entry_type == Normal)
   assert_eq(rd1.entries[0].command.length(), 0)
+  assert_eq(rd1.committed_entries.length(), 1)
+  assert_eq(rd1.committed_entries[0].index, 1)
   assert_true(rd1.must_sync)
+  rn.store(rd1)
   rn.advance(rd1)
-  // Next Ready applies it.
-  let rd2 = rn.ready()
-  assert_true(rd2.entries.is_empty())
-  assert_eq(rd2.committed_entries.length(), 1)
-  assert_eq(rd2.committed_entries[0].index, 1)
-  rn.advance(rd2)
   assert_true(!rn.has_ready())
   assert_true(rn.node().is_leader())
   assert_eq(rn.node().term(), 1)
@@ -183,6 +182,7 @@ test "interaction/replicate: a proposal commits across the cluster" {
         for m in rd.messages {
           pending.push(m)
         }
+        n.store(rd) // persist, then apply (above), then advance
         n.advance(rd)
       }
     }

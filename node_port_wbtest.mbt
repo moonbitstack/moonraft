@@ -111,6 +111,7 @@ test "TestNodeProposeAddDuplicateNode" {
           }
         }
       }
+      node.store(rd)
       node.advance(rd)
     }
   }
@@ -160,8 +161,9 @@ test "TestNodeTick" {
   assert_eq(rn.node().election_elapsed, before + 1)
 }
 
-// TestNodeAdvance: after a proposal is persisted and Advance is called, the now
-// -committed entry is available to apply in the next Ready.
+// TestNodeAdvance: a proposal is persisted (`store`) and applied within one
+// Ready, then `advance` moves the cursors. With the caller persisting before
+// applying, the committed entry surfaces alongside its append.
 
 ///|
 test "TestNodeAdvance" {
@@ -169,11 +171,11 @@ test "TestNodeAdvance" {
   rn.propose(b"foo")
   let rd = rn.ready()
   assert_true(!rd.entries.is_empty())
+  assert_eq(rd.committed_entries.length(), 1)
+  assert_true(entry_is(rd.committed_entries[0], 1, 2, b"foo"))
+  rn.store(rd)
   rn.advance(rd)
-  assert_true(rn.has_ready())
-  let rd2 = rn.ready()
-  assert_eq(rd2.committed_entries.length(), 1)
-  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
+  assert_true(!rn.has_ready())
 }
 
 // TestNodeStart: the HardState progression of a starting node — vote and first
@@ -188,16 +190,17 @@ test "TestNodeStart" {
   let rd1 = rn.ready()
   assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1 }))
   assert_true(rd1.must_sync)
+  rn.store(rd1)
   rn.advance(rd1)
   rn.propose(b"foo")
+  // The proposal bumps commit to 2 and, persisted-before-applied, surfaces the
+  // committed entry in the same Ready.
   let rd2 = rn.ready()
   assert_true(rd2.hard_state == Some({ term: 1, vote: Some("1"), commit: 2 }))
+  assert_eq(rd2.committed_entries.length(), 1)
+  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
+  rn.store(rd2)
   rn.advance(rd2)
-  let rd3 = rn.ready()
-  assert_eq(rd3.committed_entries.length(), 1)
-  assert_true(entry_is(rd3.committed_entries[0], 1, 2, b"foo"))
-  assert_true(!rd3.must_sync)
-  rn.advance(rd3)
   assert_true(!rn.has_ready())
 }
 
@@ -212,6 +215,7 @@ test "TestNodeRestart" {
   assert_eq(rd.committed_entries.length(), 1)
   assert_true(entry_is(rd.committed_entries[0], 1, 1, b""))
   assert_true(!rd.must_sync)
+  rn.store(rd)
   rn.advance(rd)
   assert_true(!rn.has_ready())
 }
@@ -238,6 +242,7 @@ test "TestNodeRestartFromSnapshot" {
   assert_eq(rd.committed_entries.length(), 1)
   assert_true(entry_is(rd.committed_entries[0], 1, 3, b"foo"))
   assert_true(!rd.must_sync)
+  raw.store(rd)
   raw.advance(rd)
   assert_true(!raw.has_ready())
 }

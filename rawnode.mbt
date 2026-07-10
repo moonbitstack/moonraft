@@ -330,11 +330,14 @@ fn RawNode::next_unstable(self : RawNode) -> Array[Entry] {
 
 ///|
 /// The committed-but-unapplied entries ready to hand to the state machine
-/// (etcd's `nextCommittedEnts`). Disallowing unstable entries caps application at
-/// the last stable index, which is what makes a freshly appended entry surface as
-/// `entries` in one `Ready` and as `committed_entries` in the next.
+/// (etcd's `nextCommittedEnts`). In the synchronous contract the caller persists
+/// `entries` before applying these, so committed entries need not be capped at
+/// the last stable index (etcd's `applyUnstableEntries` == `!asyncStorageWrites`):
+/// a freshly committed entry surfaces as both `entries` and `committed_entries` in
+/// the same `Ready`. Under async writes application waits for the append ack, so
+/// they are capped at the stable index.
 fn RawNode::next_committed(self : RawNode) -> Array[Entry] {
-  self.log.next_committed_ents(false)
+  self.log.next_committed_ents(!self.async_storage)
 }
 
 ///|
@@ -425,7 +428,7 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     self.log.accept_applying(
       rd.committed_entries[c - 1].index,
       ents_size(rd.committed_entries[:]),
-      false,
+      !self.async_storage,
     )
   }
   if rd.read_states.length() != 0 {
@@ -474,17 +477,28 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
 }
 
 ///|
-/// Notify the driver that the last `Ready` has been persisted and applied
-/// (etcd's `Advance`): move the stable watermark past the entries that were
-/// written, and the applied cursor past the entries that were applied.
-pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
-  // Under AsyncStorageWrites the stable/applied cursors are driven by the
-  // storage responses (`step_append_resp` / `step_apply_resp`), not by advance.
+/// Persist a `Ready`'s entries to stable storage (etcd's `storage.Append(rd.
+/// Entries)`, which the caller runs *before* applying `committed_entries`). This
+/// is the first half of handling a synchronous `Ready`: the caller `store`s, then
+/// applies `committed_entries`, then calls `advance`. A no-op under async writes,
+/// where the append is instead driven by `StorageAppend` + `step_append_resp`.
+pub fn RawNode::store(self : RawNode, rd : Ready) -> Unit {
   if self.async_storage {
     return
   }
   if rd.entries.length() != 0 {
     self.log.commit_stable(rd.entries)
+  }
+}
+
+///|
+/// Notify the driver that the last `Ready` has been handled (etcd's `Advance`):
+/// its entries were persisted (by `store`) and its committed entries applied, so
+/// move the applied cursor past them. The stable watermark already moved in
+/// `store`. A no-op under async writes (the responses drive the cursors).
+pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
+  if self.async_storage {
+    return
   }
   let c = rd.committed_entries.length()
   if c != 0 {
@@ -551,6 +565,9 @@ pub fn RawNode::stabilize(self : RawNode) -> Array[Message] {
     for m in rd.messages {
       out.push(m)
     }
+    // The full synchronous cycle in one place: persist, (implicitly apply), then
+    // advance. A caller with its own state machine runs the same three steps.
+    self.store(rd)
     self.advance(rd)
   }
   out

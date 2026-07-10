@@ -74,6 +74,7 @@ test "TestRawNodeBoundedLogGrowthWithPartitionedLeader" {
   raw.campaign()
   // Persist and apply the leader's initial no-op, so the tally starts clean.
   let rd0 = raw.ready()
+  raw.store(rd0)
   raw.advance(rd0)
   assert_eq(r.uncommitted_size(), 0)
   let before = r.node().last_log_index()
@@ -94,6 +95,7 @@ test "TestRawNodeBoundedLogGrowthWithPartitionedLeader" {
   while r.uncommitted_size() > 0 && rounds < 10 {
     rounds = rounds + 1
     let rd = raw.ready()
+    raw.store(rd)
     raw.advance(rd)
   }
   assert_eq(r.uncommitted_size(), 0)
