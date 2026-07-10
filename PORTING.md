@@ -453,9 +453,11 @@ apply. End-to-end tests in `confchange_apply_wbtest.mbt`:
 - AddNode makes the newcomer a voter with its own progress — DONE.
 - Leader removing itself steps down and leaves the config — DONE.
 - Removal shrinks the quorum and unblocks a pending commit — DONE.
-Still TODO for full parity: joint auto-leave, learner demotion, aborting an
-in-flight leadership transfer to a removed target (tracked with learners /
-leadTransferee below).
+The three items this section once listed as outstanding are now done and are
+tracked in their own sections below: joint auto-leave (`joint_wbtest.mbt`),
+learner demotion including the `learners_next` staging
+(`learners_next_wbtest.mbt`), and aborting an in-flight leadership transfer to a
+removed target (`leader_transfer_wbtest.mbt`).
 
 ## learners (§4.2.1) — DONE (core)
 `Membership` gained a `learners` set (`add_learner`/`is_learner`/`nodes`); a
