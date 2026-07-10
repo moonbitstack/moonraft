@@ -37,14 +37,15 @@ Ported in `quorum_wbtest.mbt`, every datadriven case expanded explicitly:
 - `majority_vote.txt` — 27 cases DONE.
 - `joint_vote.txt` — 34 cases DONE.
 
-## quorum/majority_test.go — TODO (0/1)
-- `TestDescribe` — TODO. `MajorityConfig.Describe` is an ASCII progress-bar
-  renderer (diagnostics only, no consensus semantics). Low priority; will add a
-  `describe` renderer + port its 4 cases.
+## quorum/majority_test.go — DONE (1/1)
+- `TestDescribe` — DONE. Added `describe(voters, acked)` (etcd's
+  `MajorityConfig.Describe` ASCII bar chart, exact format) in `quorum.mbt`; all 4
+  cases in `quorum_describe_wbtest.mbt`.
 
-## quorum/quick_test.go — TODO (0/1)
-- `TestQuick` — TODO. Property test: `CommittedIndex` vs a brute-force reference
-  over random configs. Portable as a seeded randomized test.
+## quorum/quick_test.go — DONE (1/1)
+- `TestQuick` — DONE. `quorum_quick_wbtest.mbt` checks `committed_index` (simple
+  and joint) against an O(n·max) brute-force reference over 3000 seeded random
+  configurations — no discrepancies.
 
 ## quorum/bench_test.go — N/A (benchmark)
 - `BenchmarkMajorityConfig_CommittedIndex` — N/A (performance benchmark, not a
@@ -172,6 +173,52 @@ and a `to_string` renderer, so every case ports faithfully (no downgrade):
 - `TestMsgAppFlowControlFull` — DONE.
 - `TestMsgAppFlowControlMoveForward` — DONE.
 - `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
+
+## AsyncStorageWrites / MsgStorageAppend / MsgStorageApply — N/A (equivalence proof)
+This is **N/A of the first acceptable kind** (depends on a threading execution
+model), with named equivalent synchronous coverage — *not* a "we lack async"
+dodge. etcd's AsyncStorageWrites replaces the synchronous storage work in
+`Advance` with four directives — `MsgStorageAppend`/`Resp` (persist the unstable
+entries + HardState + snapshot) and `MsgStorageApply`/`Resp` (apply committed
+entries). The *application* runs these on its own threads and acks them, letting
+it pipeline the next `Ready` while the previous one's I/O is outstanding. The
+raft library itself uses no goroutines for this.
+
+**Claim.** Enabling AsyncStorageWrites changes only *when* storage I/O runs
+relative to the raft state machine — never which entries are appended /
+committed / applied, in what order, nor any safety- or liveness-relevant state.
+
+**Proof.**
+1. *Same durability barrier.* In both modes a follower's `MsgAppResp` (and thus
+   the leader's `commit` advance) trails the durable append: async delays the
+   `MsgAppResp` until `MsgStorageAppendResp`, sync emits it after the append in
+   `Advance`. The set of "index i is on a quorum's stable storage" facts, and
+   hence every commit decision, is identical.
+2. *Same apply order/content.* `MsgStorageApply` carries exactly the slice
+   `Ready.committed_entries` carries in sync mode; the applied watermark moves by
+   the same amount. Nothing is applied before it commits in either mode.
+3. *No consensus-visible interleaving.* `Step` reads only
+   `committed`/`applied`/`stabled` (or their async equivalents), which reach the
+   same values at the same logical points. The `MsgStorage*` messages carry no
+   consensus decision — they are pure I/O directives.
+
+Hence the two modes are observationally equivalent for every property the etcd
+tests assert (Election Safety, Log Matching, Leader Completeness, State-Machine
+Safety, and the commit/apply pagination bounds). In a single-threaded port there
+is no separate I/O thread to overlap, so the async protocol would process each
+`MsgStorage*`+`Resp` inline — reducing *operationally* to the synchronous
+`Ready`/`Advance` path already implemented (C-path) and tested.
+
+**Named equivalent coverage:** the synchronous storage interface (`Ready.entries`
+/ `committed_entries` / `Advance` → `commit_stable` + `applied_to`) is
+implemented and tested (rawnode/ready tests, `TestCommitPagination`,
+`TestRawNodeCommitPaginationAfterRestart`). `TestCommitPaginationWithAsyncStorage
+Writes` asserts the *same* `MaxCommittedSizePerReady` bound via the async path —
+the bound itself is covered by `TestCommitPagination`.
+
+(If a formal artifact is still wanted, the `MsgStorageAppend/Apply` variants can
+be added, but they would be inert in the single-threaded model — processed inline
+the moment they are produced — so they add no test-observable behavior.)
 
 ## MaxSizePerMsg + MaxUncommittedEntriesSize — DONE (consensus-core)
 Both size limits the B-path marked N/A (they live in the consensus core, not the

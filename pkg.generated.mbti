@@ -32,6 +32,8 @@ pub fn demo_tick() -> Unit
 
 pub fn demo_transfer(String) -> Bool
 
+pub fn describe(Array[String], Map[String, UInt64]) -> String
+
 pub fn describe_entry(Entry, ((Bytes) -> String)?) -> String
 
 pub fn entry_encoding_size(Entry) -> UInt64

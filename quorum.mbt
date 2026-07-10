@@ -79,6 +79,98 @@ pub fn committed_index(
 }
 
 ///|
+priv struct DescTup {
+  id : String
+  idx : UInt64
+  ok : Bool
+  mut bar : Int
+}
+
+///|
+fn repeat_char(c : String, n : Int) -> String {
+  let mut s = ""
+  for _i in 0..<n {
+    s = s + c
+  }
+  s
+}
+
+///|
+/// Right-justify `v` in a field of width 5 (etcd's `%5d`).
+fn pad5(v : UInt64) -> String {
+  let s = v.to_string()
+  if s.length() >= 5 {
+    s
+  } else {
+    repeat_char(" ", 5 - s.length()) + s
+  }
+}
+
+///|
+/// A multi-line ASCII bar chart of each voter's acknowledged index (etcd's
+/// `MajorityConfig.Describe`), longest bar for the highest index. Diagnostics
+/// only — it has no bearing on consensus, but makes a quorum's commit state
+/// legible in a dump.
+pub fn describe(voters : Array[String], acked : Map[String, UInt64]) -> String {
+  let n = voters.length()
+  if n == 0 {
+    return "<empty majority quorum>"
+  }
+  let info : Array[DescTup] = []
+  for id in voters {
+    match acked.get(id) {
+      Some(i) => info.push({ id, idx: i, ok: true, bar: 0 })
+      None => info.push({ id, idx: 0, ok: false, bar: 0 })
+    }
+  }
+  // Sort by (idx, id) to assign bar lengths, longest bar = highest index.
+  insertion_sort(info, fn(a, b) {
+    if a.idx != b.idx {
+      a.idx < b.idx
+    } else {
+      a.id < b.id
+    }
+  })
+  for i in 1..<info.length() {
+    info[i].bar = if info[i - 1].idx < info[i].idx {
+      i
+    } else {
+      info[i - 1].bar
+    }
+  }
+  // Print in id order.
+  insertion_sort(info, fn(a, b) { a.id < b.id })
+  let mut buf = repeat_char(" ", n) + "    idx\n"
+  for t in info {
+    if !t.ok {
+      buf = buf + "?" + repeat_char(" ", n)
+    } else {
+      buf = buf + repeat_char("x", t.bar) + ">" + repeat_char(" ", n - t.bar)
+    }
+    buf = buf + " " + pad5(t.idx) + "    (id=" + t.id + ")\n"
+  }
+  buf
+}
+
+///|
+fn insertion_sort(
+  a : Array[DescTup],
+  less : (DescTup, DescTup) -> Bool,
+) -> Unit {
+  let mut i = 1
+  while i < a.length() {
+    let key = a[i]
+    let mut j = i - 1
+    while j >= 0 && less(key, a[j]) {
+      a[j + 1] = a[j]
+      j = j - 1
+    }
+    a[j + 1] = key
+    i = i + 1
+  }
+}
+
+///|
 /// The vote outcome for one majority quorum. An empty set has, by convention,
 /// already won — which makes a half-populated joint quorum behave like a plain
 /// majority quorum.
