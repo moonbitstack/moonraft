@@ -97,9 +97,20 @@ Maps to `log.mbt` / `replication.mbt` (`term_at`, `entries_after`, `store_entrie
 Depends on the `unstable` log split (stable vs in-memory tail) which our model
 does not separate yet. Tracked under the Ready/Advance storage work.
 
-## tracker/progress_test.go — TODO (0/8)
-Maps to `progress.mbt`. Some require the `Inflights` wiring and ADT progress
-states (in progress).
+## tracker/progress_test.go — DONE (5/8)
+Ported in `progress_port_wbtest.mbt`:
+- `TestProgressMaybeDecr` — DONE (all 10 cases; exercises `maybe_decr_to`).
+- `TestProgressUpdate` — DONE (4 cases).
+- `TestProgressBecomeReplicate` — DONE.
+- `TestProgressBecomeSnapshot` — DONE (pending-snapshot index tracked as
+  `next_index - 1`).
+- `TestProgressIsPaused` — DONE (adapted: our model paces `Probe` from the
+  caller rather than a per-Progress `MsgAppFlowPaused` flag, so the Probe+paused
+  case is N/A; Replicate-window-full and Snapshot are covered).
+- Pending (3): `TestProgressString` (debug renderer), `TestProgressResume`
+  (`MsgAppFlowPaused` reset — not modelled), `TestProgressBecomeProbe` (asserts
+  `Next` reset semantics our `become_probe` intentionally leaves to
+  `maybe_decr_to` in the reject path).
 
 ## raft_flow_control_test.go — DONE (2/3)
 `Inflights` is wired into `Progress` (`is_paused`/`sent_entries`/`free_le`),
@@ -170,3 +181,5 @@ Deterministic network harness; overlaps our `sim.mbt`.
 - Batch 3 (two-sided findConflictByTerm + committed-prefix early accept + 18
   raft_paper_test property tests incl. Figure 7 & Figure 8): **297 passed, 0
   failed**, on all four backends.
+- Batch 4 (tracker/progress_test port): **302 passed, 0 failed**, on all four
+  backends.
