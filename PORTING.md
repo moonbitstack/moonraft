@@ -168,6 +168,12 @@ Ported in `progress_port_wbtest.mbt`:
 - `TestMsgAppFlowControlMoveForward` — DONE.
 - `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
 
+## B5 — committed-entry truncation guard — DONE
+`store_entries` now aborts if an incoming entry would conflict at or below the
+commit index (which would delete a committed entry, breaking State-Machine
+Safety). Unreachable for a correct leader given the log-matching and stale-term
+(B1) guards; the assertion turns any regression into a loud failure.
+
 ## ReadOnly (§6.4) — DONE (both modes)
 `read_only.mbt` adds a `ReadOnly` tracker with both etcd modes.
 `request_read_index(ctx)`: in `ReadOnlySafe` it records the read at the current

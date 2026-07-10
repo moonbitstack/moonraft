@@ -40,6 +40,27 @@ test "TestCandidateStartNewElection" {
 }
 
 ///|
+/// TestLeaderBcastBeat (raft_paper_test.go): on a heartbeat tick a leader sends
+/// a Heartbeat to every follower (commit capped at the follower's match).
+test "TestLeaderBcastBeat" {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=false, heartbeat_timeout=1)
+  r.node().become_candidate()
+  r.become_leader()
+  for _i in 0..<10 {
+    let _ = r.node().append(r.term(), b"x")
+  }
+  let msgs = r.tick()
+  assert_eq(msgs.length(), 2)
+  for m in msgs {
+    assert_true(m.kind() == "Heartbeat")
+    match m.payload {
+      Heartbeat(h) => assert_eq(h.commit, 0)
+      _ => abort("expected Heartbeat")
+    }
+  }
+}
+
+///|
 /// TestSingleNodeCommit (raft_test.go): a one-node cluster commits every
 /// proposal on its own.
 test "TestSingleNodeCommit" {

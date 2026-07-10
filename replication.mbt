@@ -134,6 +134,13 @@ fn Node::store_entries(
     if idx > self.last_log_index() {
       self.log.push(entry)
     } else if self.term_at(idx) != entry.term {
+      // B5: a conflict at or below the commit index would delete a committed
+      // entry, violating State-Machine Safety. The log-matching check and the
+      // stale-term guard make this unreachable for a correct leader; assert it
+      // so a regression surfaces loudly rather than corrupting the log.
+      if idx <= self.commit_index {
+        abort("append conflicts with committed entry")
+      }
       self.truncate_from(idx)
       self.log.push(entry)
     }
