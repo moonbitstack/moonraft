@@ -1,0 +1,7 @@
+# Scenario 8: remove a voter via conf change.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+conf_change 1 removenode 3
+stabilize

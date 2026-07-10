@@ -1,0 +1,11 @@
+# Scenario 12: deliver a stale old-term vote after a new term is established.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+campaign 2
+stabilize
+campaign 3
+stabilize
+deliver_all
+stabilize

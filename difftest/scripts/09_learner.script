@@ -1,0 +1,7 @@
+# Scenario 9: add a learner.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+conf_change 1 addlearner 4
+stabilize

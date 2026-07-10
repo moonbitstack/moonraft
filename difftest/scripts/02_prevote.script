@@ -1,0 +1,7 @@
+# Scenario 2: pre-vote enabled election + commit.
+config prevote=true electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+propose 1 hello
+stabilize

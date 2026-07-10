@@ -1,0 +1,18 @@
+# Scenario 5: divergent follower log -> reject with conflict hint (findConflictByTerm).
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+propose 1 first
+stabilize
+partition 1 2,3
+propose 1 lost
+stabilize
+campaign 2
+stabilize
+propose 2 x
+propose 2 y
+stabilize
+heal
+tick 2
+stabilize

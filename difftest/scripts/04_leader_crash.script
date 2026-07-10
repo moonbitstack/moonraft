@@ -1,0 +1,12 @@
+# Scenario 4: leader crash, survivor takes over.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+propose 1 committed
+stabilize
+crash 1
+campaign 2
+stabilize
+propose 2 afterfail
+stabilize

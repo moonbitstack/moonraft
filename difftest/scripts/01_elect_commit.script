@@ -1,0 +1,7 @@
+# Scenario 1: 3-node election + commit one log entry.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1 2 3
+campaign 1
+stabilize
+propose 1 hello
+stabilize
