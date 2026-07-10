@@ -1,31 +1,4 @@
 ///|
-/// A point-in-time snapshot of the state machine that stands in for the log
-/// prefix up to and including `last_index`. Raft uses snapshots to bound log
-/// growth and to bring a badly lagging follower up to date in one shot (§7).
-pub(all) struct Snapshot {
-  last_index : UInt64
-  last_term : UInt64
-  data : Bytes
-  // The membership as of the snapshot (etcd's SnapshotMetadata.ConfState), so a
-  // node restoring from it rebuilds its voter/learner sets rather than losing
-  // them. Empty for a snapshot written without a recorded configuration.
-  conf_state : ConfState
-} derive(Eq)
-
-///|
-/// The empty snapshot: no state captured, baseline at index 0.
-pub fn Snapshot::empty() -> Snapshot {
-  { last_index: 0, last_term: 0, data: b"", conf_state: ConfState::empty() }
-}
-
-///|
-/// Whether this snapshot actually captures any state. A baseline index of 0 is
-/// the empty snapshot a fresh node starts with.
-pub fn Snapshot::is_empty(self : Snapshot) -> Bool {
-  self.last_index == 0
-}
-
-///|
 /// Compact the log by discarding every entry at or before `upto`, keeping that
 /// index's term as the new snapshot baseline. `data` is the serialized state
 /// machine those entries produced. Only committed entries past the current
@@ -74,4 +47,49 @@ pub fn Node::install_snapshot(self : Node, snapshot : Snapshot) -> Unit {
   if self.last_applied < snapshot.last_index {
     self.last_applied = snapshot.last_index
   }
+}
+
+///|
+/// Handle an InstallSnapshot RPC (Raft §7). A stale leader is rejected. A
+/// current-or-newer leader makes this node adopt the term, step down, and — if
+/// the snapshot is newer than what it already holds — replace its log with the
+/// snapshot baseline. A snapshot that is not newer is ignored, so a delayed
+/// duplicate cannot roll the state machine backwards.
+pub fn Node::handle_install_snapshot(
+  self : Node,
+  args : InstallSnapshotArgs,
+) -> InstallSnapshotReply {
+  if args.term < self.current_term {
+    return { term: self.current_term }
+  }
+  if args.term > self.current_term {
+    self.become_follower(args.term)
+  } else {
+    self.role = Follower
+  }
+  if args.last_index <= self.snapshot_index {
+    return { term: self.current_term }
+  }
+  // If the follower already holds a matching entry at last_index, keep the
+  // suffix after it rather than discarding entries it still needs; otherwise
+  // the snapshot supersedes the whole log.
+  if args.last_index <= self.last_log_index() &&
+    self.term_at(args.last_index) == args.last_term {
+    let keep = self.entries_after(args.last_index)
+    self.log.clear()
+    for e in keep {
+      self.log.push(e)
+    }
+  } else {
+    self.log.clear()
+  }
+  self.snapshot_index = args.last_index
+  self.snapshot_term = args.last_term
+  if self.commit_index < args.last_index {
+    self.commit_index = args.last_index
+  }
+  if self.last_applied < args.last_index {
+    self.last_applied = args.last_index
+  }
+  { term: self.current_term }
 }

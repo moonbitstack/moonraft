@@ -4,22 +4,6 @@
 pub let no_limit : UInt64 = 18446744073709551615
 
 ///|
-/// Uniquely identifies a log entry by the term that first appended it and its
-/// index. There is only ever one leader per term and a leader never issues two
-/// entries at the same index, so `(term, index)` pins an entry down. Mirrors
-/// etcd's `entryID`.
-pub(all) struct EntryId {
-  term : UInt64
-  index : UInt64
-} derive(Eq)
-
-///|
-/// The identity `(term, index)` of this entry.
-pub fn Entry::id(self : Entry) -> EntryId {
-  { term: self.term, index: self.index }
-}
-
-///|
 /// A contiguous, well-formed slice of a raft log considered under a specific
 /// leader `term`. `prev` is the entry immediately before `entries`. Mirrors
 /// etcd's `logSlice`, whose invariants a well-formed append must satisfy:
@@ -141,18 +125,6 @@ pub fn limit_size(
 /// etcd's `payloadSize`.
 pub fn payload_size(e : Entry) -> UInt64 {
   e.command.length().to_uint64()
-}
-
-///|
-/// etcd classifies a handful of message types as node-local — MsgHup, MsgBeat,
-/// MsgSnapStatus, MsgCheckQuorum and the storage-thread messages — which never
-/// travel over the transport. This port has no such messages: those triggers are
-/// direct method calls (tick / campaign / step), not `Payload`s. Every
-/// transportable `Payload` is therefore, by construction, a network message.
-pub fn Payload::is_local(self : Payload) -> Bool {
-  match self {
-    _ => false
-  }
 }
 
 ///|

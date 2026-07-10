@@ -4,7 +4,7 @@
 /// consensus layer applies to the cluster configuration once the entry is
 /// committed (Raft §6). Keeping the kind on the entry lets the apply loop route
 /// each committed entry to the right place.
-pub enum EntryType {
+pub(all) enum EntryType {
   Normal
   ConfChange
 } derive(Eq)
@@ -41,4 +41,20 @@ pub fn Entry::conf(term : UInt64, index : UInt64, command : Bytes) -> Entry {
 /// Whether this entry carries a membership change.
 pub fn Entry::is_conf_change(self : Entry) -> Bool {
   self.entry_type == ConfChange
+}
+
+///|
+/// Uniquely identifies a log entry by the term that first appended it and its
+/// index. There is only ever one leader per term and a leader never issues two
+/// entries at the same index, so `(term, index)` pins an entry down. Mirrors
+/// etcd's `entryID`.
+pub(all) struct EntryId {
+  term : UInt64
+  index : UInt64
+} derive(Eq)
+
+///|
+/// The identity `(term, index)` of this entry.
+pub fn Entry::id(self : Entry) -> EntryId {
+  { term: self.term, index: self.index }
 }

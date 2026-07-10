@@ -4,3 +4,6 @@
 
 ///|
 using @tracker {type Inflights}
+
+///|
+using @raftpb {hard_state_equal}

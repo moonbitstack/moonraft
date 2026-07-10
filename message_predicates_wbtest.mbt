@@ -59,14 +59,14 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
   // and the storage-thread messages — have no representation in this port: those
   // triggers are direct method calls (tick / campaign / step), not `Payload`s.
   // So the "is local" predicate is false for every Payload, by construction.
-  let vote_args = {
+  let vote_args : RequestVoteArgs = {
     term: 1,
     candidate_id: "a",
     last_log_index: 0,
     last_log_term: 0,
   }
-  let vote_reply = { term: 1, vote_granted: true }
-  let app_args = {
+  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true }
+  let app_args : AppendEntriesArgs = {
     term: 1,
     leader_id: "a",
     prev_log_index: 0,
@@ -74,14 +74,14 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     entries: [],
     leader_commit: 0,
   }
-  let app_reply = {
+  let app_reply : AppendEntriesReply = {
     term: 1,
     success: true,
     match_index: 0,
     conflict_index: 0,
     conflict_term: 0,
   }
-  let snap_args = {
+  let snap_args : InstallSnapshotArgs = {
     term: 1,
     leader_id: "a",
     last_index: 0,
@@ -91,7 +91,7 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     done: true,
     conf_state: ConfState::empty(),
   }
-  let snap_reply = { term: 1 }
+  let snap_reply : InstallSnapshotReply = { term: 1 }
   let payloads : Array[Payload] = [
     PreVote(vote_args),
     PreVoteResp(vote_reply),
@@ -111,14 +111,14 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
 ///|
 test "TestIsResponseMsg" {
   // Requests are not responses; the paired *Resp payloads are.
-  let vote_args = {
+  let vote_args : RequestVoteArgs = {
     term: 1,
     candidate_id: "a",
     last_log_index: 0,
     last_log_term: 0,
   }
-  let vote_reply = { term: 1, vote_granted: true }
-  let app_args = {
+  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true }
+  let app_args : AppendEntriesArgs = {
     term: 1,
     leader_id: "a",
     prev_log_index: 0,
@@ -126,14 +126,14 @@ test "TestIsResponseMsg" {
     entries: [],
     leader_commit: 0,
   }
-  let app_reply = {
+  let app_reply : AppendEntriesReply = {
     term: 1,
     success: true,
     match_index: 0,
     conflict_index: 0,
     conflict_term: 0,
   }
-  let snap_args = {
+  let snap_args : InstallSnapshotArgs = {
     term: 1,
     leader_id: "a",
     last_index: 0,
@@ -143,7 +143,7 @@ test "TestIsResponseMsg" {
     done: true,
     conf_state: ConfState::empty(),
   }
-  let snap_reply = { term: 1 }
+  let snap_reply : InstallSnapshotReply = { term: 1 }
   fn resp(p : Payload) -> Bool {
     Message::new("a", "b", p).is_response()
   }

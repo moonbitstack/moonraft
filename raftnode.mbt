@@ -393,7 +393,7 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
   self.votes.clear()
   self.votes[self.id] = true
   let out : Array[Message] = []
-  let args = {
+  let args : RequestVoteArgs = {
     term: self.core.current_term() + 1,
     candidate_id: self.id,
     last_log_index: self.core.last_log_index(),

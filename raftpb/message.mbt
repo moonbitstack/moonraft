@@ -3,7 +3,7 @@
 /// `Append` with no entries, so the same replication path carries both. Keeping
 /// every request paired with its response in one enum lets a transport move
 /// Raft traffic without knowing what any particular message means.
-pub enum Payload {
+pub(all) enum Payload {
   PreVote(RequestVoteArgs)
   PreVoteResp(RequestVoteReply)
   Vote(RequestVoteArgs)
@@ -123,5 +123,17 @@ pub fn Message::kind(self : Message) -> String {
     ReadIndexResp(_) => "ReadIndexResp"
     TransferLeader(_) => "TransferLeader"
     ForgetLeader => "ForgetLeader"
+  }
+}
+
+///|
+/// etcd classifies a handful of message types as node-local — MsgHup, MsgBeat,
+/// MsgSnapStatus, MsgCheckQuorum and the storage-thread messages — which never
+/// travel over the transport. This port has no such messages: those triggers are
+/// direct method calls (tick / campaign / step), not `Payload`s. Every
+/// transportable `Payload` is therefore, by construction, a network message.
+pub fn Payload::is_local(self : Payload) -> Bool {
+  match self {
+    _ => false
   }
 }

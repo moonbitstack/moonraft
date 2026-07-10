@@ -5,3 +5,23 @@
 
 ///|
 using @tracker {type Progress, type ProgressState}
+
+///|
+using @raftpb {
+  type Entry,
+  type EntryId,
+  type Message,
+  type Payload,
+  type ReadIndexResp,
+  type RequestVoteArgs,
+  type RequestVoteReply,
+  type HeartbeatArgs,
+  type HeartbeatReply,
+  type AppendEntriesArgs,
+  type AppendEntriesReply,
+  type InstallSnapshotArgs,
+  type InstallSnapshotReply,
+  type Snapshot,
+  type HardState,
+  type ConfState,
+}

@@ -211,7 +211,7 @@ test "forget_leader lets a leased follower grant a pre-vote again" {
   n.node().become_follower(1)
   n.leader_id = Some("1")
   n.election_elapsed = 0 // within the lease
-  let pv = PreVote({
+  let pv : Payload = PreVote({
     term: 2,
     candidate_id: "3",
     last_log_index: 0,

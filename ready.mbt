@@ -40,21 +40,6 @@ pub(all) struct ReadState {
 } derive(Eq)
 
 ///|
-/// Whether a HardState is the zero value (etcd's `IsEmptyHardState`): a fresh
-/// node that has neither voted nor committed anything has nothing to persist.
-pub fn HardState::is_empty(self : HardState) -> Bool {
-  self == HardState::initial()
-}
-
-///|
-/// Whether two hard states are equal in all three durable fields — term, vote,
-/// and commit (etcd's `isHardStateEqual`). This is the test that keeps a `Ready`
-/// from carrying a redundant HardState when nothing durable has moved.
-pub fn hard_state_equal(a : HardState, b : HardState) -> Bool {
-  a == b
-}
-
-///|
 /// The batch of outstanding work the application must handle for one turn of the
 /// state machine (etcd's `Ready`). The contract is synchronous, not a coroutine:
 /// the caller persists `entries`/`hard_state`/`snapshot`, sends `messages`,
