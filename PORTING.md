@@ -826,14 +826,14 @@ Census rows (GAP_core.md 118-register) moved PORT/PARTIAL -> COVERED this batch:
 Plus two explicit table forms of rows already COVERED elsewhere: #6
 TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
 
-### Skipped (real defect, not a test weakness)
-- #85 TestAddNodeCheckQuorum: commented out in `port_addnode_cq_wbtest.mbt`.
-  Reproduces a divergence (FINDINGS_LEDGER.md #16): `reconcile_peers`
-  (`raftnode.mbt`, off-limits to this test agent) builds a newly-added voter's
-  `Progress` with `recent_active: false`, whereas etcd's `initProgress` sets it
-  true, so a check-quorum leader steps down on the first quorum-check tick after
-  an add. Assertions preserved (commented) for restoration once the source path
-  is fixed.
+### Ported after the defect it exposed was fixed
+- #85 TestAddNodeCheckQuorum: `covcore_reconcile_wbtest.mbt`. The port initially
+  failed against a divergence (FINDINGS_LEDGER.md #16): `reconcile_peers`
+  (`raftnode.mbt`) built a newly-added voter's `Progress` with
+  `recent_active: false`, whereas etcd's `initProgress` sets it true, so a
+  check-quorum leader stepped down on the first quorum-check tick after an add.
+  The two add-node paths also disagreed: `changer.mbt`'s `init_progress` already
+  seeded the flag. `reconcile_peers` now seeds it, and the port runs green.
 
 ### Still PORT/PARTIAL after this batch (with reasons)
 - #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage: require a
