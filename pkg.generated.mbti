@@ -4,6 +4,10 @@ package "Lfan-ke/raft-moonbit"
 // Values
 pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
 
+pub fn demo_report_lines(DemoReport) -> Array[String]
+
+pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> DemoReport
+
 pub fn describe(Array[String], Map[String, UInt64]) -> String
 
 pub fn describe_conf_state(ConfState) -> String
@@ -236,6 +240,18 @@ pub struct Config {
 }
 pub fn Config::new(String, Array[String], election_tick? : Int, heartbeat_tick? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
 pub fn Config::validate(Self) -> Unit raise ConfigError
+
+pub struct DemoReport {
+  seed : UInt64
+  node_count : Int
+  first_leader : String?
+  proposal_accepted : Bool
+  committed : Bool
+  second_leader : String?
+  one_leader_per_term : Bool
+  committed_agrees : Bool
+  invariants_hold : Bool
+}
 
 pub(all) struct Entry {
   term : UInt64

@@ -150,10 +150,12 @@ fn Cluster::reachable(self : Cluster, from : String, to : String) -> Bool {
   if self.down.get(from) == Some(true) || self.down.get(to) == Some(true) {
     return false
   }
-  let ga = match self.part.get(from) {
-    Some(g) => g
-    None => 0
-  }
+  // Only simulated nodes emit messages, and every simulated node is registered
+  // in `part`, so the sender's group is always present. The recipient may be a
+  // peer added by a configuration change that this cluster never instantiated;
+  // such an id defaults to group 0 (its messages are later dropped when the node
+  // lookup fails in `deliver_due`).
+  let ga = self.part[from]
   let gb = match self.part.get(to) {
     Some(g) => g
     None => 0
@@ -211,12 +213,8 @@ pub fn Cluster::tick(self : Cluster) -> Unit {
   self.now = self.now + 1
   for id in self.ids {
     if self.down.get(id) != Some(true) {
-      match self.nodes.get(id) {
-        Some(n) =>
-          for msg in n.tick() {
-            self.schedule(msg)
-          }
-        None => ()
+      for msg in self.nodes[id].tick() {
+        self.schedule(msg)
       }
     }
   }
@@ -391,4 +389,101 @@ pub fn Cluster::all_committed(self : Cluster, index : UInt64) -> Bool {
     }
   }
   true
+}
+
+///|
+/// The outcome of the introductory demonstration `cmd/example` runs: a leader is
+/// elected, one command is replicated, the leader is crashed, and a survivor
+/// takes over. Kept as data rather than printed inline so the very run a reader
+/// watches is the run a test asserts against.
+pub struct DemoReport {
+  seed : UInt64
+  node_count : Int
+  first_leader : String?
+  proposal_accepted : Bool
+  committed : Bool
+  second_leader : String?
+  one_leader_per_term : Bool
+  committed_agrees : Bool
+  invariants_hold : Bool
+}
+
+///|
+/// Run the introductory simulation and record what happened at each step.
+///
+/// Parameters:
+/// - `ids` : the servers to simulate.
+/// - `seed` : fixes the deterministic run.
+/// - `elect_ticks` : tick budget for the first election.
+/// - `commit_ticks` : tick budget for committing the first command.
+/// - `reelect_ticks` : tick budget for the re-election after the crash.
+///
+/// Returns a `DemoReport` naming the elected leader, whether the command
+/// committed, the successor once the leader is crashed, and the safety
+/// invariants that must survive the succession.
+pub fn demo_run(
+  ids : Array[String],
+  seed : UInt64,
+  elect_ticks : Int,
+  commit_ticks : Int,
+  reelect_ticks : Int,
+) -> DemoReport {
+  let c = Cluster::new(ids, seed~)
+  let first = c.run_until_leader(elect_ticks)
+  let accepted = first is Some(_) && c.propose(b"set x = 1")
+  let committed = accepted && c.run_until_committed(1, commit_ticks)
+  match first {
+    Some(leader) => c.crash(leader)
+    None => ()
+  }
+  let second = if committed { c.run_until_leader(reelect_ticks) } else { None }
+  {
+    seed,
+    node_count: ids.length(),
+    first_leader: first,
+    proposal_accepted: accepted,
+    committed,
+    second_leader: second,
+    one_leader_per_term: c.one_leader_per_term(),
+    committed_agrees: c.committed_agrees(),
+    invariants_hold: c.invariants_hold(),
+  }
+}
+
+///|
+/// Render a [DemoReport] as the exact lines `cmd/example` prints, stopping at
+/// whichever step the run failed to reach.
+///
+/// Parameters:
+/// - `report` : the outcome to render.
+///
+/// Returns the human-readable transcript, one entry per line.
+pub fn demo_report_lines(report : DemoReport) -> Array[String] {
+  let out : Array[String] = [
+    "cluster of \{report.node_count} nodes, seed \{report.seed}",
+  ]
+  guard report.first_leader is Some(leader) else {
+    out.push("no leader within 200 ticks")
+    return out
+  }
+  out.push("elected leader: \{leader}")
+  guard report.proposal_accepted else {
+    out.push("leader refused the proposal")
+    return out
+  }
+  guard report.committed else {
+    out.push("command did not commit within 200 ticks")
+    return out
+  }
+  out.push("committed 'set x = 1' on a majority")
+  out.push("crashed the leader")
+  guard report.second_leader is Some(next) else {
+    out.push("no leader re-elected within 400 ticks")
+    return out
+  }
+  out.push("new leader: \{next}")
+  out.push("one leader per term : \{report.one_leader_per_term}")
+  out.push("committed prefixes agree : \{report.committed_agrees}")
+  out.push("safety invariants hold : \{report.invariants_hold}")
+  out
 }
