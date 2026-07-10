@@ -420,38 +420,57 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
 }
 
 ///|
-/// Send a heartbeat — an empty AppendEntries anchored at the follower's known
-/// match point — to every follower.
+/// Send a heartbeat to every follower. The `commit` carried is capped at what
+/// the follower is known to hold, so it never learns of a commit index past its
+/// own log (Raft §5.3).
 fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
   let out : Array[Message] = []
   for peer in self.peers {
     let p = self.progress[peer]
-    let prev = if p.match_index < self.core.last_log_index() {
+    let commit = if p.match_index < self.core.commit_index {
       p.match_index
     } else {
-      self.core.last_log_index()
-    }
-    let anchor = if prev < self.core.snapshot_index {
-      self.core.snapshot_index
-    } else {
-      prev
+      self.core.commit_index
     }
     out.push(
       Message::new(
         self.id,
         peer,
-        Append({
-          term: self.core.current_term(),
-          leader_id: self.id,
-          prev_log_index: anchor,
-          prev_log_term: self.core.term_at(anchor),
-          entries: [],
-          leader_commit: self.core.commit_index,
-        }),
+        Heartbeat({ term: self.core.current_term(), leader_id: self.id, commit }),
       ),
     )
   }
   out
+}
+
+///|
+/// A content-free AppendEntries anchored at the follower's match point, used as
+/// a probe (e.g. to resume flow after a heartbeat acknowledgement) without
+/// consuming a slot of the in-flight window.
+fn RaftNode::probe_append(self : RaftNode, peer : String) -> Message {
+  let p = self.progress[peer]
+  let prev = if p.match_index < self.core.last_log_index() {
+    p.match_index
+  } else {
+    self.core.last_log_index()
+  }
+  let anchor = if prev < self.core.snapshot_index {
+    self.core.snapshot_index
+  } else {
+    prev
+  }
+  Message::new(
+    self.id,
+    peer,
+    Append({
+      term: self.core.current_term(),
+      leader_id: self.id,
+      prev_log_index: anchor,
+      prev_log_term: self.core.term_at(anchor),
+      entries: [],
+      leader_commit: self.core.commit_index,
+    }),
+  )
 }
 
 ///|

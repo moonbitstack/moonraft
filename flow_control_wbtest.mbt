@@ -94,3 +94,38 @@ test "TestMsgAppFlowControlMoveForward" {
     tt = tt + 1
   }
 }
+
+///|
+/// TestMsgAppFlowControlRecvHeartbeat: a heartbeat response frees the flow so
+/// exactly one (empty) MsgApp probe is sent while the window stays full.
+test "TestMsgAppFlowControlRecvHeartbeat" {
+  let r = RaftNode::new("1", ["2"], pre_vote=false, election_timeout=5)
+  r.node().become_candidate()
+  r.become_leader()
+  let pr2 = r.progress["2"]
+  pr2.become_replicate()
+  let max_inflight = 256
+  for _i in 0..<max_inflight {
+    r.propose(b"somedata") |> ignore
+  }
+  let mut tt = 1
+  while tt < 5 {
+    // Each heartbeat response releases the flow for exactly one empty probe.
+    for _i in 0..<tt {
+      assert_true(pr2.is_paused())
+      let ms = r.step(Message::new("2", "1", HeartbeatResp(r.term())))
+      assert_eq(ms.length(), 1)
+      match ms[0].payload {
+        Append(a) => assert_eq(a.entries.length(), 0)
+        _ => abort("expected an empty Append probe")
+      }
+    }
+    // No further appends are sent while the window is full and no heartbeat.
+    for _i in 0..<10 {
+      assert_true(pr2.is_paused())
+      assert_eq(r.propose(b"somedata").length(), 0)
+    }
+    r.step(Message::new("2", "1", HeartbeatResp(r.term()))) |> ignore
+    tt = tt + 1
+  }
+}

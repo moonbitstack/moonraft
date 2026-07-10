@@ -17,6 +17,19 @@ pub(all) struct RequestVoteReply {
 } derive(Eq)
 
 ///|
+/// Arguments for the Heartbeat RPC (Raft §5.2): a leader's periodic liveness
+/// beat. It carries no entries — only the leader's `commit` index (capped at
+/// what the follower is known to hold) so a follower can advance its commit
+/// index between AppendEntries. Modelling it as a distinct message (rather than
+/// an empty AppendEntries) lets the leader treat a heartbeat acknowledgement as
+/// pure liveness, separate from log-matching.
+pub(all) struct HeartbeatArgs {
+  term : UInt64
+  leader_id : String
+  commit : UInt64
+} derive(Eq)
+
+///|
 /// Arguments for the AppendEntries RPC (Raft §5.3), used by the leader both
 /// to replicate log entries and, with an empty `entries`, as a heartbeat.
 pub(all) struct AppendEntriesArgs {

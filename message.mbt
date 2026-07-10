@@ -10,6 +10,8 @@ pub enum Payload {
   VoteResp(RequestVoteReply)
   Append(AppendEntriesArgs)
   AppendResp(AppendEntriesReply)
+  Heartbeat(HeartbeatArgs)
+  HeartbeatResp(UInt64)
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
@@ -42,6 +44,8 @@ pub fn Message::term(self : Message) -> UInt64 {
     VoteResp(r) => r.term
     Append(a) => a.term
     AppendResp(r) => r.term
+    Heartbeat(a) => a.term
+    HeartbeatResp(t) => t
     Snapshot(a) => a.term
     SnapshotResp(r) => r.term
     TimeoutNow(t) => t
@@ -53,7 +57,11 @@ pub fn Message::term(self : Message) -> UInt64 {
 /// it only for readable traces.
 pub fn Message::is_response(self : Message) -> Bool {
   match self.payload {
-    PreVoteResp(_) | VoteResp(_) | AppendResp(_) | SnapshotResp(_) => true
+    PreVoteResp(_)
+    | VoteResp(_)
+    | AppendResp(_)
+    | HeartbeatResp(_)
+    | SnapshotResp(_) => true
     _ => false
   }
 }
@@ -66,8 +74,10 @@ pub fn Message::kind(self : Message) -> String {
     PreVoteResp(_) => "PreVoteResp"
     Vote(_) => "Vote"
     VoteResp(_) => "VoteResp"
-    Append(a) => if a.entries.length() == 0 { "Heartbeat" } else { "Append" }
+    Append(a) => if a.entries.length() == 0 { "Probe" } else { "Append" }
     AppendResp(_) => "AppendResp"
+    Heartbeat(_) => "Heartbeat"
+    HeartbeatResp(_) => "HeartbeatResp"
     Snapshot(_) => "Snapshot"
     SnapshotResp(_) => "SnapshotResp"
     TimeoutNow(_) => "TimeoutNow"

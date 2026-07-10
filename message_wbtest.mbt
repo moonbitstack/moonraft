@@ -13,8 +13,16 @@ test "a message exposes its route, term and kind" {
 }
 
 ///|
-test "an empty append is reported as a heartbeat" {
+test "a heartbeat and an empty-append probe are distinct kinds" {
   let hb = Message::new(
+    "L",
+    "f",
+    Heartbeat({ term: 4, leader_id: "L", commit: 1 }),
+  )
+  assert_eq(hb.kind(), "Heartbeat")
+  assert_false(hb.is_response())
+  // An empty AppendEntries is now a probe, not a heartbeat.
+  let probe = Message::new(
     "L",
     "f",
     Append({
@@ -26,7 +34,7 @@ test "an empty append is reported as a heartbeat" {
       leader_commit: 1,
     }),
   )
-  assert_eq(hb.kind(), "Heartbeat")
+  assert_eq(probe.kind(), "Probe")
   let app = Message::new(
     "L",
     "f",

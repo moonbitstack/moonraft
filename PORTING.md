@@ -112,16 +112,22 @@ Ported in `progress_port_wbtest.mbt`:
   `Next` reset semantics our `become_probe` intentionally leaves to
   `maybe_decr_to` in the reject path).
 
-## raft_flow_control_test.go — DONE (2/3)
+## raft_flow_control_test.go — DONE (3/3)
 `Inflights` is wired into `Progress` (`is_paused`/`sent_entries`/`free_le`),
 `send_to`/`bcast_append` (throttle a full streaming window) and
 `handle_append_resp` (release acked slots). Ported in `flow_control_wbtest.mbt`:
 - `TestMsgAppFlowControlFull` — DONE.
 - `TestMsgAppFlowControlMoveForward` — DONE.
-- `TestMsgAppFlowControlRecvHeartbeat` — TODO. Needs a distinct MsgHeartbeatResp
-  path (our model folds heartbeat into an empty Append), so the "heartbeat resp
-  frees one slot" behaviour has no message to hang off yet. Tracked with the
-  heartbeat/read-only work.
+- `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
+
+## MsgHeartbeat / MsgHeartbeatResp — DONE
+Heartbeats are now a distinct message type (`Heartbeat`/`HeartbeatResp`), not an
+empty AppendEntries. `bcast_heartbeat` emits a `Heartbeat` carrying the leader's
+commit index (capped at the follower's match); `handle_heartbeat` advances the
+follower's commit and applies committed conf changes; `handle_heartbeat_resp` is
+pure liveness (marks active for check-quorum/lease) and resumes replication —
+sending the entries a behind follower lacks, or a content-free probe when its
+in-flight window is full. An empty AppendEntries is now labelled `Probe`.
 
 ## raft_snap_test.go — TODO (0/5)
 

@@ -91,9 +91,11 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     VoteResp(_)
     | PreVoteResp(_)
     | AppendResp(_)
+    | HeartbeatResp(_)
     | SnapshotResp(_)
     | TimeoutNow(_) => []
-    PreVote(_) | Vote(_) | Append(_) | Snapshot(_) => self.dispatch(msg)
+    PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) =>
+      self.dispatch(msg)
   }
 }
 
@@ -109,6 +111,7 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
       self.in_pre_campaign = false
       self.leader_id = match msg.payload {
         Append(a) => Some(a.leader_id)
+        Heartbeat(a) => Some(a.leader_id)
         Snapshot(a) => Some(a.leader_id)
         _ => None
       }
@@ -127,6 +130,8 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     VoteResp(reply) => self.handle_vote_resp(msg.from, reply)
     Append(args) => self.handle_append(msg.from, args)
     AppendResp(reply) => self.handle_append_resp(msg.from, reply)
+    Heartbeat(args) => self.handle_heartbeat(msg.from, args)
+    HeartbeatResp(_) => self.handle_heartbeat_resp(msg.from)
     Snapshot(args) => self.handle_snapshot(msg.from, args)
     SnapshotResp(reply) => self.handle_snapshot_resp(msg.from, reply)
     TimeoutNow(term) => self.handle_timeout_now(term)
@@ -265,6 +270,58 @@ fn RaftNode::handle_append(
   // membership as its commit index advances, so every server shares one config.
   self.apply_committed_conf()
   [Message::new(self.id, from, AppendResp(reply))]
+}
+
+///|
+/// Handle a heartbeat from the current leader (Raft §5.2): recognise the leader,
+/// defer our election, advance our commit index toward the leader's, and reply.
+fn RaftNode::handle_heartbeat(
+  self : RaftNode,
+  from : String,
+  args : HeartbeatArgs,
+) -> Array[Message] {
+  if args.term >= self.core.current_term() {
+    self.leader_id = Some(args.leader_id)
+    self.election_elapsed = 0
+    self.in_pre_campaign = false
+    self.core.role = Follower
+    // Commit only up to what we actually hold; the leader already caps `commit`.
+    let upto = if args.commit < self.core.last_log_index() {
+      args.commit
+    } else {
+      self.core.last_log_index()
+    }
+    self.core.advance_commit(upto)
+    self.apply_committed_conf()
+  }
+  [Message::new(self.id, from, HeartbeatResp(self.core.current_term()))]
+}
+
+///|
+/// Handle a heartbeat acknowledgement (Raft §5.2). It is pure liveness — no log
+/// index — so it marks the follower active (for check-quorum and lease reads)
+/// and resumes replication: a follower still behind is sent the entries it
+/// lacks, or a content-free probe when its in-flight window is full.
+fn RaftNode::handle_heartbeat_resp(
+  self : RaftNode,
+  from : String,
+) -> Array[Message] {
+  guard self.core.role() == Leader else { return [] }
+  match self.progress.get(from) {
+    None => []
+    Some(p) => {
+      p.mark_active()
+      if p.match_index < self.core.last_log_index() {
+        if p.is_paused() {
+          [self.probe_append(from)]
+        } else {
+          [self.send_to(from)]
+        }
+      } else {
+        []
+      }
+    }
+  }
 }
 
 ///|

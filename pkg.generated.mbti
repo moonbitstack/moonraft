@@ -153,6 +153,12 @@ pub(all) struct HardState {
 pub fn HardState::initial() -> Self
 pub fn HardState::is_empty(Self) -> Bool
 
+pub(all) struct HeartbeatArgs {
+  term : UInt64
+  leader_id : String
+  commit : UInt64
+} derive(Eq)
+
 type InFlight
 
 pub(all) struct Inflight {
@@ -290,6 +296,8 @@ pub enum Payload {
   VoteResp(RequestVoteReply)
   Append(AppendEntriesArgs)
   AppendResp(AppendEntriesReply)
+  Heartbeat(HeartbeatArgs)
+  HeartbeatResp(UInt64)
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
