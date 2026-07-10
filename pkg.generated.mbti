@@ -34,7 +34,15 @@ pub fn demo_transfer(String) -> Bool
 
 pub fn describe(Array[String], Map[String, UInt64]) -> String
 
+pub fn describe_conf_state(ConfState) -> String
+
+pub fn describe_entries(ArrayView[Entry], ((Bytes) -> String)?) -> String
+
 pub fn describe_entry(Entry, ((Bytes) -> String)?) -> String
+
+pub fn describe_hard_state(HardState) -> String
+
+pub fn describe_snapshot(Snapshot) -> String
 
 pub fn entry_encoding_size(Entry) -> UInt64
 
@@ -49,6 +57,8 @@ pub fn must_sync(HardState, HardState, Int) -> Bool
 pub let no_limit : UInt64
 
 pub fn payload_size(Entry) -> UInt64
+
+pub fn payloads_size(ArrayView[Entry]) -> UInt64
 
 pub fn replicate(Node, Array[Node]) -> UInt64
 
@@ -350,7 +360,7 @@ pub struct MemoryStorage {
 pub fn MemoryStorage::append(Self, Array[Entry]) -> Unit
 pub fn MemoryStorage::apply_snapshot(Self, Snapshot) -> Unit raise StorageError
 pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
-pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes) -> Snapshot raise StorageError
+pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : ConfState?) -> Snapshot raise StorageError
 pub fn MemoryStorage::from_ents(Array[Entry]) -> Self
 pub fn MemoryStorage::new() -> Self
 pub fn MemoryStorage::raw_ents(Self) -> Array[Entry]
@@ -536,6 +546,7 @@ pub fn RaftLog::snapshot(Self) -> Snapshot raise StorageError
 pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, EntryId) -> Unit
 pub fn RaftLog::term(Self, UInt64) -> UInt64 raise StorageError
+pub fn RaftLog::to_string(Self) -> String
 pub fn RaftLog::unstable_view(Self) -> Unstable
 pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
 
@@ -632,8 +643,11 @@ pub struct RawNode {
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
 pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
+pub fn RawNode::basic_status(Self) -> RaftStatus
 pub fn RawNode::campaign(Self) -> Unit
 pub fn RawNode::conf_state(Self) -> ConfState
+pub fn RawNode::forget_leader(Self) -> Unit
+pub fn RawNode::full_status(Self) -> FullStatus
 pub fn RawNode::has_ready(Self) -> Bool
 pub fn RawNode::is_async(Self) -> Bool
 pub fn RawNode::new(RaftNode) -> Self
@@ -645,6 +659,8 @@ pub fn RawNode::propose_conf_v2(Self, ConfChangeV2) -> Unit
 pub fn RawNode::read_index(Self, Bytes) -> Unit
 pub fn RawNode::ready(Self) -> Ready
 pub fn RawNode::ready_without_accept(Self) -> Ready
+pub fn RawNode::report_snapshot(Self, String, Bool) -> Unit
+pub fn RawNode::report_unreachable(Self, String) -> Unit
 pub fn RawNode::stabilize(Self) -> Array[Message]
 pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, Message) -> Unit
@@ -652,6 +668,7 @@ pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
 pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
+pub fn RawNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
 
 pub(all) struct ReadIndexResp {
   term : UInt64
