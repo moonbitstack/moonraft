@@ -103,8 +103,6 @@ pub fn Changer::new(
 }
 
 ///|
-
-///|
 /// Advance the index a newly-added follower's progress is anchored at. The
 /// datadriven harness bumps this once per command so `next` reveals which
 /// "round" a progress was created in (proving a demoted voter's progress is
@@ -274,12 +272,8 @@ fn check_invariants(
     if !cfg.outgoing.contains(id) {
       return Some(id + " is in LearnersNext, but not Voters[1]")
     }
-    if prs.get(id) is Some(pr) {
-      if pr.is_learner {
-        return Some(
-          id + " is in LearnersNext, but is already marked as learner",
-        )
-      }
+    if prs.get(id) is Some(pr) && pr.is_learner {
+      return Some(id + " is in LearnersNext, but is already marked as learner")
     }
   }
   // Conversely, learners never intersect the voter halves.
@@ -290,10 +284,8 @@ fn check_invariants(
     if cfg.incoming.contains(id) {
       return Some(id + " is in Learners and Voters[0]")
     }
-    if prs.get(id) is Some(pr) {
-      if !pr.is_learner {
-        return Some(id + " is in Learners, but is not marked as learner")
-      }
+    if prs.get(id) is Some(pr) && !pr.is_learner {
+      return Some(id + " is in Learners, but is not marked as learner")
     }
   }
   // AutoLeave is only meaningful in a joint config. A non-joint config with a
@@ -341,16 +333,14 @@ pub fn Changer::simple(
     return rollback("can't apply simple config change in joint config")
   }
   let before = self.cfg.incoming.copy()
-  match self.apply(changes) {
-    Some(e) => return rollback(e)
-    None => ()
+  if self.apply(changes) is Some(e) {
+    return rollback(e)
   }
   if symdiff(before, self.cfg.incoming) > 1 {
     return rollback("more than one voter changed without entering joint config")
   }
-  match check_invariants(self.cfg, self.prs) {
-    Some(e) => return rollback(e)
-    None => ()
+  if check_invariants(self.cfg, self.prs) is Some(e) {
+    return rollback(e)
   }
   None
 }
@@ -381,14 +371,12 @@ pub fn Changer::enter_joint(
   for id in self.cfg.incoming {
     self.cfg.outgoing.push(id)
   }
-  match self.apply(changes) {
-    Some(e) => return rollback(e)
-    None => ()
+  if self.apply(changes) is Some(e) {
+    return rollback(e)
   }
   self.cfg.auto_leave = auto_leave
-  match check_invariants(self.cfg, self.prs) {
-    Some(e) => return rollback(e)
-    None => ()
+  if check_invariants(self.cfg, self.prs) is Some(e) {
+    return rollback(e)
   }
   None
 }
@@ -424,9 +412,8 @@ pub fn Changer::leave_joint(self : Changer) -> String? {
   }
   self.cfg.outgoing.clear()
   self.cfg.auto_leave = false
-  match check_invariants(self.cfg, self.prs) {
-    Some(e) => return rollback(e)
-    None => ()
+  if check_invariants(self.cfg, self.prs) is Some(e) {
+    return rollback(e)
   }
   None
 }
@@ -457,9 +444,8 @@ pub fn Changer::restore(self : Changer, cs : ConfState) -> String? {
   if outgoing.length() == 0 {
     // A non-joint config: apply the incoming changes one at a time.
     for c in incoming {
-      match self.simple([c]) {
-        Some(e) => return Some(e)
-        None => ()
+      if self.simple([c]) is Some(e) {
+        return Some(e)
       }
     }
     None
@@ -479,14 +465,7 @@ pub fn Changer::restore(self : Changer, cs : ConfState) -> String? {
 fn majority_str(ids : Array[String]) -> String {
   let s = ids.copy()
   s.sort()
-  let mut out = "("
-  for i in 0..<s.length() {
-    if i > 0 {
-      out = out + " "
-    }
-    out = out + s[i]
-  }
-  out + ")"
+  "(" + s.join(" ") + ")"
 }
 
 ///|
