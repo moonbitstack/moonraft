@@ -54,6 +54,10 @@ pub struct RaftNode {
   mut lead_transferee : String?
   // Linearizable read-index bookkeeping (Raft §6.4).
   read_only : ReadOnly
+  // etcd's DisableProposalForwarding: when set, a follower drops client proposals
+  // instead of forwarding them to the leader (for deployments that route writes
+  // to the leader out-of-band). Off by default: a follower forwards.
+  mut no_forward : Bool
 }
 
 ///|
@@ -100,6 +104,7 @@ pub fn RaftNode::new(
     conf_applied: 0,
     lead_transferee: None,
     read_only: ReadOnly::new(),
+    no_forward: false,
   }
   node.reset_timeout()
   node
@@ -346,22 +351,22 @@ pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
 }
 
 ///|
-/// Append a client command to the leader's log and replicate it. A no-op on a
-/// non-leader. Returns the AppendEntries messages to send.
+/// Turn off proposal forwarding (etcd's DisableProposalForwarding): a follower
+/// will drop client proposals instead of forwarding them to the leader.
+pub fn RaftNode::disable_proposal_forwarding(self : RaftNode) -> Unit {
+  self.no_forward = true
+}
+
+///|
+/// Append a client command and replicate it. On a leader the command is appended
+/// and the resulting AppendEntries returned; on a follower it is forwarded to the
+/// leader (unless forwarding is disabled or no leader is known); on a candidate
+/// it is dropped. This routes through the same `Propose` message path a remote
+/// proposal takes, so local and forwarded proposals behave identically.
 pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
-  // A leader in the middle of handing off leadership stops accepting new
-  // proposals, so the transfer target can catch up to a fixed log (§3.10).
-  if self.core.role() != Leader || self.lead_transferee is Some(_) {
-    return []
-  }
-  // Drop the proposal if it would push the uncommitted tail over its quota
-  // (etcd's ErrProposalDropped), unless the tail is currently empty.
-  if !self.increase_uncommitted_size(command.length().to_uint64()) {
-    return []
-  }
-  let _ = self.core.append(self.core.current_term(), command)
-  self.maybe_commit() |> ignore
-  self.bcast_append()
+  self.step_propose(self.id, [
+    Entry::normal(self.core.current_term(), 0, command),
+  ])
 }
 
 ///|
@@ -424,6 +429,27 @@ pub fn RaftNode::transfer_leadership(
         [self.send_to(target)]
       }
   }
+}
+
+///|
+/// Request that leadership move to `target` (etcd's TransferLeader). On a leader
+/// this begins the handoff; on a follower the request is forwarded to the leader,
+/// so a transfer may be initiated from any server. Routes through the same
+/// `TransferLeader` message path a forwarded request takes.
+pub fn RaftNode::request_transfer_leader(
+  self : RaftNode,
+  target : String,
+) -> Array[Message] {
+  self.step_transfer_leader(self.id, target)
+}
+
+///|
+/// Forget the currently-recognised leader (etcd's MsgForgetLeader): a follower
+/// clears its leader so it may grant (pre)votes at once instead of waiting out a
+/// check-quorum lease, without moving its term or resetting its election timer.
+/// Ignored under lease-based reads; a no-op on a candidate or leader.
+pub fn RaftNode::forget_leader(self : RaftNode) -> Unit {
+  self.step(Message::new(self.id, self.id, ForgetLeader)) |> ignore
 }
 
 ///|

@@ -56,6 +56,16 @@ fn RaftNode::term_rel(self : RaftNode, msg : Message) -> TermRel {
 /// exactly what let a late `VoteResp` be miscounted into a false majority
 /// (double leader) or a late `AppendResp` inflate a follower's progress.
 pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
+  // Local, routable messages (etcd's Term-0 messages) bypass the term check: a
+  // client request carries no term, so it is neither stale nor ahead. The read-
+  // index *reply* does carry a term and is dispatched normally below.
+  match msg.payload {
+    Propose(entries) => return self.step_propose(msg.from, entries)
+    ReadIndex(ctx) => return self.step_read_index(msg.from, ctx)
+    TransferLeader(target) => return self.step_transfer_leader(msg.from, target)
+    ForgetLeader => return self.step_forget_leader()
+    _ => ()
+  }
   match self.term_rel(msg) {
     Stale => self.on_stale(msg)
     Ahead => {
@@ -93,9 +103,13 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     | AppendResp(_)
     | HeartbeatResp(_)
     | SnapshotResp(_)
+    | ReadIndexResp(_)
     | TimeoutNow(_) => []
     PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) =>
       self.dispatch(msg)
+    // Local, routable messages never reach here (handled term-free in `step`);
+    // the arms exist only to keep the match exhaustive.
+    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => []
   }
 }
 
@@ -135,7 +149,131 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     Snapshot(args) => self.handle_snapshot(msg.from, args)
     SnapshotResp(reply) => self.handle_snapshot_resp(msg.from, reply)
     TimeoutNow(term) => self.handle_timeout_now(term)
+    ReadIndexResp(reply) => self.handle_read_index_resp(reply)
+    // Local, routable messages are handled term-free in `step` and never reach
+    // dispatch; the arms exist only to keep the match exhaustive.
+    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => []
   }
+}
+
+///|
+/// Step a client proposal (etcd's MsgProp). On a leader the carried entries are
+/// appended under the current term and replicated. On a follower the proposal is
+/// forwarded to the known leader — preserving the original requester as `from` so
+/// a chain of forwards still points back to the origin — unless forwarding is
+/// disabled or no leader is known, in which case it is dropped (etcd's
+/// ErrProposalDropped). A candidate has no leader to forward to and drops it.
+fn RaftNode::step_propose(
+  self : RaftNode,
+  from : String,
+  entries : Array[Entry],
+) -> Array[Message] {
+  match self.core.role() {
+    Leader => {
+      // A leader handing off leadership stops accepting proposals so the transfer
+      // target can catch up to a fixed log (§3.10).
+      if self.lead_transferee is Some(_) {
+        return []
+      }
+      let mut total = 0UL
+      for e in entries {
+        total = total + e.command.length().to_uint64()
+      }
+      // Drop the batch if it would push the uncommitted tail over its quota
+      // (etcd's ErrProposalDropped), unless the tail is currently empty.
+      if !self.increase_uncommitted_size(total) {
+        return []
+      }
+      for e in entries {
+        if e.is_conf_change() {
+          self.core.append_conf(self.core.current_term(), e.command) |> ignore
+        } else {
+          self.core.append(self.core.current_term(), e.command) |> ignore
+        }
+      }
+      self.maybe_commit() |> ignore
+      self.bcast_append()
+    }
+    Candidate => []
+    Follower =>
+      match self.leader_id {
+        Some(lead) =>
+          if self.no_forward {
+            []
+          } else {
+            [Message::new(from, lead, Propose(entries))]
+          }
+        None => []
+      }
+  }
+}
+
+///|
+/// Step a linearizable-read request (etcd's MsgReadIndex). A leader serves it
+/// (locally, or by answering a remote requester once its leadership is confirmed
+/// for the read). A follower forwards it to the leader, preserving the origin as
+/// `from` so the answer routes back to the requester; with no known leader it is
+/// dropped.
+fn RaftNode::step_read_index(
+  self : RaftNode,
+  from : String,
+  ctx : Bytes,
+) -> Array[Message] {
+  if self.core.role() == Leader {
+    return self.lead_read_index(from, ctx)
+  }
+  match self.leader_id {
+    Some(lead) => [Message::new(from, lead, ReadIndex(ctx))]
+    None => []
+  }
+}
+
+///|
+/// A follower records the read index the leader confirmed (etcd appends it to
+/// readStates), so a caller waiting on `take_read_states` observes the index the
+/// state machine must reach before answering the read.
+fn RaftNode::handle_read_index_resp(
+  self : RaftNode,
+  reply : ReadIndexResp,
+) -> Array[Message] {
+  self.read_only.ready.push({ index: reply.index, request_ctx: reply.context })
+  []
+}
+
+///|
+/// Step a leadership-transfer request (etcd's MsgTransferLeader). On a leader it
+/// begins the handoff to `target`; on a follower it is forwarded to the leader so
+/// a transfer may be requested from any server.
+fn RaftNode::step_transfer_leader(
+  self : RaftNode,
+  from : String,
+  target : String,
+) -> Array[Message] {
+  if self.core.role() == Leader {
+    return self.transfer_leadership(target)
+  }
+  match self.leader_id {
+    Some(lead) => [Message::new(from, lead, TransferLeader(target))]
+    None => []
+  }
+}
+
+///|
+/// Step a forget-leader request (etcd's MsgForgetLeader): a follower drops its
+/// recognised leader without moving its term or resetting its election timer, so
+/// a follower stuck behind a partition can re-enable (pre)votes at once rather
+/// than waiting out a full election timeout. Ignored under lease-based reads,
+/// where forgetting the leader would undermine the lease that reads depend on
+/// (etcd rejects MsgForgetLeader when ReadOnlyLeaseBased). A candidate or leader,
+/// which recognises no current leader anyway, is a no-op.
+fn RaftNode::step_forget_leader(self : RaftNode) -> Array[Message] {
+  if !self.read_only.safe {
+    return []
+  }
+  if self.core.role() == Follower && self.leader_id is Some(_) {
+    self.leader_id = None
+  }
+  []
 }
 
 ///|
@@ -314,23 +452,29 @@ fn RaftNode::handle_heartbeat_resp(
   reply : HeartbeatReply,
 ) -> Array[Message] {
   guard self.core.role() == Leader else { return [] }
+  let out : Array[Message] = []
   // ReadOnlySafe: an ack echoing a read-index context counts toward confirming
-  // the leader still commands a quorum for that read (§6.4).
+  // the leader still commands a quorum for that read (§6.4). A confirmed read is
+  // delivered to its originator — recorded locally, or answered to the follower
+  // that forwarded it with a ReadIndexResp.
   if reply.context.length() > 0 {
-    self.read_only.recv_ack(from, reply.context, self.config)
+    for req in self.read_only.recv_ack(from, reply.context, self.config) {
+      for m in self.deliver_read(req) {
+        out.push(m)
+      }
+    }
   }
   match self.progress.get(from) {
-    None => []
+    None => out
     Some(p) => {
       p.mark_active()
       // A heartbeat response clears the flow throttle (etcd), so one more
       // message goes out to a follower that is still behind.
       p.unpause()
       if p.match_index < self.core.last_log_index() && p.state != Snapshot {
-        [self.send_to(from)]
-      } else {
-        []
+        out.push(self.send_to(from))
       }
+      out
     }
   }
 }

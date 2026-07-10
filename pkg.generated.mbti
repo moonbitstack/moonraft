@@ -430,6 +430,11 @@ pub enum Payload {
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
+  Propose(Array[Entry])
+  ReadIndex(Bytes)
+  ReadIndexResp(ReadIndexResp)
+  TransferLeader(String)
+  ForgetLeader
 }
 pub fn Payload::is_local(Self) -> Bool
 
@@ -558,6 +563,7 @@ pub struct RaftNode {
   mut conf_applied : UInt64
   mut lead_transferee : String?
   read_only : ReadOnly
+  mut no_forward : Bool
 }
 pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
 pub fn RaftNode::become_candidate(Self) -> Unit
@@ -565,9 +571,11 @@ pub fn RaftNode::become_follower(Self, UInt64) -> Unit
 pub fn RaftNode::campaign(Self) -> Array[Message]
 pub fn RaftNode::commit_index(Self) -> UInt64
 pub fn RaftNode::conf_state(Self) -> ConfState
+pub fn RaftNode::disable_proposal_forwarding(Self) -> Unit
 pub fn RaftNode::election_deadline(Self) -> Int
 pub fn RaftNode::enable_check_quorum(Self) -> Unit
 pub fn RaftNode::enable_read_only_safe(Self) -> Unit
+pub fn RaftNode::forget_leader(Self) -> Unit
 pub fn RaftNode::full_status(Self) -> FullStatus
 pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
@@ -590,6 +598,7 @@ pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
 pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
 pub fn RaftNode::report_unreachable(Self, String) -> Unit
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
+pub fn RaftNode::request_transfer_leader(Self, String) -> Array[Message]
 pub fn RaftNode::role(Self) -> Role
 pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
@@ -643,6 +652,12 @@ pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
 pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
+
+pub(all) struct ReadIndexResp {
+  term : UInt64
+  index : UInt64
+  context : Bytes
+} derive(Eq)
 
 type ReadOnly
 

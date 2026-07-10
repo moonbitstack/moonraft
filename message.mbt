@@ -15,7 +15,28 @@ pub enum Payload {
   Snapshot(InstallSnapshotArgs)
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
+  // Routable client-request messages (etcd's local, term-0 messages): a follower
+  // that receives one forwards it to the leader rather than dropping it, so a
+  // client may address any server. `Propose` carries the entries to append;
+  // `ReadIndex` the read's opaque context; `TransferLeader` the target's id;
+  // `ForgetLeader` nothing. The step function stamps them with no term.
+  Propose(Array[Entry])
+  ReadIndex(Bytes)
+  ReadIndexResp(ReadIndexResp)
+  TransferLeader(String)
+  ForgetLeader
 }
+
+///|
+/// The leader's answer to a forwarded `ReadIndex` (etcd's MsgReadIndexResp): the
+/// commit index the read is anchored at, echoed back with the caller's context to
+/// the server that originated the read. Unlike the request it carries the
+/// leader's term, so it is term-checked like any other reply.
+pub(all) struct ReadIndexResp {
+  term : UInt64
+  index : UInt64
+  context : Bytes
+} derive(Eq)
 
 ///|
 /// A routed message: a payload with the ids of the sender and intended
@@ -49,6 +70,10 @@ pub fn Message::term(self : Message) -> UInt64 {
     Snapshot(a) => a.term
     SnapshotResp(r) => r.term
     TimeoutNow(t) => t
+    // Local, routable messages carry no term (etcd sends MsgProp/MsgReadIndex
+    // with Term 0); the read-index reply does carry the leader's term.
+    ReadIndexResp(r) => r.term
+    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => 0
   }
 }
 
@@ -61,7 +86,8 @@ pub fn Message::is_response(self : Message) -> Bool {
     | VoteResp(_)
     | AppendResp(_)
     | HeartbeatResp(_)
-    | SnapshotResp(_) => true
+    | SnapshotResp(_)
+    | ReadIndexResp(_) => true
     _ => false
   }
 }
@@ -81,5 +107,10 @@ pub fn Message::kind(self : Message) -> String {
     Snapshot(_) => "Snapshot"
     SnapshotResp(_) => "SnapshotResp"
     TimeoutNow(_) => "TimeoutNow"
+    Propose(_) => "Propose"
+    ReadIndex(_) => "ReadIndex"
+    ReadIndexResp(_) => "ReadIndexResp"
+    TransferLeader(_) => "TransferLeader"
+    ForgetLeader => "ForgetLeader"
   }
 }

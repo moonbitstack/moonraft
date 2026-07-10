@@ -197,8 +197,9 @@ pub fn RawNode::campaign(self : RawNode) -> Unit {
 
 ///|
 /// Propose a client command. On a leader it is appended and the resulting
-/// AppendEntries are buffered; on a non-leader it is dropped (this build does
-/// not forward proposals — see PORTING.md).
+/// AppendEntries are buffered; on a follower it is forwarded to the known leader
+/// (etcd's MsgProp forwarding), or dropped if forwarding is disabled or no leader
+/// is known; a candidate drops it.
 pub fn RawNode::propose(self : RawNode, data : Bytes) -> Unit {
   for m in self.raft.propose(data) {
     self.msgs.push(m)

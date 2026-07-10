@@ -54,9 +54,11 @@ Ported in `quorum_wbtest.mbt`, every datadriven case expanded explicitly:
 
 ---
 
-## raft_paper_test.go — DONE (18/26)
-Raft-paper property tests, ported onto `RaftNode`/`Node` in `paper_wbtest.mbt`
-(pre-vote disabled to match etcd's `newTestRaft` default):
+## raft_paper_test.go — DONE (24/26)
+Raft-paper property tests, ported onto `RaftNode`/`Node` across `paper_wbtest.mbt`
+(18 cases), `randomized_timeout_wbtest.mbt` (4 election-timeout cases), and
+`raft_core_port_wbtest.mbt` (6 cases) — 24 of 26 (pre-vote disabled to match
+etcd's `newTestRaft` default):
 - `TestFollowerUpdateTermFromMessage`, `TestCandidateUpdateTermFromMessage`,
   `TestLeaderUpdateTermFromMessage` — DONE.
 - `TestStartAsFollower` — DONE.
@@ -319,6 +321,12 @@ Covers the core of etcd `TestLeaderTransferToUpToDateNode` /
 `ToSlowFollower` / `Timeout` / `ToSelf` / `ToNonExistingNode` /
 `IgnoreProposal` / `RemoveNode`.
 
+The transfer *request* is also a routable message now (etcd's MsgTransferLeader),
+not only its result (`TimeoutNow`): `TransferLeader(target)` carries the intended
+new leader. On a leader it begins the handoff; on a follower it is forwarded to
+the leader, so a transfer may be initiated from any server
+(`request_transfer_leader`, tested in `message_routing_wbtest.mbt`).
+
 ## raft_test.go — DONE (partial) + IMPL
 Ported onto a single RaftNode in `raft_core_port_wbtest.mbt` (plus B2/B3/
 leadTransferee tests above): `TestSingleNodeCommit`, `TestVoteFromAnyState`,
@@ -427,13 +435,21 @@ goroutine-free equivalent, so protocol-level tests map directly. Ported in
 - `TestNodeRestartFromSnapshot` — DONE.
 - `TestNodeStepUnblock` — **N/A**: `Step` blocking on an unbuffered channel,
   unblocked by `close(done)` or `context` cancel. No channels/goroutines.
-- `TestDisableProposalForwarding` — **N/A**: proposal forwarding from follower to
-  leader is not modeled — `propose` is leader-only (drops on a follower, which is
-  the `DisableProposalForwarding=true` behaviour, not the default forward).
-- `TestNodeReadIndexToOldLeader` — **N/A**: read-index forwarding across a leader
-  change; forwarding is not modeled.
-- `TestNodeProposeWaitDropped` — **N/A**: goroutine + `ErrProposalDropped` via a
-  `step`-hook injection + `context` timeout cancellation.
+- `TestDisableProposalForwarding` — **DONE** (`message_routing_wbtest.mbt`). A
+  `Propose` (etcd's MsgProp) is now a routable message: a follower forwards it to
+  the known leader (preserving the origin as `from`), and drops it when
+  `disable_proposal_forwarding` is set. Verified both arms: the default follower
+  emits one forwarded `Propose` to the leader; the disabled follower emits none.
+- `TestNodeReadIndexToOldLeader` — **DONE** (`message_routing_wbtest.mbt`). A
+  `ReadIndex` request forwards to the known leader with no term stamped and the
+  origin preserved, so the answer routes back even across a leader change: the
+  old leader (now a follower of the new one) re-forwards the held requests to the
+  new leader, each still carrying its original origin.
+- `TestNodeProposeWaitDropped` — **DONE** (non-goroutine part, in
+  `message_routing_wbtest.mbt`): a dropped proposal produces no messages and does
+  not touch the log. Ported as a candidate proposal (no leader to forward to) —
+  the observable "proposal dropped" outcome. The goroutine + `context`-timeout +
+  `step`-hook injection wrapper remains a Go-concurrency concern (N/A).
 - `TestNodeStop` — **N/A**: goroutine lifecycle and `Stop` idempotency; the empty
   `Status{}` after stop has no analogue.
 - `TestNodeProposeAddLearnerNode` — **DONE**. Ported in
@@ -609,8 +625,16 @@ N/A for reasons 1–2 above):
   covered by the A-path election / `raft_paper_test` ports and `sim.mbt` election
   scenarios.
 - `forget_leader.txt`, `forget_leader_prevote_checkquorum.txt`,
-  `forget_leader_read_only_lease_based.txt` — **ForgetLeader + read-only lease**.
-  Core / `readindex.mbt`, off-limits.
+  `forget_leader_read_only_lease_based.txt` — **DONE** (expanded step-by-step in
+  `message_routing_wbtest.mbt`). `ForgetLeader` (etcd's MsgForgetLeader) is now a
+  routable message: a follower clears its recognised leader without moving its
+  term or resetting its election timer (so it may grant (pre)votes at once after a
+  partition); a candidate/leader is a no-op; and it is ignored under lease-based
+  reads, where forgetting the leader would undermine the lease reads depend on.
+  The three scripts' essence is covered: the base clear + candidate no-op + timer
+  invariance; the prevote/check-quorum interaction (a leased follower refuses a
+  pre-vote, then grants it once the leader is forgotten); and the lease-based
+  ignore.
 - `lagging_commit.txt`, `replicate_pause.txt`, `probe_and_replicate.txt`,
   `heartbeat_resp_recovers_from_probing.txt` — **replication flow control**
   (Probe/Replicate, inflights, heartbeat-resp recovery). Core (`replication.mbt`/

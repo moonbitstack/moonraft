@@ -14,11 +14,15 @@
 // limitations under the License.
 
 ///|
-/// One in-flight linearizable read: the caller's opaque context and the leader's
-/// commit index captured when the read was requested (Raft §6.4).
+/// One in-flight linearizable read: the caller's opaque context, the leader's
+/// commit index captured when the read was requested (Raft §6.4), and the id of
+/// the server that originated the read — the leader itself for a local read, or a
+/// follower that forwarded a `ReadIndex`, so the confirmed index routes back to
+/// the right requester.
 priv struct ReadReq {
   context : Bytes
   index : UInt64
+  from : String
 }
 
 ///|
@@ -47,14 +51,16 @@ fn ctx_key(context : Bytes) -> String {
 }
 
 ///|
-/// Record a new read request and count the leader's own implicit acknowledgement.
+/// Record a new read request (originated by `from`) and count the leader's own
+/// implicit acknowledgement.
 fn ReadOnly::add_request(
   self : ReadOnly,
   index : UInt64,
   context : Bytes,
+  from : String,
   leader_id : String,
 ) -> Unit {
-  self.pending.push({ context, index })
+  self.pending.push({ context, index, from })
   let acked : Map[String, Bool] = {}
   acked[leader_id] = true
   self.acks[ctx_key(context)] = acked
@@ -63,16 +69,17 @@ fn ReadOnly::add_request(
 ///|
 /// Record that `id` acknowledged the heartbeat carrying `context`. Once a quorum
 /// of the configuration has acknowledged it, every read up to and including that
-/// context is confirmed and moved to `ready`.
+/// context is confirmed and returned in order; the caller routes each confirmed
+/// read to its originator.
 fn ReadOnly::recv_ack(
   self : ReadOnly,
   id : String,
   context : Bytes,
   config : Membership,
-) -> Unit {
+) -> Array[ReadReq] {
   let key = ctx_key(context)
   match self.acks.get(key) {
-    None => ()
+    None => []
     Some(acked) => {
       acked[id] = true
       let ackers : Array[String] = []
@@ -81,6 +88,8 @@ fn ReadOnly::recv_ack(
       }
       if config.has_majority(ackers) {
         self.advance(context)
+      } else {
+        []
       }
     }
   }
@@ -88,8 +97,8 @@ fn ReadOnly::recv_ack(
 
 ///|
 /// Confirm every pending read up to and including the one carrying `context`,
-/// moving them to `ready` in order and forgetting their ack sets.
-fn ReadOnly::advance(self : ReadOnly, context : Bytes) -> Unit {
+/// returning them in order and forgetting their ack sets.
+fn ReadOnly::advance(self : ReadOnly, context : Bytes) -> Array[ReadReq] {
   let key = ctx_key(context)
   let mut cut = -1
   for i, req in self.pending {
@@ -99,12 +108,13 @@ fn ReadOnly::advance(self : ReadOnly, context : Bytes) -> Unit {
     }
   }
   if cut < 0 {
-    return
+    return []
   }
+  let confirmed : Array[ReadReq] = []
   let rest : Array[ReadReq] = []
   for i, req in self.pending {
     if i <= cut {
-      self.ready.push({ index: req.index, request_ctx: req.context })
+      confirmed.push(req)
       self.acks.remove(ctx_key(req.context))
     } else {
       rest.push(req)
@@ -114,6 +124,7 @@ fn ReadOnly::advance(self : ReadOnly, context : Bytes) -> Unit {
   for req in rest {
     self.pending.push(req)
   }
+  confirmed
 }
 
 ///|
@@ -145,29 +156,60 @@ pub fn RaftNode::request_read_index(
   if self.core.role() != Leader {
     return []
   }
-  // The read must be anchored at an index from the current term, else the
-  // commit index may not yet reflect the latest leader's writes (§5.4.2).
+  self.lead_read_index(self.id, context)
+}
+
+///|
+/// Serve a read request on the leader (Raft §6.4), for a read originated by
+/// `from` — the leader itself for a local read, or a follower that forwarded a
+/// `ReadIndex`. In `ReadOnlySafe` mode the read is held until a heartbeat quorum
+/// confirms the leadership, so the returned messages are the heartbeats to
+/// broadcast; in lease mode a valid lease confirms it at once. A confirmed read
+/// is delivered to its originator (recorded locally, or answered with a
+/// `ReadIndexResp`).
+fn RaftNode::lead_read_index(
+  self : RaftNode,
+  from : String,
+  context : Bytes,
+) -> Array[Message] {
+  // The read must be anchored at an index from the current term, else the commit
+  // index may not yet reflect the latest leader's writes (§5.4.2).
   if self.core.term_at(self.core.commit_index) != self.core.current_term() {
     return []
   }
   if self.peers.length() == 0 {
-    self.read_only.ready.push({
-      index: self.core.commit_index,
-      request_ctx: context,
-    })
-    return []
+    return self.deliver_read({ from, index: self.core.commit_index, context })
   }
   if self.read_only.safe {
-    self.read_only.add_request(self.core.commit_index, context, self.id)
+    self.read_only.add_request(self.core.commit_index, context, from, self.id)
     self.bcast_heartbeat(context~)
+  } else if self.quorum_active() {
+    self.deliver_read({ from, index: self.core.commit_index, context })
   } else {
-    if self.quorum_active() {
-      self.read_only.ready.push({
-        index: self.core.commit_index,
-        request_ctx: context,
-      })
-    }
     []
+  }
+}
+
+///|
+/// Route a confirmed read to its originator: a local read is recorded for
+/// `take_read_states`; a read forwarded by a follower is answered with a
+/// `ReadIndexResp` carrying the confirmed index and the caller's context.
+fn RaftNode::deliver_read(self : RaftNode, req : ReadReq) -> Array[Message] {
+  if req.from == self.id {
+    self.read_only.ready.push({ index: req.index, request_ctx: req.context })
+    []
+  } else {
+    [
+      Message::new(
+        self.id,
+        req.from,
+        ReadIndexResp({
+          term: self.core.current_term(),
+          index: req.index,
+          context: req.context,
+        }),
+      ),
+    ]
   }
 }
 
