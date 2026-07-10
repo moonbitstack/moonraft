@@ -1,8 +1,9 @@
 ///|
-/// The kind of a single-server configuration change (Raft §6).
+/// The kind of a single-server configuration change (Raft §6, §4.2.1).
 pub enum ConfChangeType {
   AddNode
   RemoveNode
+  AddLearnerNode
 } derive(Eq)
 
 ///|
@@ -27,13 +28,20 @@ pub fn ConfChange::remove(id : String) -> ConfChange {
 }
 
 ///|
+/// A change that adds `id` as a learner (a non-voting member).
+pub fn ConfChange::add_learner(id : String) -> ConfChange {
+  { change_type: AddLearnerNode, node_id: id }
+}
+
+///|
 /// Serialize this change into a log-entry command. The encoding is a one-
-/// character tag ('+' to add, '-' to remove) followed by the server id, which
-/// keeps it human-readable in dumps and trivially reversible.
+/// character tag ('+' add voter, '-' remove, 'L' add learner) followed by the
+/// server id, which keeps it human-readable in dumps and trivially reversible.
 pub fn ConfChange::encode(self : ConfChange) -> Bytes {
   let tag = match self.change_type {
     AddNode => "+"
     RemoveNode => "-"
+    AddLearnerNode => "L"
   }
   // Store the change as the UTF-16LE code units of `tag ++ id`, which is how
   // MoonBit strings read back through `to_unchecked_string`.
@@ -59,6 +67,8 @@ pub fn ConfChange::decode(command : Bytes) -> ConfChange? {
     Some({ change_type: AddNode, node_id: id })
   } else if s.has_prefix("-") {
     Some({ change_type: RemoveNode, node_id: id })
+  } else if s.has_prefix("L") {
+    Some({ change_type: AddLearnerNode, node_id: id })
   } else {
     None
   }
@@ -70,6 +80,7 @@ pub fn ConfChange::apply_to(self : ConfChange, config : Membership) -> Unit {
   match self.change_type {
     AddNode => config.add(self.node_id)
     RemoveNode => config.remove(self.node_id)
+    AddLearnerNode => config.add_learner(self.node_id)
   }
 }
 

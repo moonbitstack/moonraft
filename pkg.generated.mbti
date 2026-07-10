@@ -104,6 +104,7 @@ pub(all) struct ConfChange {
   node_id : String
 } derive(Eq)
 pub fn ConfChange::add(String) -> Self
+pub fn ConfChange::add_learner(String) -> Self
 pub fn ConfChange::apply_to(Self, Membership) -> Unit
 pub fn ConfChange::decode(Bytes) -> Self?
 pub fn ConfChange::encode(Self) -> Bytes
@@ -112,6 +113,7 @@ pub fn ConfChange::remove(String) -> Self
 pub enum ConfChangeType {
   AddNode
   RemoveNode
+  AddLearnerNode
 } derive(Eq)
 
 pub struct ConfDriver {
@@ -186,15 +188,19 @@ pub(all) struct Membership {
   members : Array[String]
   outgoing : Array[String]
   mut joint : Bool
+  learners : Array[String]
 }
 pub fn Membership::add(Self, String) -> Unit
+pub fn Membership::add_learner(Self, String) -> Unit
 pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
 pub fn Membership::contains(Self, String) -> Bool
 pub fn Membership::enter_joint(Self, Array[String]) -> Unit
 pub fn Membership::has_majority(Self, Array[String]) -> Bool
 pub fn Membership::is_joint(Self) -> Bool
+pub fn Membership::is_learner(Self, String) -> Bool
 pub fn Membership::leave_joint(Self) -> Unit
 pub fn Membership::new(Array[String]) -> Self
+pub fn Membership::nodes(Self) -> Array[String]
 pub fn Membership::quorum(Self) -> Int
 pub fn Membership::remove(Self, String) -> Unit
 pub fn Membership::size(Self) -> Int

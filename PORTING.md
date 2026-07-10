@@ -150,9 +150,22 @@ Still TODO for full parity: joint auto-leave, learner demotion, aborting an
 in-flight leadership transfer to a removed target (tracked with learners /
 leadTransferee below).
 
+## learners (§4.2.1) — DONE (core)
+`Membership` gained a `learners` set (`add_learner`/`is_learner`/`nodes`); a
+learner receives replication (peer + progress) but is never counted in
+`committed_index`/`vote_result` and never campaigns (`campaign` promotable
+guard). `ConfChange` gained `AddLearnerNode` ('L' tag); `AddNode` on a learner
+promotes it. Wired through `apply_conf_change`/`ensure_peer`. End-to-end tests in
+`learner_wbtest.mbt`:
+- learner joins non-voting then is promoted — DONE.
+- learner never campaigns — DONE.
+- leader replicates to a learner — DONE.
+
 ## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs, many cases)
-Needs the confchange applier's learner support (Simple/EnterJoint/LeaveJoint/
-Restore over voters+learners); B2 covers the single add/remove voter path.
+The single add/remove/add-learner voter path is live (B2 + learners). Still
+needs the confchange *package* applier (batched `ConfChangeSingle` via
+Simple/EnterJoint/LeaveJoint/Restore over voters+learners+learners_next) before
+the datadriven corpus can be expanded case-by-case.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

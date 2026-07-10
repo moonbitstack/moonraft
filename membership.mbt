@@ -12,12 +12,42 @@ pub(all) struct Membership {
   members : Array[String]
   outgoing : Array[String]
   mut joint : Bool
+  // Non-voting members: they receive replicated entries and can be caught up,
+  // but are never counted toward a quorum and never vote (Raft §4.2.1 learners).
+  learners : Array[String]
 }
 
 ///|
 /// Create a simple (non-joint) cluster configuration from an initial voter set.
 pub fn Membership::new(members : Array[String]) -> Membership {
-  { members: members.copy(), outgoing: [], joint: false }
+  { members: members.copy(), outgoing: [], joint: false, learners: [] }
+}
+
+///|
+/// Add `id` as a learner (non-voting member), unless it is already a voter.
+pub fn Membership::add_learner(self : Membership, id : String) -> Unit {
+  if self.members.contains(id) || self.learners.contains(id) {
+    return
+  }
+  self.learners.push(id)
+}
+
+///|
+/// Whether `id` is a learner (a non-voting member).
+pub fn Membership::is_learner(self : Membership, id : String) -> Bool {
+  self.learners.contains(id)
+}
+
+///|
+/// Every server that participates in replication: voters and learners alike.
+pub fn Membership::nodes(self : Membership) -> Array[String] {
+  let out = self.voters()
+  for l in self.learners {
+    if !out.contains(l) {
+      out.push(l)
+    }
+  }
+  out
 }
 
 ///|
@@ -78,8 +108,10 @@ pub fn Membership::has_majority(
 }
 
 ///|
-/// Add a server to the incoming configuration, unless it is already a voter.
+/// Add a server as a voter, unless it already is one. A learner being added as
+/// a voter is *promoted*: it leaves the learner set (Raft §4.2.1).
 pub fn Membership::add(self : Membership, id : String) -> Unit {
+  self.learners.retain(fn(l) { l != id })
   if self.members.contains(id) {
     return
   }
@@ -87,9 +119,10 @@ pub fn Membership::add(self : Membership, id : String) -> Unit {
 }
 
 ///|
-/// Remove a server from the incoming configuration.
+/// Remove a server from the configuration entirely — voter or learner.
 pub fn Membership::remove(self : Membership, id : String) -> Unit {
   self.members.retain(fn(m) { m != id })
+  self.learners.retain(fn(l) { l != id })
 }
 
 ///|

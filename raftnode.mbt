@@ -205,6 +205,11 @@ fn RaftNode::step_down(self : RaftNode) -> Unit {
 /// pre-vote). Winning the pre-vote — or pre-vote being disabled — starts the
 /// real election.
 pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
+  // Only a voter may stand for election; a learner (non-voting member) never
+  // campaigns even if its election timer fires (§4.2.1, promotable).
+  if !self.config.contains(self.id) {
+    return []
+  }
   self.reset_timeout()
   if self.pre_vote {
     self.start_pre_campaign()
@@ -478,18 +483,13 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
 fn RaftNode::apply_conf_change(self : RaftNode, cc : ConfChange) -> Unit {
   match cc.change_type {
     AddNode => {
+      // Adding an existing learner as a voter promotes it (§4.2.1).
       self.config.add(cc.node_id)
-      if cc.node_id != self.id {
-        if !self.peers.contains(cc.node_id) {
-          self.peers.push(cc.node_id)
-        }
-        // On the leader, begin replicating to the newcomer at once.
-        if self.core.role() == Leader && !self.progress.contains(cc.node_id) {
-          self.progress[cc.node_id] = Progress::new(
-            self.core.last_log_index() + 1,
-          )
-        }
-      }
+      self.ensure_peer(cc.node_id)
+    }
+    AddLearnerNode => {
+      self.config.add_learner(cc.node_id)
+      self.ensure_peer(cc.node_id)
     }
     RemoveNode => {
       self.config.remove(cc.node_id)
@@ -501,5 +501,20 @@ fn RaftNode::apply_conf_change(self : RaftNode, cc : ConfChange) -> Unit {
         self.step_down()
       }
     }
+  }
+}
+
+///|
+/// Make sure a (voter or learner) member other than ourselves is in the peer
+/// set and, if we are leading, has replication progress so it is caught up.
+fn RaftNode::ensure_peer(self : RaftNode, id : String) -> Unit {
+  if id == self.id {
+    return
+  }
+  if !self.peers.contains(id) {
+    self.peers.push(id)
+  }
+  if self.core.role() == Leader && !self.progress.contains(id) {
+    self.progress[id] = Progress::new(self.core.last_log_index() + 1)
   }
 }
