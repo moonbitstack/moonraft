@@ -144,8 +144,7 @@ fn Progress::reset_state(self : Progress, state : ProgressState) -> Unit {
 /// a full in-flight window).
 pub fn Progress::is_paused(self : Progress) -> Bool {
   match self.state {
-    Probe => self.msg_app_flow_paused
-    Replicate => self.msg_app_flow_paused
+    Probe | Replicate => self.msg_app_flow_paused
     Snapshot => true
   }
 }
