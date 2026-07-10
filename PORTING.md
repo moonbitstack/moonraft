@@ -135,24 +135,39 @@ Ported in `unstable_wbtest.mbt`, every table case:
 `TestUnstableAcceptInProgress` (15), `TestUnstableStableTo` (13),
 `TestUnstableTruncateAndAppend` (9).
 
-## Byte-level commit pagination — DONE (2/5; 3 N/A in the off-limits core)
-Ported in `pagination_wbtest.mbt` (RawNode wired to `max_applying_ents_size` via
-`raw_with_max_committed_size`):
+## Byte-level pagination — DONE (4/5; 1 N/A: async storage)
+Commit pagination in `pagination_wbtest.mbt` (RawNode wired to
+`max_applying_ents_size` via `raw_with_max_committed_size`); append pagination and
+bounded log growth in `append_pagination_wbtest.mbt`. Once A-path wired
+`MaxSizePerMsg` (into `send_to`, over the `limit_size`/`entry_encoding_size` this
+layer provides) and `MaxUncommittedEntriesSize` (`uncommitted_size` tally), the
+two previously-N/A tests became portable at the log/rawnode seam.
 - `TestCommitPagination` — DONE. Three 1000-byte proposals commit in two batches
   (2 then 1) under a 2048-byte `MaxCommittedSizePerReady`.
 - `TestRawNodeCommitPaginationAfterRestart` — DONE (simplified). 11 committed
   entries restart under a small cap and all apply in order, no gaps, none dropped;
   commit is set on restart rather than nudged by a `MsgHeartbeat` (a
   replication-core concern).
-- `TestAppendPagination` — N/A: `MaxSizePerMsg` bounds the leader's outbound
-  `MsgApp` batch size in `send`/`bcast_append` (`replication.mbt`, off-limits),
-  not the log layer.
-- `TestRawNodeBoundedLogGrowthWithPartition` — N/A: `MaxUncommittedEntriesSize` /
-  `raft.uncommittedSize` live in the consensus core (`replication.mbt`/raft.go),
-  off-limits — the log layer does not track uncommitted-tail bytes.
-- `TestCommitPaginationWithAsyncStorageWrites` — N/A: needs `AsyncStorageWrites`
-  with `MsgStorageAppend`/`MsgStorageApply` message-based storage, which this port
-  does not model.
+- `TestAppendPagination` — DONE. A leader with five ~1000-byte entries catches up
+  a lagging follower; every `send_to` batch is asserted `<=` the 2048-byte cap
+  (or a lone entry) and at least one batch exceeds half the cap — the byte-bounded
+  batching, driven directly rather than through the network harness.
+- `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — DONE (adapted topology). A
+  **3-voter** leader whose followers never ack keeps proposing; the uncommitted
+  tail stays bounded at `MaxUncommittedEntriesSize` (16 × 8 B), the Ready surfaces
+  exactly 16 entries to persist, and the bytes release once a quorum acks. etcd's
+  single-voter form is not reproducible verbatim: this port's core (A-path,
+  off-limits) releases the uncommitted quota on **commit**, not on **apply** (etcd
+  reduces in the `MsgStorageApplyResp` handler), so a single-voter leader would
+  commit-and-release each proposal immediately and never form a bounded tail. The
+  partitioned multi-voter leader — literally the test's name — reproduces every
+  assertion. (Flagged to the coordinator as a core reduce-on-commit vs
+  reduce-on-apply divergence.)
+- `TestCommitPaginationWithAsyncStorageWrites` — N/A (acceptable kind 1: Go
+  threading-execution). Needs `AsyncStorageWrites` with `MsgStorageAppend`/
+  `MsgStorageApply` message-based storage; the synchronous Ready/Advance path this
+  port models is the documented equivalent, and the pagination bound itself is
+  covered by `TestCommitPagination`.
 
 ## tracker/progress_test.go — DONE (8/8)
 Ported in `progress_port_wbtest.mbt`. `Progress` now carries a real
@@ -355,17 +370,11 @@ Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
   `status.Progress[1]` and `tracker.Config`; **that part is N/A** — `RaftStatus`
   does not expose the progress map or a `quorum.JointConfig`, which are
   membership-boundary types.
-- `TestRawNodeCommitPaginationAfterRestart` — **N/A**: exercises byte-size commit
-  pagination (`MaxSizePerMsg` + `ignoreSizeHintMemStorage`) and the
-  HardState-commit-regression bug it guards. Our layer applies committed entries
-  by index, not by a per-Ready byte budget, so there is no size-hint code path to
-  regress. Equivalent coverage: `TestRawNodeStart`/`TestNodeAdvance` prove the
-  applied cursor never gaps or regresses across Ready/Advance cycles.
-- `TestRawNodeBoundedLogGrowthWithPartition` — **N/A**: needs
-  `MaxUncommittedEntriesSize` + the raft-core `uncommittedSize` backpressure
-  counter, which does not exist in this build (proposals are never throttled by
-  an uncommitted-byte budget). Would require core changes outside the RawNode
-  layer.
+- `TestRawNodeCommitPaginationAfterRestart` — **DONE** (now that RawNode carries a
+  real per-Ready byte budget). See the "Byte-level pagination" section.
+- `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — **DONE** (A-path added the
+  `uncommitted_size` backpressure counter). See the "Byte-level pagination"
+  section.
 - `TestRawNodeConsumeReady` — DONE. `ready_without_accept` leaves the message
   buffer; `ready` drains it; `advance` does not drop a message enqueued after.
 - `BenchmarkStatus`, `BenchmarkRawNode` — **N/A** (benchmarks).
@@ -408,16 +417,16 @@ goroutine-free equivalent, so protocol-level tests map directly. Ported in
 - `TestNodeProposeAddLearnerNode` — **N/A**: learners
   (`ConfChangeAddLearnerNode`, `ConfState.Learners`) — confchange/membership
   boundary.
-- `TestAppendPagination` — **N/A**: `MaxSizePerMsg` append pagination measured
-  through the `rafttest` network harness `msgHook`. Our `entries_after_limited`
-  implements the per-message cap, but the end-to-end network-partition byte-budget
-  assertion needs the rafttest harness (separate porting target).
-- `TestCommitPagination` — **N/A**: `MaxCommittedSizePerReady` byte pagination;
-  not modeled (we apply by index, not byte budget).
+- `TestAppendPagination` — **DONE** (the byte-budget assertion is driven at the
+  `send_to` seam rather than the rafttest network harness). See the "Byte-level
+  pagination" section.
+- `TestCommitPagination` — **DONE** (RawNode now applies to a per-Ready byte
+  budget). See the "Byte-level pagination" section.
 - `TestCommitPaginationWithAsyncStorageWrites` — **N/A**: `AsyncStorageWrites`
   (see the async section below).
-- `TestNodeCommitPaginationAfterRestart` — **N/A**: byte-size commit pagination +
-  `ignoreSizeHintMemStorage` (same reason as the rawnode twin).
+- `TestNodeCommitPaginationAfterRestart` — **DONE** via its rawnode twin
+  `TestRawNodeCommitPaginationAfterRestart`. See the "Byte-level pagination"
+  section.
 
 ### asyncStorageWrites — NOT implemented (deliberate), with equivalent coverage
 etcd's `AsyncStorageWrites` replaces `Advance` with `MsgStorageAppend`/
