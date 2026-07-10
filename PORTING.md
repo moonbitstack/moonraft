@@ -338,14 +338,28 @@ Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
   are the distinct methods `campaign`/`tick`/`propose`/`read_index`), so
   rejection is a compile-time guarantee. Test walks all 9 network `Payload`
   variants through `Step`.
-- `TestRawNodeProposeAndConfChange` — DONE for the V1 `AddNode` case (voter set
-  `{1,2}`, command-then-confchange log layout). The 7 joint / `ConfChangeV2` /
-  learner / `LearnersNext` cases are **N/A**: they need `ConfChangeV2`, joint
-  consensus, and `ConfState` (`VotersOutgoing`/`Learners`/`AutoLeave`) that live
-  in `confchange.mbt` / `membership.mbt` — owned by another agent's boundary,
-  and the current confchange is V1 single-server (`+id`/`-id`) only.
-- `TestRawNodeJointAutoLeave` — **N/A**: pure joint auto-leave (ConfChangeV2 +
-  `AutoLeave`), same boundary as above.
+- `TestRawNodeProposeAndConfChange` — DONE (V1 `AddNode` + 6/7 V2 cases). Ported
+  in `confchange_rawnode_wbtest.mbt` over `RawNode::propose_conf_v2` /
+  `conf_state` (new, delegating to the A-path engine), asserting the resulting
+  `ConfState` sets: V2 add-learner settles simple (case 3); explicit joint learner
+  + manual leave (case 4, exp and exp2); implicit joint learner auto-leaves (case
+  5); add-and-demote uses `LearnersNext` implicit/explicit (cases 6–8, exact
+  `{voters 2, outgoing 1, learners 3, learners_next 1}`). **Residual gap**: the
+  V2 simple-single-add case (case 2, `Voters{1,2}` with no outgoing) needs etcd's
+  `Transition=Auto` simple-apply, but this port's `ConfChangeV2` has only
+  `auto_leave` (implicit/explicit joint) and its apply always enters joint for a
+  non-empty batch — a single voter-add cannot be applied simply. Flagged to the
+  coordinator (would need a `Transition`/simple-apply on the A-path engine). Also
+  the `ConfState.auto_leave` flag is transient here (cleared when the leave entry
+  is appended, not when it commits), so the set-fields are asserted exactly and
+  the flag noted rather than compared.
+- `TestRawNodeJointAutoLeave` — DONE (behavioural). An implicit-joint learner add
+  enters C(old,new) and auto-leaves to `{voters 1, learners 2}`. etcd parks the
+  config in the joint state by stepping the leader down and re-electing before the
+  auto-leave fires; this port applies committed conf changes in the core and
+  leaves as soon as the joint quorum allows, so the settled end state is asserted
+  (the enter-joint/auto-leave lifecycle is also covered end to end by
+  `joint_wbtest.mbt`).
 - `TestRawNodeProposeAddDuplicateNode` — DONE (V1). Duplicate `AddNode` still
   appends its entry, so the log holds cc1, cc1, cc2.
 - `TestRawNodeReadIndex` — DONE (both halves): a recorded `ReadState` is
@@ -363,15 +377,12 @@ Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
 - `TestRawNodeRestart` — DONE. Recovered committed prefix emits only
   `committed_entries`, no HardState, `MustSync` false.
 - `TestRawNodeRestartFromSnapshot` — DONE (snapshot at index 2 + one entry).
-- `TestRawNodeStatus` — DONE for leader/role/term; the progress-map and config
-  half is now **unblocked** (A-path): `RaftNode::full_status` (etcd `Status`)
-  exposes a per-follower `ProgressStatus` view (match/next/state/paused/
-  pending_snapshot/is_learner, leader included) via `progress_status` /
-  `progress_of` / `with_progress` (etcd `WithProgress`), and the current
-  configuration as a `ConfState` (voters/outgoing/learners/learners_next/
-  auto_leave). Exercised in `status_ext_wbtest.mbt`; the RawNode-level assertions
-  (`status.Progress[1]`, `tracker.Config`) are portable on top and left to the
-  RawNode workstream.
+- `TestRawNodeStatus` — DONE (both halves). Leader/role/term as before; the
+  progress-map and config half is now ported in `confchange_rawnode_wbtest.mbt`
+  over `RawNode::full_status` / `progress_of`: after a 3-voter election the
+  leader's own `ProgressStatus` is present (match ≥ 1, not a learner), progress is
+  tracked for all three members (etcd's `status.Progress[1]`), and `full_status`
+  reports the three voters as the configuration (etcd's `tracker.Config`).
 - `TestRawNodeCommitPaginationAfterRestart` — **DONE** (now that RawNode carries a
   real per-Ready byte budget). See the "Byte-level pagination" section.
 - `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — **DONE** (A-path added the
@@ -416,9 +427,12 @@ goroutine-free equivalent, so protocol-level tests map directly. Ported in
   `step`-hook injection + `context` timeout cancellation.
 - `TestNodeStop` — **N/A**: goroutine lifecycle and `Stop` idempotency; the empty
   `Status{}` after stop has no analogue.
-- `TestNodeProposeAddLearnerNode` — **N/A**: learners
-  (`ConfChangeAddLearnerNode`, `ConfState.Learners`) — confchange/membership
-  boundary.
+- `TestNodeProposeAddLearnerNode` — **DONE**. Ported in
+  `confchange_rawnode_wbtest.mbt`: proposing an `AddLearnerNode` conf change makes
+  node 2 a learner while the voter set stays `{1}`, and the committed entry
+  decodes back to that learner add. (etcd drives this through the goroutine `Node`
+  loop; the assertion — learner added, voters unchanged — is on the resulting
+  `ConfState`, over the synchronous RawNode.)
 - `TestAppendPagination` — **DONE** (the byte-budget assertion is driven at the
   `send_to` seam rather than the rafttest network harness). See the "Byte-level
   pagination" section.

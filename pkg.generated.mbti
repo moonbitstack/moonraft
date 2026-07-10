@@ -611,12 +611,14 @@ pub struct RawNode {
 pub fn RawNode::advance(Self, Ready) -> Unit
 pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
 pub fn RawNode::campaign(Self) -> Unit
+pub fn RawNode::conf_state(Self) -> ConfState
 pub fn RawNode::has_ready(Self) -> Bool
 pub fn RawNode::new(RaftNode) -> Self
 pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
 pub fn RawNode::node(Self) -> RaftNode
 pub fn RawNode::propose(Self, Bytes) -> Unit
 pub fn RawNode::propose_conf(Self, ConfChange) -> Unit
+pub fn RawNode::propose_conf_v2(Self, ConfChangeV2) -> Unit
 pub fn RawNode::read_index(Self, Bytes) -> Unit
 pub fn RawNode::ready(Self) -> Ready
 pub fn RawNode::ready_without_accept(Self) -> Ready

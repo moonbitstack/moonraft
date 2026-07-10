@@ -178,6 +178,24 @@ pub fn RawNode::propose_conf(self : RawNode, cc : ConfChange) -> Unit {
 }
 
 ///|
+/// Propose a batch (joint) configuration change, appended and replicated like
+/// any entry so every server folds the same change in at the same log position
+/// once it commits (etcd's `ProposeConfChange` with a `ConfChangeV2`).
+pub fn RawNode::propose_conf_v2(self : RawNode, cc : ConfChangeV2) -> Unit {
+  for m in self.raft.propose_conf_v2(cc) {
+    self.msgs.push(m)
+  }
+}
+
+///|
+/// The current membership as a `ConfState` (etcd's `ApplyConfChange` return /
+/// `ConfState()`): the voters, learners, the outgoing half while joint, the
+/// staged-demotion `learners_next`, and whether an auto-leave is pending.
+pub fn RawNode::conf_state(self : RawNode) -> ConfState {
+  self.raft.conf_state()
+}
+
+///|
 /// Feed one received message to the core, buffering the replies it produces.
 pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
   for m in self.raft.step(msg) {
