@@ -89,6 +89,7 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     offset: 0,
     data: b"",
     done: true,
+    conf_state: ConfState::empty(),
   }
   let snap_reply = { term: 1 }
   let payloads : Array[Payload] = [
@@ -140,6 +141,7 @@ test "TestIsResponseMsg" {
     offset: 0,
     data: b"",
     done: true,
+    conf_state: ConfState::empty(),
   }
   let snap_reply = { term: 1 }
   fn resp(p : Payload) -> Bool {

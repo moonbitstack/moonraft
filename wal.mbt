@@ -30,6 +30,7 @@ pub fn Node::save_to(self : Node, wal : &WalStore) -> Unit {
         last_index: self.snapshot_index,
         last_term: self.snapshot_term,
         data: b"",
+        conf_state: ConfState::empty(),
       }),
     )
   }

@@ -207,7 +207,9 @@ pub(all) struct ConfState {
   learners_next : Array[String]
   auto_leave : Bool
 } derive(Eq)
+pub fn ConfState::empty() -> Self
 pub fn ConfState::equivalent(Self, Self) -> Bool
+pub fn ConfState::is_empty(Self) -> Bool
 
 pub(all) struct Entry {
   term : UInt64
@@ -281,6 +283,7 @@ pub(all) struct InstallSnapshotArgs {
   offset : UInt64
   data : Bytes
   done : Bool
+  conf_state : ConfState
 } derive(Eq)
 pub fn InstallSnapshotArgs::whole(UInt64, String, Snapshot) -> Self
 
@@ -367,7 +370,7 @@ pub fn Node::apply_hard_state(Self, HardState) -> Unit
 pub fn Node::become_candidate(Self) -> Unit
 pub fn Node::become_follower(Self, UInt64) -> Unit
 pub fn Node::become_leader(Self) -> Unit
-pub fn Node::compact(Self, UInt64, Bytes) -> Snapshot
+pub fn Node::compact(Self, UInt64, Bytes, conf_state? : ConfState) -> Snapshot
 pub fn Node::current_term(Self) -> UInt64
 pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
 pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
@@ -534,6 +537,7 @@ pub fn RaftNode::become_candidate(Self) -> Unit
 pub fn RaftNode::become_follower(Self, UInt64) -> Unit
 pub fn RaftNode::campaign(Self) -> Array[Message]
 pub fn RaftNode::commit_index(Self) -> UInt64
+pub fn RaftNode::conf_state(Self) -> ConfState
 pub fn RaftNode::election_deadline(Self) -> Int
 pub fn RaftNode::enable_check_quorum(Self) -> Unit
 pub fn RaftNode::enable_read_only_safe(Self) -> Unit
@@ -641,6 +645,7 @@ pub(all) struct Snapshot {
   last_index : UInt64
   last_term : UInt64
   data : Bytes
+  conf_state : ConfState
 } derive(Eq)
 pub fn Snapshot::empty() -> Self
 pub fn Snapshot::is_empty(Self) -> Bool

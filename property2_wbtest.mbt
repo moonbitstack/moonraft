@@ -73,7 +73,12 @@ test "pre-vote is refused to a candidate whose log is behind" {
 ///|
 test "installing an older snapshot never lowers the commit index" {
   let a = Node::new("a")
-  a.install_snapshot({ last_index: 10, last_term: 5, data: b"" })
+  a.install_snapshot({
+    last_index: 10,
+    last_term: 5,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   assert_eq(a.commit_index, 10)
   let _ = a.handle_install_snapshot({
     term: 5,
@@ -83,6 +88,7 @@ test "installing an older snapshot never lowers the commit index" {
     offset: 0,
     data: b"",
     done: true,
+    conf_state: ConfState::empty(),
   })
   assert_eq(a.commit_index, 10)
   assert_eq(a.snapshot_index, 10)

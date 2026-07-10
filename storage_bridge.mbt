@@ -12,6 +12,7 @@ pub fn Node::save_into(self : Node, storage : MemoryStorage) -> Unit {
       last_index: self.snapshot_index,
       last_term: self.snapshot_term,
       data: b"",
+      conf_state: ConfState::empty(),
     }) catch {
       SnapOutOfDate => ()
       _ => ()

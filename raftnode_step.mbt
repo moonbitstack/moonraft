@@ -459,11 +459,18 @@ fn RaftNode::handle_snapshot(
   from : String,
   args : InstallSnapshotArgs,
 ) -> Array[Message] {
+  let before = self.core.snapshot_index
   let reply = self.core.handle_install_snapshot(args)
   if reply.term == args.term {
     self.leader_id = Some(args.leader_id)
     self.election_elapsed = 0
     self.in_pre_campaign = false
+  }
+  // If the snapshot was actually installed (its baseline advanced ours) and it
+  // records a configuration, rebuild the live membership from it (§7) — so a
+  // follower does not silently lose its voter/learner sets on restore.
+  if self.core.snapshot_index > before && !args.conf_state.is_empty() {
+    self.restore_conf_state(args.conf_state)
   }
   [Message::new(self.id, from, SnapshotResp(reply))]
 }

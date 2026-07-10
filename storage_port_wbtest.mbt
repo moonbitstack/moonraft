@@ -207,17 +207,39 @@ test "TestStorageAppend" {
 test "TestStorageApplySnapshot" {
   // normal case: apply snap(index=4, term=4)
   let s0 = MemoryStorage::new()
-  s0.apply_snapshot({ last_index: 4, last_term: 4, data: b"data" })
+  s0.apply_snapshot({
+    last_index: 4,
+    last_term: 4,
+    data: b"data",
+    conf_state: ConfState::empty(),
+  })
   assert_eq(s0.storage_snapshot().last_index, 4)
   // snapshot out of date: apply index=4 then index=3 -> ErrSnapOutOfDate
   let s1 = MemoryStorage::new()
-  s1.apply_snapshot({ last_index: 4, last_term: 4, data: b"data" })
+  s1.apply_snapshot({
+    last_index: 4,
+    last_term: 4,
+    data: b"data",
+    conf_state: ConfState::empty(),
+  })
   assert_raises(
-    () => s1.apply_snapshot({ last_index: 3, last_term: 3, data: b"data" }),
+    () => {
+      s1.apply_snapshot({
+        last_index: 3,
+        last_term: 3,
+        data: b"data",
+        conf_state: ConfState::empty(),
+      })
+    },
     SnapOutOfDate,
   )
   // bootstrap with confState only (index/term 0): allowed
   let s2 = MemoryStorage::new()
-  s2.apply_snapshot({ last_index: 0, last_term: 0, data: b"data" })
+  s2.apply_snapshot({
+    last_index: 0,
+    last_term: 0,
+    data: b"data",
+    conf_state: ConfState::empty(),
+  })
   assert_eq(s2.storage_snapshot().last_index, 0)
 }

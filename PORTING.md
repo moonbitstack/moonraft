@@ -498,11 +498,14 @@ renderer in etcd's datadriven format.
 - **`confchange/restore_test.go`** — DONE: `Changer::restore(ConfState)` runs the
   outgoing→incoming change sequence (etcd's `toConfChangeSingle`/`Restore`);
   ported the joint worked-example and a plain ConfState in `changer_wbtest.mbt`.
-- Follow-up (needs cross-agent coordination, tracked): wiring `ConfState` into
-  the live `Snapshot` so a node rebuilds its voter/learner sets on snapshot
-  restore — `Snapshot` is constructed in B's `raftlog.mbt`/`rawnode.mbt` too, so
-  adding the field is not purely additive in MoonBit. The pure `Restore` logic
-  and the `ConfState` type are done and tested above.
+- **`ConfState` wired into the live `Snapshot`** — DONE. `Snapshot` and
+  `InstallSnapshotArgs` now carry a `conf_state`; a leader stamps its live
+  membership (`RaftNode::conf_state`) into every snapshot it ships, and a follower
+  installing one rebuilds its voter / outgoing / learner sets
+  (`restore_conf_state`, wired into `handle_snapshot`) instead of silently losing
+  them. Tests in `snapshot_confstate_wbtest.mbt` (simple + joint restore + a
+  leader→follower round-trip). Adding the field touched every `Snapshot` literal
+  (source + tests) — a mechanical one-field compile-fix, no logic changed.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

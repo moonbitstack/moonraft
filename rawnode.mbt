@@ -69,6 +69,7 @@ pub fn RawNode::new_sized(
       last_index: node.snapshot_index,
       last_term: node.snapshot_term,
       data: b"",
+      conf_state: ConfState::empty(),
     }) catch {
       _ => ()
     }

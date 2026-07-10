@@ -10,6 +10,7 @@ test "install snapshot rejects a stale leader term" {
     offset: 0,
     data: b"s",
     done: true,
+    conf_state: ConfState::empty(),
   })
   assert_eq(reply.term, 4)
   assert_eq(a.last_log_index(), 0)
@@ -25,6 +26,7 @@ test "install snapshot adopts the baseline and steps down" {
       last_index: 8,
       last_term: 4,
       data: b"image",
+      conf_state: ConfState::empty(),
     }),
   )
   assert_eq(reply.term, 5)
@@ -49,6 +51,7 @@ test "install snapshot keeps a matching suffix" {
     offset: 0,
     data: b"snap",
     done: true,
+    conf_state: ConfState::empty(),
   })
   assert_eq(a.last_log_index(), 3)
   assert_eq(a.term_at(3), 2)
@@ -58,7 +61,12 @@ test "install snapshot keeps a matching suffix" {
 ///|
 test "install snapshot ignores an older snapshot" {
   let a = Node::new("a")
-  a.install_snapshot({ last_index: 10, last_term: 5, data: b"cur" })
+  a.install_snapshot({
+    last_index: 10,
+    last_term: 5,
+    data: b"cur",
+    conf_state: ConfState::empty(),
+  })
   let reply = a.handle_install_snapshot({
     term: 5,
     leader_id: "L",
@@ -67,6 +75,7 @@ test "install snapshot ignores an older snapshot" {
     offset: 0,
     data: b"stale",
     done: true,
+    conf_state: ConfState::empty(),
   })
   assert_eq(reply.term, 5)
   assert_eq(a.last_log_index(), 10)

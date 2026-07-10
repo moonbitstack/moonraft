@@ -22,7 +22,14 @@
 fn snap_leader() -> RaftNode {
   let r = RaftNode::new("1", ["2"], pre_vote=false)
   // Restore a snapshot at index/term 11, then take leadership (no-op at 12).
-  r.node().install_snapshot({ last_index: 11, last_term: 11, data: b"" })
+  r
+  .node()
+  .install_snapshot({
+    last_index: 11,
+    last_term: 11,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   r.node().become_candidate()
   r.become_leader()
   r

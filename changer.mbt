@@ -31,6 +31,28 @@ pub(all) struct ConfState {
 } derive(Eq)
 
 ///|
+/// The empty membership state, carried by a snapshot with no recorded
+/// configuration (a fresh node, or one written before ConfState existed).
+pub fn ConfState::empty() -> ConfState {
+  {
+    voters: [],
+    learners: [],
+    voters_outgoing: [],
+    learners_next: [],
+    auto_leave: false,
+  }
+}
+
+///|
+/// Whether this conf state records no membership at all.
+pub fn ConfState::is_empty(self : ConfState) -> Bool {
+  self.voters.length() == 0 &&
+  self.learners.length() == 0 &&
+  self.voters_outgoing.length() == 0 &&
+  self.learners_next.length() == 0
+}
+
+///|
 fn set_eq(a : Array[String], b : Array[String]) -> Bool {
   let sa = a.copy()
   sa.sort()

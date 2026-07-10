@@ -17,7 +17,12 @@
 
 ///|
 fn mk_snap(index : UInt64, term : UInt64) -> Snapshot {
-  { last_index: index, last_term: term, data: b"" }
+  {
+    last_index: index,
+    last_term: term,
+    data: b"",
+    conf_state: ConfState::empty(),
+  }
 }
 
 ///|

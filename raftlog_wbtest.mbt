@@ -73,6 +73,7 @@ fn check_fcbt(
     last_index: ents[0].index,
     last_term: ents[0].term,
     data: b"",
+    conf_state: ConfState::empty(),
   })
   let l = RaftLog::new(st)
   l.append(ents[1:].to_owned()) |> ignore
@@ -244,7 +245,12 @@ test "TestCompactionSideEffects" {
 /// Build the raftLog used by the apply-pacing tests: snapshot at (1,3), one
 /// stable entry at index 4, three unstable entries, committed to 5, applied 3.
 fn apply_log(max_size : UInt64) -> RaftLog raise {
-  let snap : Snapshot = { last_index: 3, last_term: 1, data: b"" }
+  let snap : Snapshot = {
+    last_index: 3,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  }
   let ents = ents_at(4, [1, 1, 1])
   let storage = MemoryStorage::new()
   storage.apply_snapshot(snap)
@@ -270,7 +276,12 @@ fn check_has_next_committed(
   l.accept_applying(applying, 0, allow_unstable)
   l.applying_ents_paused = paused
   if snap {
-    l.restore({ last_index: 4, last_term: 1, data: b"" })
+    l.restore({
+      last_index: 4,
+      last_term: 1,
+      data: b"",
+      conf_state: ConfState::empty(),
+    })
   }
   assert_eq(l.has_next_committed_ents(allow_unstable), whas_next)
 }
@@ -307,7 +318,12 @@ fn check_next_committed(
   l.accept_applying(applying, 0, allow_unstable)
   l.applying_ents_paused = paused
   if snap {
-    l.restore({ last_index: 4, last_term: 1, data: b"" })
+    l.restore({
+      last_index: 4,
+      last_term: 1,
+      data: b"",
+      conf_state: ConfState::empty(),
+    })
   }
   assert_entries(l.next_committed_ents(allow_unstable), wents)
 }
@@ -464,7 +480,12 @@ fn check_stable_to_snap(
   let snapi = 5UL
   let snapt = 2UL
   let s = MemoryStorage::new()
-  s.apply_snapshot({ last_index: snapi, last_term: snapt, data: b"" })
+  s.apply_snapshot({
+    last_index: snapi,
+    last_term: snapt,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   let l = RaftLog::new(s)
   l.append(new_ents) |> ignore
   l.stable_to({ term: stablet, index: stablei })
@@ -534,7 +555,12 @@ test "TestLogRestore" {
   let index = 1000UL
   let term = 1000UL
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: index, last_term: term, data: b"" })
+  storage.apply_snapshot({
+    last_index: index,
+    last_term: term,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   let l = RaftLog::new(storage)
   assert_eq(l.all_entries().length(), 0)
   assert_eq(l.first_index(), index + 1)
@@ -550,7 +576,12 @@ test "TestIsOutOfBounds" {
   let offset = 100UL
   let num = 100UL
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: offset, last_term: 0, data: b"" })
+  storage.apply_snapshot({
+    last_index: offset,
+    last_term: 0,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   let l = RaftLog::new(storage)
   l.append(ents_range(offset + 1, offset + 1, offset + num + 1)) |> ignore
   let first = offset + 1
@@ -575,7 +606,12 @@ test "TestTerm" {
   let offset = 100UL
   let num = 100UL
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: offset, last_term: 1, data: b"" })
+  storage.apply_snapshot({
+    last_index: offset,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   let l = RaftLog::new(storage)
   l.append(ents_range(offset + 1, 1, num)) |> ignore
   assert_raises(() => l.term(offset - 1) |> ignore, Compacted)
@@ -590,9 +626,19 @@ test "TestTermWithUnstableSnapshot" {
   let storagesnapi = 100UL
   let unstablesnapi = storagesnapi + 5
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: storagesnapi, last_term: 1, data: b"" })
+  storage.apply_snapshot({
+    last_index: storagesnapi,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   let l = RaftLog::new(storage)
-  l.restore({ last_index: unstablesnapi, last_term: 1, data: b"" })
+  l.restore({
+    last_index: unstablesnapi,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   // cannot get term from storage
   assert_raises(() => l.term(storagesnapi) |> ignore, Compacted)
   // cannot get term from the gap between storage ents and unstable snapshot
@@ -617,7 +663,12 @@ test "TestSlice" {
   }
 
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: offset, last_term: 0, data: b"" })
+  storage.apply_snapshot({
+    last_index: offset,
+    last_term: 0,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   storage.append(entries(offset + 1, half))
   let l = RaftLog::new(storage)
   l.append(entries(half, last)) |> ignore
@@ -692,7 +743,12 @@ test "TestScan" {
 
   let entry_size = ents_size(entries(half, half + 1)[:])
   let storage = MemoryStorage::new()
-  storage.apply_snapshot({ last_index: offset, last_term: 0, data: b"" })
+  storage.apply_snapshot({
+    last_index: offset,
+    last_term: 0,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   storage.append(entries(offset + 1, half))
   let l = RaftLog::new(storage)
   l.append(entries(half, last)) |> ignore

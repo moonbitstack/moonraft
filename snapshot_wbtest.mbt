@@ -28,7 +28,12 @@ test "compaction refuses to discard uncommitted entries" {
 test "installing a snapshot replaces the log and advances commit" {
   let a = Node::new("a")
   let _ = a.append(1, b"old")
-  a.install_snapshot({ last_index: 5, last_term: 3, data: b"snap" })
+  a.install_snapshot({
+    last_index: 5,
+    last_term: 3,
+    data: b"snap",
+    conf_state: ConfState::empty(),
+  })
   assert_eq(a.last_log_index(), 5)
   assert_eq(a.last_log_term(), 3)
   assert_eq(a.commit_index, 5)

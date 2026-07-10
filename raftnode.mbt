@@ -440,6 +440,8 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
       last_index: self.core.snapshot_index,
       last_term: self.core.snapshot_term,
       data: b"",
+      // Stamp the current membership so the follower rebuilds it on install.
+      conf_state: self.conf_state(),
     }
     return Message::new(
       self.id,
@@ -663,6 +665,45 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
       ConfChangeV2::leave_joint().encode(),
     )
   }
+}
+
+///|
+/// The current membership as a `ConfState`, to stamp into a snapshot so a
+/// follower restoring from it rebuilds the same voter/learner sets (§7).
+pub fn RaftNode::conf_state(self : RaftNode) -> ConfState {
+  {
+    voters: self.config.members.copy(),
+    learners: self.config.learners.copy(),
+    voters_outgoing: if self.config.joint {
+      self.config.outgoing.copy()
+    } else {
+      []
+    },
+    learners_next: [],
+    auto_leave: false,
+  }
+}
+
+///|
+/// Rebuild the live configuration from a snapshot's `ConfState` — the voters,
+/// the outgoing half (so the cluster resumes mid-joint if the snapshot was taken
+/// then), and the learners — then reconcile peers/progress. This is what stops a
+/// snapshot restore from silently losing the membership.
+fn RaftNode::restore_conf_state(self : RaftNode, cs : ConfState) -> Unit {
+  self.config.members.clear()
+  for v in cs.voters {
+    self.config.members.push(v)
+  }
+  self.config.outgoing.clear()
+  for v in cs.voters_outgoing {
+    self.config.outgoing.push(v)
+  }
+  self.config.joint = cs.voters_outgoing.length() > 0
+  self.config.learners.clear()
+  for l in cs.learners {
+    self.config.learners.push(l)
+  }
+  self.reconcile_peers()
 }
 
 ///|

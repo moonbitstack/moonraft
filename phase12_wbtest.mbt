@@ -76,6 +76,7 @@ test "message term and kind cover snapshot and timeout-now" {
       offset: 0,
       data: b"",
       done: true,
+      conf_state: ConfState::empty(),
     }),
   )
   assert_eq(snap.term(), 4)

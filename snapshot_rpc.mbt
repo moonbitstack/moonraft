@@ -12,6 +12,9 @@ pub(all) struct InstallSnapshotArgs {
   offset : UInt64
   data : Bytes
   done : Bool
+  // The membership recorded in the snapshot, so the follower rebuilds its
+  // voter/learner sets on install (§7). Empty when none was recorded.
+  conf_state : ConfState
 } derive(Eq)
 
 ///|
@@ -30,6 +33,7 @@ pub fn InstallSnapshotArgs::whole(
     offset: 0,
     data: snapshot.data,
     done: true,
+    conf_state: snapshot.conf_state,
   }
 }
 

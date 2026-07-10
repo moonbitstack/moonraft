@@ -86,7 +86,12 @@ test "TestRawNodeStep every network payload routes through Step" {
     conflict_index: 0,
     conflict_term: 0,
   }
-  let snap : Snapshot = { last_index: 1, last_term: 1, data: b"" }
+  let snap : Snapshot = {
+    last_index: 1,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  }
   let sargs = InstallSnapshotArgs::whole(1, "2", snap)
   let sreply : InstallSnapshotReply = { term: 1 }
   let payloads : Array[Payload] = [
@@ -287,7 +292,12 @@ test "TestRawNodeRestart" {
 test "TestRawNodeRestartFromSnapshot" {
   let rn = RaftNode::new("1", [])
   let node = rn.node()
-  node.install_snapshot({ last_index: 2, last_term: 1, data: b"" })
+  node.install_snapshot({
+    last_index: 2,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   node.append(1, b"foo") |> ignore
   node.apply_hard_state({ term: 1, vote: None, commit: 3 })
   let raw = rn.raw()

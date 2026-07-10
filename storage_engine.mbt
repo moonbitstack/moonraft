@@ -310,7 +310,12 @@ pub fn MemoryStorage::create_snapshot(
   }
   let off = self.offset()
   let term = self.ents[(index - off).to_int()].term
-  let snap : Snapshot = { last_index: index, last_term: term, data }
+  let snap : Snapshot = {
+    last_index: index,
+    last_term: term,
+    data,
+    conf_state: ConfState::empty(),
+  }
   self.snap = snap
   snap
 }

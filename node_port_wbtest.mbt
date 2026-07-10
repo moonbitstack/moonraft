@@ -224,7 +224,12 @@ test "TestNodeRestart" {
 test "TestNodeRestartFromSnapshot" {
   let rn = RaftNode::new("1", [])
   let node = rn.node()
-  node.install_snapshot({ last_index: 2, last_term: 1, data: b"" })
+  node.install_snapshot({
+    last_index: 2,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
   node.append(1, b"foo") |> ignore
   node.apply_hard_state({ term: 1, vote: None, commit: 3 })
   let raw = rn.raw()

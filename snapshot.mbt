@@ -6,12 +6,16 @@ pub(all) struct Snapshot {
   last_index : UInt64
   last_term : UInt64
   data : Bytes
+  // The membership as of the snapshot (etcd's SnapshotMetadata.ConfState), so a
+  // node restoring from it rebuilds its voter/learner sets rather than losing
+  // them. Empty for a snapshot written without a recorded configuration.
+  conf_state : ConfState
 } derive(Eq)
 
 ///|
 /// The empty snapshot: no state captured, baseline at index 0.
 pub fn Snapshot::empty() -> Snapshot {
-  { last_index: 0, last_term: 0, data: b"" }
+  { last_index: 0, last_term: 0, data: b"", conf_state: ConfState::empty() }
 }
 
 ///|
@@ -26,12 +30,18 @@ pub fn Snapshot::is_empty(self : Snapshot) -> Bool {
 /// index's term as the new snapshot baseline. `data` is the serialized state
 /// machine those entries produced. Only committed entries past the current
 /// baseline may be compacted; otherwise the log is left untouched.
-pub fn Node::compact(self : Node, upto : UInt64, data : Bytes) -> Snapshot {
+pub fn Node::compact(
+  self : Node,
+  upto : UInt64,
+  data : Bytes,
+  conf_state? : ConfState = ConfState::empty(),
+) -> Snapshot {
   if upto <= self.snapshot_index || upto > self.commit_index {
     return {
       last_index: self.snapshot_index,
       last_term: self.snapshot_term,
       data,
+      conf_state,
     }
   }
   let term = self.term_at(upto)
@@ -47,7 +57,7 @@ pub fn Node::compact(self : Node, upto : UInt64, data : Bytes) -> Snapshot {
   }
   self.snapshot_index = upto
   self.snapshot_term = term
-  { last_index: upto, last_term: term, data }
+  { last_index: upto, last_term: term, data, conf_state }
 }
 
 ///|
