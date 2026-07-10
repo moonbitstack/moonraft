@@ -131,6 +131,7 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
       // never linger and block proposals should we lead again.
       self.lead_transferee = None
       self.pending_conf_index = 0
+      self.uncommitted_size = 0
       self.leader_id = match msg.payload {
         Append(a) => Some(a.leader_id)
         Heartbeat(a) => Some(a.leader_id)
