@@ -80,6 +80,13 @@ pub fn RaftLog::new_with_size(
 }
 
 ///|
+/// A one-line description of the log's cursors for debugging (etcd's
+/// `raftLog.String()`).
+pub fn RaftLog::to_string(self : RaftLog) -> String {
+  "committed=\{self.committed}, applied=\{self.applied}, applying=\{self.applying}, unstable.offset=\{self.unstable.offset}, unstable.offsetInProgress=\{self.unstable.offset_in_progress}, len(unstable.Entries)=\{self.unstable.entries.length()}"
+}
+
+///|
 /// The underlying unstable tail, for drivers that persist and stabilize it.
 pub fn RaftLog::unstable_view(self : RaftLog) -> Unstable {
   self.unstable

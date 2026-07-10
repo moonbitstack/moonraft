@@ -367,10 +367,10 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     None => ()
   }
   // Mark the reported entries and committed entries as being written / applied,
-  // so the next Ready does not re-offer them.
-  if rd.entries.length() > 0 {
-    self.log.accept_unstable()
-  }
+  // so the next Ready does not re-offer them. `accept_unstable` is called
+  // unconditionally, as in etcd's `acceptReady` (a no-op when the unstable tail is
+  // empty or already in progress).
+  self.log.accept_unstable()
   let c = rd.committed_entries.length()
   if c > 0 {
     self.log.accept_applying(

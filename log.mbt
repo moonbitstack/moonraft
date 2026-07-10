@@ -218,6 +218,71 @@ pub fn describe_entry(e : Entry, format : ((Bytes) -> String)?) -> String {
 }
 
 ///|
+/// Each entry described, one per line (etcd's `DescribeEntries`).
+pub fn describe_entries(
+  entries : ArrayView[Entry],
+  format : ((Bytes) -> String)?,
+) -> String {
+  let buf = StringBuilder::new()
+  for e in entries {
+    buf.write_string(describe_entry(e, format))
+    buf.write_char('\n')
+  }
+  buf.to_string()
+}
+
+///|
+/// Render a set of ids the way Go's `%v` renders a slice: `[a b c]`.
+fn describe_ids(ids : ArrayView[String]) -> String {
+  let buf = StringBuilder::new()
+  buf.write_char('[')
+  let mut first = true
+  for id in ids {
+    if !first {
+      buf.write_char(' ')
+    }
+    buf.write_string(id)
+    first = false
+  }
+  buf.write_char(']')
+  buf.to_string()
+}
+
+///|
+/// A concise description of a HardState for debugging (etcd's
+/// `DescribeHardState`): `Term:N [Vote:v ]Commit:N`, the vote shown only when a
+/// vote was cast.
+pub fn describe_hard_state(hs : HardState) -> String {
+  let vote = match hs.vote {
+    Some(v) => " Vote:\{v}"
+    None => ""
+  }
+  "Term:\{hs.term}\{vote} Commit:\{hs.commit}"
+}
+
+///|
+/// A concise description of a ConfState (etcd's `DescribeConfState`).
+pub fn describe_conf_state(cs : ConfState) -> String {
+  "Voters:\{describe_ids(cs.voters[:])} VotersOutgoing:\{describe_ids(cs.voters_outgoing[:])} Learners:\{describe_ids(cs.learners[:])} LearnersNext:\{describe_ids(cs.learners_next[:])} AutoLeave:\{cs.auto_leave}"
+}
+
+///|
+/// A concise description of a Snapshot (etcd's `DescribeSnapshot`).
+pub fn describe_snapshot(snap : Snapshot) -> String {
+  "Index:\{snap.last_index} Term:\{snap.last_term} ConfState:\{describe_conf_state(snap.conf_state)}"
+}
+
+///|
+/// The total payload size of a run of entries (etcd's `payloadsSize`).
+pub fn payloads_size(entries : ArrayView[Entry]) -> UInt64 {
+  let mut s : UInt64 = 0
+  for e in entries {
+    s = s + payload_size(e)
+  }
+  s
+}
+
+///|
 /// Whether this node's log is at least as up-to-date as the log ending at `id`
 /// (Raft §5.4.1): a higher last term wins, ties break on the longer log.
 pub fn Node::is_up_to_date(self : Node, id : EntryId) -> Bool {
