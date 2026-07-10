@@ -540,16 +540,12 @@ pub fn RaftNode::report_snapshot(
   reject : Bool,
 ) -> Unit {
   guard self.core.role() == Leader else { return }
-  match self.progress.get(id) {
-    None => ()
-    Some(p) =>
-      if p.state == Snapshot {
-        if reject {
-          p.pending_snapshot = 0
-        }
-        p.become_probe()
-        p.msg_app_flow_paused = true
-      }
+  if self.progress.get(id) is Some(p) && p.state == Snapshot {
+    if reject {
+      p.pending_snapshot = 0
+    }
+    p.become_probe()
+    p.msg_app_flow_paused = true
   }
 }
 
@@ -559,9 +555,8 @@ pub fn RaftNode::report_snapshot(
 /// into messages that are being lost.
 pub fn RaftNode::report_unreachable(self : RaftNode, id : String) -> Unit {
   guard self.core.role() == Leader else { return }
-  match self.progress.get(id) {
-    None => ()
-    Some(p) => if p.state == Replicate { p.become_probe() }
+  if self.progress.get(id) is Some(p) && p.state == Replicate {
+    p.become_probe()
   }
 }
 

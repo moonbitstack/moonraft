@@ -419,13 +419,11 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
 /// baseline, drop the served read states, and clear the drained message buffer.
 /// The stable/applied watermarks move in `advance`, not here.
 fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
-  match rd.soft_state {
-    Some(s) => self.prev_soft = s
-    None => ()
+  if rd.soft_state is Some(s) {
+    self.prev_soft = s
   }
-  match rd.hard_state {
-    Some(h) => self.prev_hard = h
-    None => ()
+  if rd.hard_state is Some(h) {
+    self.prev_hard = h
   }
   // Mark the reported entries and committed entries as being written / applied,
   // so the next Ready does not re-offer them. `accept_unstable` is called

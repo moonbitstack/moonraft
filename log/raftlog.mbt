@@ -428,10 +428,7 @@ pub fn RaftLog::has_next_or_in_progress_unstable_ents(self : RaftLog) -> Bool {
 
 ///|
 fn RaftLog::has_next_or_in_progress_snapshot(self : RaftLog) -> Bool {
-  match self.unstable.snapshot {
-    Some(_) => true
-    None => false
-  }
+  self.unstable.snapshot is Some(_)
 }
 
 ///|
@@ -443,10 +440,7 @@ pub fn RaftLog::next_unstable_snapshot(self : RaftLog) -> Snapshot? {
 ///|
 /// Whether an unstable snapshot is ready to be applied.
 pub fn RaftLog::has_next_unstable_snapshot(self : RaftLog) -> Bool {
-  match self.unstable.next_snapshot() {
-    Some(_) => true
-    None => false
-  }
+  self.unstable.next_snapshot() is Some(_)
 }
 
 ///|
