@@ -59,6 +59,30 @@ fn assert_raises(
 }
 
 ///|
+test "TestInitialState: HardState and the snapshot ConfState both round-trip" {
+  // etcd's `InitialState()` returns `(HardState, ConfState-from-snapshot)`. This
+  // port splits that into two accessors — `initial_state()` for the HardState and
+  // `storage_snapshot().conf_state` for the ConfState — but neither half is lost:
+  // both are retained in storage and read back exactly. (Membership is rebuilt
+  // from that ConfState on the snapshot-restore path, owned by the core.)
+  let s = MemoryStorage::new()
+  let cs : ConfState = {
+    voters: ["1", "2", "3"],
+    learners: ["4"],
+    voters_outgoing: [],
+    learners_next: [],
+    auto_leave: false,
+  }
+  s.apply_snapshot({ last_index: 3, last_term: 5, data: b"", conf_state: cs })
+  s.set_hard_state({ term: 5, vote: Some("2"), commit: 3 })
+  let hs = s.initial_state()
+  assert_eq(hs.term, 5)
+  assert_true(hs.vote == Some("2"))
+  assert_eq(hs.commit, 3)
+  assert_true(s.storage_snapshot().conf_state == cs)
+}
+
+///|
 test "TestStorageTerm" {
   let ents = ents_at(3, [3, 4, 5])
   // {2, ErrCompacted, 0}
