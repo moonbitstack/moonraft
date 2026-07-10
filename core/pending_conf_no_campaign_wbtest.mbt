@@ -119,6 +119,22 @@ test "D-transfer-force: TimeoutNow campaign emits forced votes" {
 }
 
 ///|
+/// A follower answers an InstallSnapshot with an `AppendResp` (etcd's
+/// `handleSnapshot` replies `MsgAppResp`). Assert that shape and return the
+/// carried index, so the callers below can check where the follower reports it
+/// now stands.
+fn snap_reply_index(out : Array[Message]) -> UInt64 raise {
+  assert_eq(out.length(), 1)
+  match out[0].payload {
+    AppendResp(reply) => {
+      assert_true(reply.success)
+      reply.match_index
+    }
+    _ => abort("a follower answers InstallSnapshot with an AppendResp")
+  }
+}
+
+///|
 /// DIVERGENT fix (D-restore-notinconf): etcd's `restore` refuses a snapshot
 /// whose ConfState does not list the recipient (defense-in-depth, raft.go:1901).
 /// Red: a snapshot excluding this node must not be installed.
@@ -137,11 +153,12 @@ test "D-restore-notinconf: snapshot excluding self is ignored" {
     data: b"",
     conf_state: cs,
   }
-  r.step(
+  let out = r.step(
     Message::new("1", "2", Snapshot(InstallSnapshotArgs::whole(1, "1", snap))),
   )
-  |> ignore
   assert_eq(r.node().snapshot_index, 0)
+  // The refusal answers like a failed restore: an AppendResp at the commit index.
+  assert_eq(snap_reply_index(out), r.node().commit_index)
 }
 
 ///|
@@ -162,9 +179,23 @@ test "D-restore-notinconf: snapshot including self installs" {
     data: b"",
     conf_state: cs,
   }
-  r.step(
+  let out = r.step(
     Message::new("1", "2", Snapshot(InstallSnapshotArgs::whole(1, "1", snap))),
   )
-  |> ignore
   assert_eq(r.node().snapshot_index, 5)
+  // The snapshot took: the follower answers at its new last index.
+  assert_eq(snap_reply_index(out), r.node().last_log_index())
+  // A later snapshot whose baseline is no newer leaves the log untouched and
+  // answers at the commit index — the failed-restore branch of the same reply.
+  let stale : Snapshot = {
+    last_index: 3,
+    last_term: 1,
+    data: b"",
+    conf_state: ConfState::empty(),
+  }
+  let out2 = r.step(
+    Message::new("1", "2", Snapshot(InstallSnapshotArgs::whole(1, "1", stale))),
+  )
+  assert_eq(r.node().snapshot_index, 5)
+  assert_eq(snap_reply_index(out2), r.node().commit_index)
 }

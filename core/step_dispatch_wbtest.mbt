@@ -37,10 +37,6 @@ test "cov: responses from an untracked node are ignored (pr == nil)" {
     0,
   )
   assert_eq(r.step(ack_from("9", 1, t)).length(), 0)
-  assert_eq(
-    r.step(Message::new("9", "1", SnapshotResp({ term: t }))).length(),
-    0,
-  )
   r.report_snapshot("9", false)
   r.report_unreachable("9")
   assert_true(r.is_leader())

@@ -17,10 +17,6 @@
 ///|
 /// Message::kind produces a stable tag for every payload variant.
 test "cov: message kind tags for the remaining payloads" {
-  assert_eq(
-    Message::new("a", "b", SnapshotResp({ term: 1 })).kind(),
-    "SnapshotResp",
-  )
   assert_eq(Message::new("a", "b", Propose([])).kind(), "Propose")
   assert_eq(Message::new("a", "b", ForgetLeader).kind(), "ForgetLeader")
 }

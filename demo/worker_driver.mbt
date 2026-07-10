@@ -347,7 +347,7 @@ fn enc_msg(m : Message) -> Array[Int] {
       out.push(to)
       out.push(u2i(t))
     }
-    Snapshot(_) | SnapshotResp(_) => ()
+    Snapshot(_) => ()
     // This demo drives a fixed leader and never forwards proposals, requests a
     // read index, transfers leadership, or forgets a leader, so these routable
     // payloads never reach the wire here.

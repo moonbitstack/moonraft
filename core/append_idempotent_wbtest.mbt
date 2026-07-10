@@ -82,7 +82,19 @@ test "message term and kind cover snapshot and timeout-now" {
   assert_eq(snap.term(), 4)
   assert_eq(snap.kind(), "Snapshot")
   assert_false(snap.is_response())
-  let sr = Message::new("f", "L", SnapshotResp({ term: 4 }))
+  // A follower answers an InstallSnapshot with an AppendResp, so the snapshot
+  // reply is classified as a response through that payload.
+  let sr = Message::new(
+    "f",
+    "L",
+    AppendResp({
+      term: 4,
+      success: true,
+      match_index: 9,
+      conflict_index: 0,
+      conflict_term: 0,
+    }),
+  )
   assert_true(sr.is_response())
   let tn = Message::new("L", "f", TimeoutNow(4))
   assert_eq(tn.term(), 4)

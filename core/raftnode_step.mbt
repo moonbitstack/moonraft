@@ -105,7 +105,6 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     | PreVoteResp(_)
     | AppendResp(_)
     | HeartbeatResp(_)
-    | SnapshotResp(_)
     | ReadIndexResp(_)
     | TimeoutNow(_) => []
     PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) =>
@@ -157,7 +156,6 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     Heartbeat(args) => self.handle_heartbeat(msg.from, args)
     HeartbeatResp(reply) => self.handle_heartbeat_resp(msg.from, reply)
     Snapshot(args) => self.handle_snapshot(msg.from, args)
-    SnapshotResp(reply) => self.handle_snapshot_resp(msg.from, reply)
     TimeoutNow(term) => self.handle_timeout_now(term)
     ReadIndexResp(reply) => self.handle_read_index_resp(reply)
     // Local, routable messages are handled term-free in `step` and never reach
@@ -686,15 +684,11 @@ fn RaftNode::handle_snapshot(
   // recorded configuration does not list us at all — installing it would drop us
   // from every membership set and leave the progress tracker assuming we are
   // present. This should never happen for a correct leader, so it is only a
-  // guard: the term/leader were already adopted in `step` before dispatch.
+  // guard: the term/leader were already adopted in `step` before dispatch. A
+  // refusal answers like any failed restore — an `AppendResp` at our commit
+  // index (etcd's `handleSnapshot` false branch, raft.go:1852).
   if !args.conf_state.is_empty() && not_in_conf_state(args.conf_state, self.id) {
-    return [
-      Message::new(
-        self.id,
-        from,
-        SnapshotResp({ term: self.core.current_term() }),
-      ),
-    ]
+    return [self.snapshot_ack(from, self.core.commit_index)]
   }
   let before = self.core.snapshot_index
   let reply = self.core.handle_install_snapshot(args)
@@ -706,36 +700,42 @@ fn RaftNode::handle_snapshot(
   // If the snapshot was actually installed (its baseline advanced ours) and it
   // records a configuration, rebuild the live membership from it (§7) — so a
   // follower does not silently lose its voter/learner sets on restore.
-  if self.core.snapshot_index > before && !args.conf_state.is_empty() {
+  let installed = self.core.snapshot_index > before
+  if installed && !args.conf_state.is_empty() {
     self.restore_conf_state(args.conf_state)
   }
-  [Message::new(self.id, from, SnapshotResp(reply))]
+  // Answer with an `AppendResp`, as etcd's `handleSnapshot` answers `MsgSnap`
+  // with `MsgAppResp` (raft.go:1848/1852): the follower's last index once the
+  // snapshot took, or its commit index when the snapshot was stale and left the
+  // log untouched. The leader's ordinary append-response handler then folds this
+  // into the follower's progress, aborting the pending snapshot on success.
+  let index = if installed {
+    self.core.last_log_index()
+  } else {
+    self.core.commit_index
+  }
+  [self.snapshot_ack(from, index)]
 }
 
 ///|
-fn RaftNode::handle_snapshot_resp(
+/// The follower's answer to an InstallSnapshot: a non-rejecting `AppendResp` at
+/// `index`, the shape etcd gives `handleSnapshot`'s `MsgAppResp` reply. Carrying
+/// the real index (rather than a bare term) lets the leader learn where the
+/// follower now stands and resume replication through the shared append path.
+fn RaftNode::snapshot_ack(
   self : RaftNode,
   from : String,
-  reply : InstallSnapshotReply,
-) -> Array[Message] {
-  if self.core.role() != Leader {
-    return []
-  }
-  // As in handle_append_resp: `step` has already stepped a leader down on a
-  // higher term before dispatch, so no higher-term guard is needed here.
-  let _ = reply
-  match self.progress.get(from) {
-    None => []
-    Some(p) => {
-      let _ = p.maybe_update(self.core.snapshot_index)
-      p.become_probe()
-      p.mark_active()
-      // Marked active above, so `send_to` yields the next probe.
-      let out : Array[Message] = []
-      if self.send_to(from) is Some(m) {
-        out.push(m)
-      }
-      out
-    }
-  }
+  index : UInt64,
+) -> Message {
+  Message::new(
+    self.id,
+    from,
+    AppendResp({
+      term: self.core.current_term(),
+      success: true,
+      match_index: index,
+      conflict_index: 0,
+      conflict_term: 0,
+    }),
+  )
 }
