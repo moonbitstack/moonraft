@@ -25,3 +25,6 @@ using @raftpb {
   type HardState,
   type ConfState,
 }
+
+///|
+using @confchange {type Membership, type ConfChange, type ConfChangeV2}

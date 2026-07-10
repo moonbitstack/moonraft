@@ -15,7 +15,7 @@
 
 ///|
 /// The kind of a single-server configuration change (Raft §6, §4.2.1).
-pub enum ConfChangeType {
+pub(all) enum ConfChangeType {
   AddNode
   RemoveNode
   AddLearnerNode
@@ -115,7 +115,7 @@ fn ConfChange::tag(self : ConfChange) -> String {
 /// (at most one voter changed) and otherwise enters an auto-leaving joint;
 /// `JointImplicit` always enters joint and auto-leaves; `JointExplicit` always
 /// enters joint and waits for an explicit leave.
-pub enum ConfChangeTransition {
+pub(all) enum ConfChangeTransition {
   Auto
   JointImplicit
   JointExplicit
@@ -268,59 +268,4 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
   }
   flush()
   Some({ changes, transition })
-}
-
-///|
-/// Append a configuration change to the leader's log as a `ConfChange` entry
-/// under `term`, returning the stored entry. The change takes effect on the
-/// cluster only once the entry is committed and applied.
-pub fn Node::propose_conf_change(
-  self : Node,
-  term : UInt64,
-  change : ConfChange,
-) -> Entry {
-  self.append_conf(term, change.encode())
-}
-
-///|
-/// A configuration driver: it walks a node's committed log and folds every
-/// committed `ConfChange` entry into a `Membership`, tracking how far it has
-/// applied so it never applies a change twice. This is the "configuration
-/// state machine" that runs beside the application state machine.
-pub struct ConfDriver {
-  config : Membership
-  mut applied : UInt64
-}
-
-///|
-/// Create a configuration driver starting from an initial voter set.
-pub fn ConfDriver::new(members : Array[String]) -> ConfDriver {
-  { config: Membership::new(members), applied: 0 }
-}
-
-///|
-/// The configuration this driver has folded up to.
-pub fn ConfDriver::config(self : ConfDriver) -> Membership {
-  self.config
-}
-
-///|
-/// Fold every committed-but-unapplied `ConfChange` entry of `node` into the
-/// configuration, in log order, advancing the applied marker. Normal entries
-/// are skipped. Returns how many changes were applied in this pass.
-pub fn ConfDriver::drive(self : ConfDriver, node : Node) -> Int {
-  let mut applied = 0
-  while self.applied < node.commit_index {
-    let next = self.applied + 1
-    if node.entry_at(next) is Some(entry) {
-      if entry.is_conf_change() {
-        if ConfChange::decode(entry.command) is Some(cc) {
-          cc.apply_to(self.config)
-          applied = applied + 1
-        }
-      }
-    }
-    self.applied = next
-  }
-  applied
 }

@@ -2,7 +2,7 @@
 package "Lfan-ke/raft-moonbit"
 
 import {
-  "Lfan-ke/raft-moonbit/quorum",
+  "Lfan-ke/raft-moonbit/confchange",
   "Lfan-ke/raft-moonbit/raftpb",
   "Lfan-ke/raft-moonbit/tracker",
 }
@@ -80,30 +80,6 @@ pub suberror StorageError {
 } derive(Eq)
 
 // Types and methods
-pub struct Changer {
-  mut cfg : ChangerConfig
-  mut prs : Map[String, @tracker.Progress]
-  mut last_index : UInt64
-  max_inflight : Int
-  max_inflight_bytes : UInt64
-}
-pub fn Changer::advance_index(Self) -> Unit
-pub fn Changer::conf_state(Self) -> @raftpb.ConfState
-pub fn Changer::describe(Self) -> String
-pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
-pub fn Changer::leave_joint(Self) -> String?
-pub fn Changer::new(last_index? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
-pub fn Changer::restore(Self, @raftpb.ConfState) -> String?
-pub fn Changer::simple(Self, Array[(String, String)]) -> String?
-
-pub struct ChangerConfig {
-  incoming : Array[String]
-  outgoing : Array[String]
-  learners : Array[String]
-  learners_next : Array[String]
-  mut auto_leave : Bool
-}
-
 pub struct Cluster {
   nodes : Map[String, RaftNode]
   ids : Array[String]
@@ -133,7 +109,7 @@ pub fn Cluster::node(Self, String) -> RaftNode
 pub fn Cluster::one_leader_per_term(Self) -> Bool
 pub fn Cluster::partition(Self, Array[String], Array[String]) -> Unit
 pub fn Cluster::propose(Self, Bytes) -> Bool
-pub fn Cluster::propose_conf(Self, ConfChange) -> Bool
+pub fn Cluster::propose_conf(Self, @confchange.ConfChange) -> Bool
 pub fn Cluster::propose_on(Self, String, Bytes) -> Bool
 pub fn Cluster::restart(Self, String) -> Unit
 pub fn Cluster::run(Self, Int) -> Unit
@@ -145,47 +121,11 @@ pub fn Cluster::set_drop(Self, Int) -> Unit
 pub fn Cluster::tick(Self) -> Unit
 pub fn Cluster::transfer_leadership(Self, String) -> Bool
 
-pub(all) struct ConfChange {
-  change_type : ConfChangeType
-  node_id : String
-} derive(Eq)
-pub fn ConfChange::add(String) -> Self
-pub fn ConfChange::add_learner(String) -> Self
-pub fn ConfChange::apply_to(Self, Membership) -> Unit
-pub fn ConfChange::decode(Bytes) -> Self?
-pub fn ConfChange::encode(Self) -> Bytes
-pub fn ConfChange::remove(String) -> Self
-
-pub enum ConfChangeTransition {
-  Auto
-  JointImplicit
-  JointExplicit
-} derive(Eq)
-
-pub enum ConfChangeType {
-  AddNode
-  RemoveNode
-  AddLearnerNode
-} derive(Eq)
-
-pub(all) struct ConfChangeV2 {
-  changes : Array[ConfChange]
-  transition : ConfChangeTransition
-} derive(Eq)
-pub fn ConfChangeV2::auto(Array[ConfChange]) -> Self
-pub fn ConfChangeV2::auto_leave(Self) -> Bool
-pub fn ConfChangeV2::decode(Bytes) -> Self?
-pub fn ConfChangeV2::encode(Self) -> Bytes
-pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
-pub fn ConfChangeV2::enters_joint(Self) -> (Bool, Bool)
-pub fn ConfChangeV2::is_leave(Self) -> Bool
-pub fn ConfChangeV2::leave_joint() -> Self
-
 pub struct ConfDriver {
-  config : Membership
+  config : @confchange.Membership
   mut applied : UInt64
 }
-pub fn ConfDriver::config(Self) -> Membership
+pub fn ConfDriver::config(Self) -> @confchange.Membership
 pub fn ConfDriver::drive(Self, Node) -> Int
 pub fn ConfDriver::new(Array[String]) -> Self
 
@@ -251,32 +191,6 @@ pub fn LogSlice::last_entry_id(Self) -> @raftpb.EntryId
 pub fn LogSlice::last_index(Self) -> UInt64
 pub fn LogSlice::valid(Self) -> Bool
 
-pub(all) struct Membership {
-  members : Array[String]
-  outgoing : Array[String]
-  mut joint : Bool
-  learners : Array[String]
-  learners_next : Array[String]
-  mut auto_leave : Bool
-}
-pub fn Membership::add(Self, String) -> Unit
-pub fn Membership::add_learner(Self, String) -> Unit
-pub fn Membership::begin_joint(Self, Array[String]) -> Unit
-pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
-pub fn Membership::contains(Self, String) -> Bool
-pub fn Membership::enter_joint(Self, Array[String]) -> Unit
-pub fn Membership::has_majority(Self, Array[String]) -> Bool
-pub fn Membership::is_joint(Self) -> Bool
-pub fn Membership::is_learner(Self, String) -> Bool
-pub fn Membership::leave_joint(Self) -> Unit
-pub fn Membership::new(Array[String]) -> Self
-pub fn Membership::nodes(Self) -> Array[String]
-pub fn Membership::quorum(Self) -> Int
-pub fn Membership::remove(Self, String) -> Unit
-pub fn Membership::size(Self) -> Int
-pub fn Membership::vote_result(Self, Map[String, Bool]) -> @quorum.VoteState
-pub fn Membership::voters(Self) -> Array[String]
-
 pub struct MemoryStorage {
   mut hard : @raftpb.HardState
   mut snap : @raftpb.Snapshot
@@ -333,7 +247,7 @@ pub fn Node::log_len(Self) -> Int
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
 pub fn Node::persisted(Self) -> Persisted
-pub fn Node::propose_conf_change(Self, UInt64, ConfChange) -> @raftpb.Entry
+pub fn Node::propose_conf_change(Self, UInt64, @confchange.ConfChange) -> @raftpb.Entry
 pub fn Node::recover(Self, Persisted) -> Unit
 pub fn Node::recover_from(Self, &WalStore) -> Unit
 pub fn Node::replay(Self, Array[WalRecord]) -> Unit
@@ -419,7 +333,7 @@ pub struct RaftNode {
   core : Node
   id : String
   peers : Array[String]
-  config : Membership
+  config : @confchange.Membership
   progress : Map[String, @tracker.Progress]
   votes : Map[String, Bool]
   pre_vote : Bool
@@ -473,8 +387,8 @@ pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
 pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]
 pub fn RaftNode::promotable(Self) -> Bool
 pub fn RaftNode::propose(Self, Bytes) -> Array[@raftpb.Message]
-pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[@raftpb.Message]
-pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[@raftpb.Message]
+pub fn RaftNode::propose_conf(Self, @confchange.ConfChange) -> Array[@raftpb.Message]
+pub fn RaftNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Array[@raftpb.Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::raw_async(Self) -> RawNode
@@ -521,7 +435,7 @@ pub struct RawNode {
   mut async_storage : Bool
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
-pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
+pub fn RawNode::apply_conf_change(Self, @confchange.ConfChange) -> Array[String]
 pub fn RawNode::basic_status(Self) -> RaftStatus
 pub fn RawNode::campaign(Self) -> Unit
 pub fn RawNode::conf_state(Self) -> @raftpb.ConfState
@@ -533,8 +447,8 @@ pub fn RawNode::new(RaftNode) -> Self
 pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
 pub fn RawNode::node(Self) -> RaftNode
 pub fn RawNode::propose(Self, Bytes) -> Unit
-pub fn RawNode::propose_conf(Self, ConfChange) -> Unit
-pub fn RawNode::propose_conf_v2(Self, ConfChangeV2) -> Unit
+pub fn RawNode::propose_conf(Self, @confchange.ConfChange) -> Unit
+pub fn RawNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Unit
 pub fn RawNode::read_index(Self, Bytes) -> Unit
 pub fn RawNode::ready(Self) -> Ready
 pub fn RawNode::ready_without_accept(Self) -> Ready
