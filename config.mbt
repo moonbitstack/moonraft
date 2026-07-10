@@ -76,6 +76,13 @@ pub struct Config {
   // Whether propose-time conf-change validation is off (etcd's
   // DisableConfChangeValidation).
   disable_conf_change_validation : Bool
+  // The last index the application has already applied (etcd's Config.Applied),
+  // set only when restarting so the core does not re-deliver applied entries.
+  applied : UInt64
+  // Diagnostics sink (etcd's Config.Logger).
+  logger : &Logger
+  // State-transition tracer (etcd's Config.TraceLogger).
+  tracer : &Tracer
   // Seed for the deterministic election-timeout PRNG (this port's addition for
   // reproducible simulations; etcd uses a shared crypto RNG).
   seed : UInt64
@@ -102,6 +109,9 @@ pub fn Config::new(
   step_down_on_removal? : Bool = false,
   disable_proposal_forwarding? : Bool = false,
   disable_conf_change_validation? : Bool = false,
+  applied? : UInt64 = 0,
+  logger? : &Logger = NopLogger::{  },
+  tracer? : &Tracer = NopTracer::{  },
   seed? : UInt64 = 1,
 ) -> Config {
   {
@@ -120,6 +130,9 @@ pub fn Config::new(
     step_down_on_removal,
     disable_proposal_forwarding,
     disable_conf_change_validation,
+    applied,
+    logger,
+    tracer,
     seed,
   }
 }
@@ -173,9 +186,17 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
     step_down_on_removal=config.step_down_on_removal,
     disable_conf_change_validation=config.disable_conf_change_validation,
     read_only_option=config.read_only_option,
+    logger=config.logger,
+    tracer=config.tracer,
   )
   if config.disable_proposal_forwarding {
     r.disable_proposal_forwarding()
+  }
+  // Seed the applied watermark on a restart (etcd's Config.Applied), so the core
+  // does not re-deliver entries the application already applied. A no-op on a
+  // fresh start (empty log, applied 0).
+  if config.applied > 0 {
+    r.advance_applied(config.applied)
   }
   r
 }

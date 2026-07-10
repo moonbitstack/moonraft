@@ -257,9 +257,12 @@ pub struct Config {
   step_down_on_removal : Bool
   disable_proposal_forwarding : Bool
   disable_conf_change_validation : Bool
+  applied : UInt64
+  logger : &Logger
+  tracer : &Tracer
   seed : UInt64
 }
-pub fn Config::new(String, Array[String], election_tick? : Int, heartbeat_tick? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, seed? : UInt64) -> Self
+pub fn Config::new(String, Array[String], election_tick? : Int, heartbeat_tick? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
 pub fn Config::validate(Self) -> Unit raise ConfigError
 
 pub(all) struct Entry {
