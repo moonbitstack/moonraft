@@ -499,6 +499,7 @@ pub fn RaftLog::all_entries(Self) -> Array[Entry]
 pub fn RaftLog::append(Self, Array[Entry]) -> UInt64
 pub fn RaftLog::applied(Self) -> UInt64
 pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::commit_stable(Self, Array[Entry]) -> Unit
 pub fn RaftLog::commit_to(Self, UInt64) -> Unit
 pub fn RaftLog::committed(Self) -> UInt64
@@ -581,6 +582,8 @@ pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
 pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
+pub fn RaftNode::raw_async(Self) -> RawNode
+pub fn RaftNode::raw_async_sized(Self, UInt64) -> RawNode
 pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
 pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
@@ -616,12 +619,14 @@ pub struct RawNode {
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : HardState
+  mut async_storage : Bool
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
 pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
 pub fn RawNode::campaign(Self) -> Unit
 pub fn RawNode::conf_state(Self) -> ConfState
 pub fn RawNode::has_ready(Self) -> Bool
+pub fn RawNode::is_async(Self) -> Bool
 pub fn RawNode::new(RaftNode) -> Self
 pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
 pub fn RawNode::node(Self) -> RaftNode
@@ -634,6 +639,8 @@ pub fn RawNode::ready_without_accept(Self) -> Ready
 pub fn RawNode::stabilize(Self) -> Array[Message]
 pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, Message) -> Unit
+pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
+pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
 
@@ -653,6 +660,8 @@ pub(all) struct Ready {
   committed_entries : Array[Entry]
   messages : Array[Message]
   must_sync : Bool
+  storage_append : StorageAppend?
+  storage_apply : StorageApply?
 }
 
 pub(all) struct RequestVoteArgs {
@@ -687,6 +696,28 @@ pub(all) struct SoftState {
   state : Role
 } derive(Eq)
 pub fn SoftState::equal(Self, Self) -> Bool
+
+pub(all) struct StorageAppend {
+  entries : Array[Entry]
+  hard_state : HardState?
+  snapshot : Snapshot?
+  resp : StorageAppendResp
+}
+
+pub(all) struct StorageAppendResp {
+  index : UInt64
+  log_term : UInt64
+  term : UInt64
+} derive(Eq)
+
+pub(all) struct StorageApply {
+  entries : Array[Entry]
+  resp : StorageApplyResp
+}
+
+pub(all) struct StorageApplyResp {
+  entries : Array[Entry]
+}
 
 pub struct Unstable {
   mut snapshot : Snapshot?

@@ -40,6 +40,10 @@ pub struct RawNode {
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : HardState
+  // When set (etcd's AsyncStorageWrites), a Ready hands its entries and committed
+  // entries to local storage threads as directives rather than expecting the
+  // caller to persist/apply them inline before `advance`.
+  mut async_storage : Bool
 }
 
 ///|
@@ -84,6 +88,7 @@ pub fn RawNode::new_sized(
     read_states: [],
     prev_soft: raft.soft_state(),
     prev_hard: node.hard_state(),
+    async_storage: false,
   }
 }
 
@@ -95,6 +100,38 @@ pub fn RaftNode::raw_with_max_committed_size(
   max_committed_size : UInt64,
 ) -> RawNode {
   RawNode::new_sized(self, max_committed_size)
+}
+
+///|
+/// View this server under AsyncStorageWrites (etcd's `Config.AsyncStorageWrites`):
+/// each `Ready` hands its entries and committed entries to local storage threads
+/// as `StorageAppend` / `StorageApply` directives, and the caller returns the
+/// paired responses through `step_append_resp` / `step_apply_resp` once the work
+/// is durable/applied. `advance` becomes a no-op; the responses drive the
+/// stable/applied cursors instead.
+pub fn RaftNode::raw_async(self : RaftNode) -> RawNode {
+  let rn = self.raw()
+  rn.async_storage = true
+  rn
+}
+
+///|
+/// As `raw_async`, but also paginating each `StorageApply` batch to
+/// `max_committed_size` bytes (etcd's `AsyncStorageWrites` +
+/// `MaxCommittedSizePerReady`).
+pub fn RaftNode::raw_async_sized(
+  self : RaftNode,
+  max_committed_size : UInt64,
+) -> RawNode {
+  let rn = RawNode::new_sized(self, max_committed_size)
+  rn.async_storage = true
+  rn
+}
+
+///|
+/// Whether this driver is in AsyncStorageWrites mode.
+pub fn RawNode::is_async(self : RawNode) -> Bool {
+  self.async_storage
 }
 
 ///|
@@ -262,16 +299,46 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
   let committed = self.next_committed()
   let soft = self.raft.soft_state()
   let hard = node.hard_state()
+  let hard_changed = hard != self.prev_hard
+  let mut storage_append : StorageAppend? = None
+  let mut storage_apply : StorageApply? = None
+  if self.async_storage {
+    // Hand the append (entries + any hard-state change) to the local append
+    // thread. The response attests the current last (index, term) — not the last
+    // of `entries` — so that a response arriving after a term change is dropped
+    // (see StorageAppendResp / newStorageAppendResp).
+    if entries.length() > 0 || hard_changed {
+      let resp : StorageAppendResp = if self.log.has_next_or_in_progress_unstable_ents() {
+        let last = self.log.last_entry_id()
+        { index: last.index, log_term: last.term, term: node.current_term() }
+      } else {
+        { index: 0, log_term: 0, term: node.current_term() }
+      }
+      storage_append = Some({
+        entries,
+        hard_state: if hard_changed {
+          Some(hard)
+        } else {
+          None
+        },
+        snapshot: None,
+        resp,
+      })
+    }
+    if committed.length() > 0 {
+      storage_apply = Some({ entries: committed, resp: { entries: committed } })
+    }
+  }
   {
     soft_state: if soft == self.prev_soft {
       None
     } else {
       Some(soft)
     },
-    hard_state: if hard == self.prev_hard {
-      None
-    } else {
+    hard_state: if hard_changed {
       Some(hard)
+    } else {
+      None
     },
     read_states: self.read_states.copy(),
     entries,
@@ -279,6 +346,8 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     committed_entries: committed,
     messages: self.msgs.copy(),
     must_sync: must_sync(hard, self.prev_hard, entries.length()),
+    storage_append,
+    storage_apply,
   }
 }
 
@@ -359,6 +428,11 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
 /// (etcd's `Advance`): move the stable watermark past the entries that were
 /// written, and the applied cursor past the entries that were applied.
 pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
+  // Under AsyncStorageWrites the stable/applied cursors are driven by the
+  // storage responses (`step_append_resp` / `step_apply_resp`), not by advance.
+  if self.async_storage {
+    return
+  }
   if rd.entries.length() != 0 {
     self.log.commit_stable(rd.entries)
   }
@@ -371,6 +445,40 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
     // core's applied watermark.
     self.raft.advance_applied(last)
   }
+}
+
+///|
+/// Return a `StorageAppend` acknowledgement: the entries have been made durable.
+/// The confirmed unstable prefix moves into stable storage and the unstable tail
+/// is truncated — but only if the response is not stale: a response whose term is
+/// below the node's current term (a later term has taken over) is ignored, and
+/// the ABA guard in `async_stabilize` further requires the unstable log to still
+/// hold that `(index, log_term)`.
+pub fn RawNode::step_append_resp(
+  self : RawNode,
+  resp : StorageAppendResp,
+) -> Unit {
+  if resp.term < self.raft.node().current_term() {
+    return
+  }
+  self.log.async_stabilize(resp.index, resp.log_term)
+}
+
+///|
+/// Return a `StorageApply` acknowledgement: the committed entries have been
+/// applied. Advance the applied cursor and release the applied entries' quota.
+/// Committed entries are term-independent, so there is no staleness check.
+pub fn RawNode::step_apply_resp(
+  self : RawNode,
+  resp : StorageApplyResp,
+) -> Unit {
+  let n = resp.entries.length()
+  if n == 0 {
+    return
+  }
+  let last = resp.entries[n - 1].index
+  self.log.applied_to(last, ents_size(resp.entries[:]))
+  self.raft.advance_applied(last)
 }
 
 ///|

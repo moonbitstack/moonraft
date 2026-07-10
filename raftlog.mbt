@@ -112,6 +112,34 @@ pub fn RaftLog::commit_stable(self : RaftLog, entries : Array[Entry]) -> Unit {
 }
 
 ///|
+/// Acknowledge an asynchronous append made durable up to `(index, log_term)`:
+/// move the confirmed unstable prefix into storage and truncate the unstable
+/// tail. This is a no-op — the ABA guard — unless the unstable log *still* holds
+/// `(index, log_term)`; if a later term rewrote that index, the stale ack must
+/// not be mistaken for a confirmation of the new entries.
+pub fn RaftLog::async_stabilize(
+  self : RaftLog,
+  index : UInt64,
+  log_term : UInt64,
+) -> Unit {
+  if index == 0 {
+    return
+  }
+  match self.unstable.maybe_term(index) {
+    Some(t) =>
+      if t == log_term {
+        if index >= self.unstable.offset {
+          self.storage.append(
+            self.unstable.slice(self.unstable.offset, index + 1),
+          )
+        }
+        self.stable_to({ term: log_term, index })
+      }
+    None => ()
+  }
+}
+
+///|
 /// The committed index.
 pub fn RaftLog::committed(self : RaftLog) -> UInt64 {
   self.committed
