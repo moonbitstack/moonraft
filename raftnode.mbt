@@ -298,6 +298,11 @@ fn RaftNode::step_down(self : RaftNode) -> Unit {
 /// pre-vote). Winning the pre-vote — or pre-vote being disabled — starts the
 /// real election.
 pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
+  // A leader ignores a fresh campaign (etcd's `hup`: "already leader"): it must
+  // not step itself down to candidate and inflate the term.
+  if self.core.role() == Leader {
+    return []
+  }
   // Only a voter may stand for election; a learner (non-voting member) never
   // campaigns even if its election timer fires (§4.2.1, promotable).
   if !self.config.contains(self.id) {
@@ -527,11 +532,35 @@ pub fn RaftNode::transfer_leadership(
   self : RaftNode,
   target : String,
 ) -> Array[Message] {
-  // A non-leader, a transfer to ourselves, or an unknown/non-member target is a
-  // no-op (§3.10). Transferring to a learner is likewise refused.
-  if self.core.role() != Leader ||
-    target == self.id ||
-    !self.config.contains(target) {
+  if self.core.role() != Leader {
+    return []
+  }
+  // A learner can never be leader, so a transfer to one is ignored outright,
+  // without disturbing any transfer already under way (etcd checks pr.IsLearner
+  // first).
+  if self.config.is_learner(target) {
+    return []
+  }
+  // A transfer already in progress (§3.10): a repeat to the same target is
+  // ignored (the handoff continues); a request naming a different target aborts
+  // the old one before the new is considered (etcd's stepLeader).
+  match self.lead_transferee {
+    Some(last) =>
+      if last == target {
+        return []
+      } else {
+        self.lead_transferee = None
+      }
+    None => ()
+  }
+  // Transferring to ourselves is a no-op — but note it still aborts a pending
+  // transfer above, which is how a leader cancels a handoff (etcd's
+  // "already leader" branch runs after abortLeaderTransfer).
+  if target == self.id {
+    return []
+  }
+  // An unknown / non-member target is a no-op.
+  if !self.config.contains(target) {
     return []
   }
   self.lead_transferee = Some(target)
