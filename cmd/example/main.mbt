@@ -19,6 +19,7 @@
 /// so they can be tested; this entry point only performs the output.
 ///
 /// Run it with `moon run cmd/example`.
+#coverage.skip
 fn main {
   for
     line in @raft.demo_report_lines(
