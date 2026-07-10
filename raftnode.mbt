@@ -157,6 +157,15 @@ pub fn RaftNode::new(
 }
 
 ///|
+/// Whether this node may stand for election (etcd's `promotable`): it must be a
+/// voter of the current configuration. A learner or a node that has been removed
+/// is not promotable. (etcd also refuses while a snapshot is being applied; this
+/// port installs snapshots synchronously, so there is no such in-progress state.)
+pub fn RaftNode::promotable(self : RaftNode) -> Bool {
+  self.config.contains(self.id)
+}
+
+///|
 /// The next value of the node's deterministic PRNG (a 64-bit LCG). Randomizing
 /// election timeouts from a per-node seed makes whole-cluster runs reproducible.
 fn RaftNode::next_rand(self : RaftNode) -> UInt64 {
@@ -303,9 +312,9 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
   if self.core.role() == Leader {
     return []
   }
-  // Only a voter may stand for election; a learner (non-voting member) never
-  // campaigns even if its election timer fires (§4.2.1, promotable).
-  if !self.config.contains(self.id) {
+  // Only a promotable voter may stand for election; a learner or a node no
+  // longer in the configuration never campaigns (§4.2.1, promotable).
+  if !self.promotable() {
     return []
   }
   // Do not campaign while a committed configuration change is still unapplied:
