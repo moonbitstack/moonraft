@@ -117,13 +117,14 @@ pub struct Changer {
   mut prs : Map[String, Progress]
   mut last_index : UInt64
   max_inflight : Int
+  max_inflight_bytes : UInt64
 }
 pub fn Changer::advance_index(Self) -> Unit
 pub fn Changer::conf_state(Self) -> ConfState
 pub fn Changer::describe(Self) -> String
 pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
 pub fn Changer::leave_joint(Self) -> String?
-pub fn Changer::new(last_index? : UInt64, max_inflight? : Int) -> Self
+pub fn Changer::new(last_index? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
 pub fn Changer::restore(Self, ConfState) -> String?
 pub fn Changer::simple(Self, Array[(String, String)]) -> String?
 
@@ -478,11 +479,13 @@ pub struct Progress {
   mut msg_app_flow_paused : Bool
   mut pending_snapshot : UInt64
   mut is_learner : Bool
+  mut sent_commit : UInt64
   inflights : Inflights
 }
 pub fn Progress::become_probe(Self) -> Unit
 pub fn Progress::become_replicate(Self) -> Unit
 pub fn Progress::become_snapshot(Self, UInt64) -> Unit
+pub fn Progress::can_bump_commit(Self, UInt64) -> Bool
 pub fn Progress::copy(Self) -> Self
 pub fn Progress::free_le(Self, UInt64) -> Unit
 pub fn Progress::is_active(Self) -> Bool
@@ -491,10 +494,11 @@ pub fn Progress::mark_active(Self) -> Unit
 pub fn Progress::maybe_decr_to(Self, UInt64, UInt64) -> Bool
 pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
 pub fn Progress::maybe_update(Self, UInt64) -> Bool
-pub fn Progress::new(UInt64, max_inflight? : Int) -> Self
+pub fn Progress::new(UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
+pub fn Progress::note_commit_sent(Self, UInt64) -> Unit
 pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
 pub fn Progress::reset_active(Self) -> Unit
-pub fn Progress::sent_entries(Self, UInt64, Bool) -> Unit
+pub fn Progress::sent_entries(Self, UInt64, Bool, bytes? : UInt64) -> Unit
 pub fn Progress::to_string(Self) -> String
 pub fn Progress::unpause(Self) -> Unit
 

@@ -141,16 +141,26 @@ pub struct Changer {
   mut prs : Map[String, Progress]
   mut last_index : UInt64
   max_inflight : Int
+  max_inflight_bytes : UInt64
 }
 
 ///|
 /// A Changer over an empty configuration, with progress next-indices anchored at
-/// `last_index` and a per-follower window of `max_inflight`.
+/// `last_index`, a per-follower window of `max_inflight` messages and, when
+/// non-zero, `max_inflight_bytes` bytes (etcd's `MakeProgressTracker`
+/// (maxInflight, maxBytes); 0 = no byte limit).
 pub fn Changer::new(
   last_index? : UInt64 = 0,
   max_inflight? : Int = 256,
+  max_inflight_bytes? : UInt64 = 0,
 ) -> Changer {
-  { cfg: ChangerConfig::empty(), prs: {}, last_index, max_inflight }
+  {
+    cfg: ChangerConfig::empty(),
+    prs: {},
+    last_index,
+    max_inflight,
+    max_inflight_bytes,
+  }
 }
 
 ///|
@@ -185,7 +195,11 @@ fn Changer::init_progress(
     arr_add(self.cfg.incoming, id)
   }
   let next = if self.last_index > 1 { self.last_index } else { 1 }
-  let p = Progress::new(next, max_inflight=self.max_inflight)
+  let p = Progress::new(
+    next,
+    max_inflight=self.max_inflight,
+    max_inflight_bytes=self.max_inflight_bytes,
+  )
   p.is_learner = is_learner
   // A freshly-added node is treated as recently active so check-quorum does not
   // immediately count it against the leader.
