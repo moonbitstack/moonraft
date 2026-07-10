@@ -19,7 +19,7 @@
 /// index has not arrived yet" — a distinction etcd draws with distinct sentinel
 /// errors and one the consensus core depends on to decide between sending a
 /// snapshot and simply waiting.
-pub suberror StorageError {
+pub(all) suberror StorageError {
   /// The requested index predates the last snapshot: it has been compacted away.
   Compacted
   /// The requested entry is past the end of the log: not available (yet).
@@ -38,7 +38,7 @@ pub suberror StorageError {
 /// The index/term accessors raise `StorageError` so a compacted index is
 /// reported distinctly from an unavailable one, exactly as etcd's `Storage`
 /// contract requires.
-pub trait RaftStorage {
+pub(open) trait RaftStorage {
   /// The persisted HardState (term, vote, commit) to resume from.
   fn initial_state(Self) -> HardState
   /// Consecutive entries in `[lo, hi)`, capped so their total encoding size does
@@ -120,17 +120,17 @@ fn MemoryStorage::last_index_of(self : MemoryStorage) -> UInt64 {
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn first_index(self) {
+pub impl RaftStorage for MemoryStorage with fn first_index(self) {
   self.offset() + 1
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn last_index(self) {
+pub impl RaftStorage for MemoryStorage with fn last_index(self) {
   self.last_index_of()
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn storage_term(self, index) {
+pub impl RaftStorage for MemoryStorage with fn storage_term(self, index) {
   let off = self.offset()
   if index < off {
     raise Compacted
@@ -142,7 +142,7 @@ impl RaftStorage for MemoryStorage with fn storage_term(self, index) {
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn storage_entries(
+pub impl RaftStorage for MemoryStorage with fn storage_entries(
   self,
   lo,
   hi,
@@ -163,7 +163,7 @@ impl RaftStorage for MemoryStorage with fn storage_entries(
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn storage_snapshot(self) {
+pub impl RaftStorage for MemoryStorage with fn storage_snapshot(self) {
   if self.snapshot_pending {
     raise SnapshotTemporarilyUnavailable
   }
@@ -171,12 +171,12 @@ impl RaftStorage for MemoryStorage with fn storage_snapshot(self) {
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn initial_state(self) {
+pub impl RaftStorage for MemoryStorage with fn initial_state(self) {
   self.hard
 }
 
 ///|
-impl RaftStorage for MemoryStorage with fn append(self, entries) {
+pub impl RaftStorage for MemoryStorage with fn append(self, entries) {
   MemoryStorage::append(self, entries)
 }
 

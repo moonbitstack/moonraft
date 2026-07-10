@@ -213,32 +213,32 @@ fn FailingStorage::over(entries : Array[Entry]) -> FailingStorage {
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn initial_state(self) {
+impl @storage.RaftStorage for FailingStorage with fn initial_state(self) {
   self.inner.initial_state()
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn first_index(self) {
+impl @storage.RaftStorage for FailingStorage with fn first_index(self) {
   self.inner.first_index()
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn last_index(self) {
+impl @storage.RaftStorage for FailingStorage with fn last_index(self) {
   self.inner.last_index()
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn storage_snapshot(self) {
+impl @storage.RaftStorage for FailingStorage with fn storage_snapshot(self) {
   self.inner.storage_snapshot()
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn append(self, entries) {
+impl @storage.RaftStorage for FailingStorage with fn append(self, entries) {
   self.inner.append(entries)
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn storage_term(self, i) {
+impl @storage.RaftStorage for FailingStorage with fn storage_term(self, i) {
   match self.term_err {
     Some(e) => raise e
     None => self.inner.storage_term(i)
@@ -246,7 +246,12 @@ impl RaftStorage for FailingStorage with fn storage_term(self, i) {
 }
 
 ///|
-impl RaftStorage for FailingStorage with fn storage_entries(self, lo, hi, max) {
+impl @storage.RaftStorage for FailingStorage with fn storage_entries(
+  self,
+  lo,
+  hi,
+  max,
+) {
   if self.entries_empty {
     return []
   }

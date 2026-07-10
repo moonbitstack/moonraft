@@ -2,7 +2,19 @@
 package "Lfan-ke/raft-moonbit/raftpb"
 
 // Values
+pub fn entry_encoding_size(Entry) -> UInt64
+
+pub fn ents_size(ArrayView[Entry]) -> UInt64
+
 pub fn hard_state_equal(HardState, HardState) -> Bool
+
+pub fn limit_size(ArrayView[Entry], UInt64) -> Array[Entry]
+
+pub let no_limit : UInt64
+
+pub fn payload_size(Entry) -> UInt64
+
+pub fn payloads_size(ArrayView[Entry]) -> UInt64
 
 // Errors
 

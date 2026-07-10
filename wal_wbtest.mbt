@@ -1,4 +1,6 @@
 ///|
+
+///|
 /// An in-memory write-ahead log: an ordered list of records standing in for an
 /// append-only file. Used for tests and single-process runs.
 struct MemWal {
@@ -11,12 +13,12 @@ fn MemWal::new() -> MemWal {
 }
 
 ///|
-impl WalStore for MemWal with fn append_record(self, record) {
+impl @storage.WalStore for MemWal with fn append_record(self, record) {
   self.records.push(record)
 }
 
 ///|
-impl WalStore for MemWal with fn load(self) {
+impl @storage.WalStore for MemWal with fn load(self) {
   self.records.copy()
 }
 

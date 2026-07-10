@@ -4,6 +4,7 @@ package "Lfan-ke/raft-moonbit"
 import {
   "Lfan-ke/raft-moonbit/confchange",
   "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/raft-moonbit/storage",
   "Lfan-ke/raft-moonbit/tracker",
 }
 
@@ -22,19 +23,7 @@ pub fn describe_hard_state(@raftpb.HardState) -> String
 
 pub fn describe_snapshot(@raftpb.Snapshot) -> String
 
-pub fn entry_encoding_size(@raftpb.Entry) -> UInt64
-
-pub fn ents_size(ArrayView[@raftpb.Entry]) -> UInt64
-
-pub fn limit_size(ArrayView[@raftpb.Entry], UInt64) -> Array[@raftpb.Entry]
-
 pub fn must_sync(@raftpb.HardState, @raftpb.HardState, Int) -> Bool
-
-pub let no_limit : UInt64
-
-pub fn payload_size(@raftpb.Entry) -> UInt64
-
-pub fn payloads_size(ArrayView[@raftpb.Entry]) -> UInt64
 
 pub fn replicate(Node, Array[Node]) -> UInt64
 
@@ -71,13 +60,6 @@ pub suberror ConfigError {
 } derive(Eq)
 
 pub suberror LogCompacted
-
-pub suberror StorageError {
-  Compacted
-  Unavailable
-  SnapOutOfDate
-  SnapshotTemporarilyUnavailable
-} derive(Eq)
 
 // Types and methods
 pub struct Cluster {
@@ -191,24 +173,6 @@ pub fn LogSlice::last_entry_id(Self) -> @raftpb.EntryId
 pub fn LogSlice::last_index(Self) -> UInt64
 pub fn LogSlice::valid(Self) -> Bool
 
-pub struct MemoryStorage {
-  mut hard : @raftpb.HardState
-  mut snap : @raftpb.Snapshot
-  mut ents : Array[@raftpb.Entry]
-  mut snapshot_pending : Bool
-}
-pub fn MemoryStorage::append(Self, Array[@raftpb.Entry]) -> Unit
-pub fn MemoryStorage::apply_snapshot(Self, @raftpb.Snapshot) -> Unit raise StorageError
-pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
-pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : @raftpb.ConfState?) -> @raftpb.Snapshot raise StorageError
-pub fn MemoryStorage::from_ents(Array[@raftpb.Entry]) -> Self
-pub fn MemoryStorage::new() -> Self
-pub fn MemoryStorage::raw_ents(Self) -> Array[@raftpb.Entry]
-pub fn MemoryStorage::seed_snapshot(Self, @raftpb.Snapshot) -> Unit
-pub fn MemoryStorage::set_hard_state(Self, @raftpb.HardState) -> Unit
-pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
-pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[@raftpb.Entry]
-
 pub struct Node {
   id : String
   mut role : Role
@@ -242,31 +206,25 @@ pub fn Node::hard_state(Self) -> @raftpb.HardState
 pub fn Node::install_snapshot(Self, @raftpb.Snapshot) -> Unit
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
-pub fn Node::load_from(Self, &RaftStorage) -> Unit
+pub fn Node::load_from(Self, &@storage.RaftStorage) -> Unit
 pub fn Node::log_len(Self) -> Int
 pub fn Node::mark_applied(Self, UInt64) -> Unit
 pub fn Node::new(String) -> Self
-pub fn Node::persisted(Self) -> Persisted
+pub fn Node::persisted(Self) -> @storage.Persisted
 pub fn Node::propose_conf_change(Self, UInt64, @confchange.ConfChange) -> @raftpb.Entry
-pub fn Node::recover(Self, Persisted) -> Unit
-pub fn Node::recover_from(Self, &WalStore) -> Unit
-pub fn Node::replay(Self, Array[WalRecord]) -> Unit
+pub fn Node::recover(Self, @storage.Persisted) -> Unit
+pub fn Node::recover_from(Self, &@storage.WalStore) -> Unit
+pub fn Node::replay(Self, Array[@storage.WalRecord]) -> Unit
 pub fn Node::request_vote_args(Self) -> @raftpb.RequestVoteArgs
 pub fn Node::role(Self) -> Role
-pub fn Node::save_into(Self, MemoryStorage) -> Unit
-pub fn Node::save_to(Self, &WalStore) -> Unit
+pub fn Node::save_into(Self, @storage.MemoryStorage) -> Unit
+pub fn Node::save_to(Self, &@storage.WalStore) -> Unit
 pub fn Node::term_at(Self, UInt64) -> UInt64
 
 pub struct NopLogger {
 }
 
 pub struct NopTracer {
-}
-
-pub(all) struct Persisted {
-  term : UInt64
-  voted_for : String?
-  log : Array[@raftpb.Entry]
 }
 
 pub(all) struct ProgressStatus {
@@ -280,7 +238,7 @@ pub(all) struct ProgressStatus {
 } derive(Eq)
 
 pub struct RaftLog {
-  storage : &RaftStorage
+  storage : &@storage.RaftStorage
   unstable : Unstable
   mut committed : UInt64
   mut applying : UInt64
@@ -313,8 +271,8 @@ pub fn RaftLog::match_term(Self, @raftpb.EntryId) -> Bool
 pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
 pub fn RaftLog::maybe_commit(Self, @raftpb.EntryId) -> Bool
 pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise LogCompacted
-pub fn RaftLog::new(MemoryStorage) -> Self
-pub fn RaftLog::new_with_size(&RaftStorage, UInt64) -> Self
+pub fn RaftLog::new(@storage.MemoryStorage) -> Self
+pub fn RaftLog::new_with_size(&@storage.RaftStorage, UInt64) -> Self
 pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[@raftpb.Entry]
 pub fn RaftLog::next_unstable_ents(Self) -> Array[@raftpb.Entry]
 pub fn RaftLog::next_unstable_snapshot(Self) -> @raftpb.Snapshot?
@@ -322,10 +280,10 @@ pub fn RaftLog::restore(Self, @raftpb.Snapshot) -> Unit
 pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[@raftpb.Entry]) -> Unit raise) -> Unit raise
 pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise LogCompacted
-pub fn RaftLog::snapshot(Self) -> @raftpb.Snapshot raise StorageError
+pub fn RaftLog::snapshot(Self) -> @raftpb.Snapshot raise @storage.StorageError
 pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, @raftpb.EntryId) -> Unit
-pub fn RaftLog::term(Self, UInt64) -> UInt64 raise StorageError
+pub fn RaftLog::term(Self, UInt64) -> UInt64 raise @storage.StorageError
 pub fn RaftLog::to_string(Self) -> String
 pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
 
@@ -554,32 +512,11 @@ pub fn Unstable::stable_snap_to(Self, UInt64) -> Unit
 pub fn Unstable::stable_to(Self, @raftpb.EntryId) -> Unit
 pub fn Unstable::truncate_and_append(Self, Array[@raftpb.Entry]) -> Unit
 
-pub enum WalRecord {
-  WalHardState(@raftpb.HardState)
-  WalEntry(@raftpb.Entry)
-  WalSnapshot(@raftpb.Snapshot)
-} derive(Eq)
-
 // Type aliases
 
 // Traits
-pub trait LogStore {
-  fn persist(Self, Persisted) -> Unit
-  fn restore(Self) -> Persisted?
-}
-
 pub trait Logger {
   fn log(Self, LogLevel, String) -> Unit
-}
-
-pub trait RaftStorage {
-  fn initial_state(Self) -> @raftpb.HardState
-  fn storage_entries(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise StorageError
-  fn storage_term(Self, UInt64) -> UInt64 raise StorageError
-  fn first_index(Self) -> UInt64
-  fn last_index(Self) -> UInt64
-  fn storage_snapshot(Self) -> @raftpb.Snapshot raise StorageError
-  fn append(Self, Array[@raftpb.Entry]) -> Unit
 }
 
 pub trait StateMachine {
@@ -593,10 +530,5 @@ pub trait Tracer {
 pub trait Transport {
   fn request_vote(Self, String, @raftpb.RequestVoteArgs) -> @raftpb.RequestVoteReply
   fn append_entries(Self, String, @raftpb.AppendEntriesArgs) -> @raftpb.AppendEntriesReply
-}
-
-pub trait WalStore {
-  fn append_record(Self, WalRecord) -> Unit
-  fn load(Self) -> Array[WalRecord]
 }
 

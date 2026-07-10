@@ -6,4 +6,4 @@
 using @tracker {type Inflights}
 
 ///|
-using @raftpb {hard_state_equal}
+using @raftpb {hard_state_equal, entry_encoding_size, payloads_size}

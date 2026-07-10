@@ -1,16 +1,18 @@
 ///|
+
+///|
 /// An in-memory `LogStore`, for tests and single-process use.
 struct MemStore {
   mut saved : Persisted?
 }
 
 ///|
-impl LogStore for MemStore with fn persist(self, state) {
+impl @storage.LogStore for MemStore with fn persist(self, state) {
   self.saved = Some(state)
 }
 
 ///|
-impl LogStore for MemStore with fn restore(self) {
+impl @storage.LogStore for MemStore with fn restore(self) {
   self.saved
 }
 
@@ -21,11 +23,11 @@ test "a node recovers its term, vote and log from a store" {
   let _ = a.append(1, b"x")
   let _ = a.append(1, b"y")
   let store : MemStore = { saved: None }
-  store.persist(a.persisted())
+  @storage.LogStore::persist(store, a.persisted())
 
   // The node crashes and restarts blank, then reloads from the store.
   let restarted = Node::new("a")
-  match store.restore() {
+  match @storage.LogStore::restore(store) {
     Some(state) => restarted.recover(state)
     None => abort("store lost the persisted state")
   }
@@ -39,9 +41,9 @@ test "a persisted image is not disturbed by later log growth" {
   let a = Node::new("a")
   let _ = a.append(1, b"x")
   let store : MemStore = { saved: None }
-  store.persist(a.persisted())
+  @storage.LogStore::persist(store, a.persisted())
   let _ = a.append(1, b"y")
-  match store.restore() {
+  match @storage.LogStore::restore(store) {
     Some(state) => assert_eq(state.log.length(), 1)
     None => abort("store lost the persisted state")
   }

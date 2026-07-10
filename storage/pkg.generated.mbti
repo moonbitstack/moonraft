@@ -1,0 +1,72 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/storage"
+
+import {
+  "Lfan-ke/raft-moonbit/raftpb",
+}
+
+// Values
+
+// Errors
+pub(all) suberror StorageError {
+  Compacted
+  Unavailable
+  SnapOutOfDate
+  SnapshotTemporarilyUnavailable
+} derive(Eq)
+
+// Types and methods
+pub struct MemoryStorage {
+  mut hard : @raftpb.HardState
+  mut snap : @raftpb.Snapshot
+  mut ents : Array[@raftpb.Entry]
+  mut snapshot_pending : Bool
+}
+pub fn MemoryStorage::append(Self, Array[@raftpb.Entry]) -> Unit
+pub fn MemoryStorage::apply_snapshot(Self, @raftpb.Snapshot) -> Unit raise StorageError
+pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
+pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : @raftpb.ConfState?) -> @raftpb.Snapshot raise StorageError
+pub fn MemoryStorage::from_ents(Array[@raftpb.Entry]) -> Self
+pub fn MemoryStorage::new() -> Self
+pub fn MemoryStorage::raw_ents(Self) -> Array[@raftpb.Entry]
+pub fn MemoryStorage::seed_snapshot(Self, @raftpb.Snapshot) -> Unit
+pub fn MemoryStorage::set_hard_state(Self, @raftpb.HardState) -> Unit
+pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
+pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[@raftpb.Entry]
+pub impl RaftStorage for MemoryStorage
+
+pub(all) struct Persisted {
+  term : UInt64
+  voted_for : String?
+  log : Array[@raftpb.Entry]
+}
+
+pub(all) enum WalRecord {
+  WalHardState(@raftpb.HardState)
+  WalEntry(@raftpb.Entry)
+  WalSnapshot(@raftpb.Snapshot)
+} derive(Eq)
+
+// Type aliases
+
+// Traits
+pub(open) trait LogStore {
+  fn persist(Self, Persisted) -> Unit
+  fn restore(Self) -> Persisted?
+}
+
+pub(open) trait RaftStorage {
+  fn initial_state(Self) -> @raftpb.HardState
+  fn storage_entries(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise StorageError
+  fn storage_term(Self, UInt64) -> UInt64 raise StorageError
+  fn first_index(Self) -> UInt64
+  fn last_index(Self) -> UInt64
+  fn storage_snapshot(Self) -> @raftpb.Snapshot raise StorageError
+  fn append(Self, Array[@raftpb.Entry]) -> Unit
+}
+
+pub(open) trait WalStore {
+  fn append_record(Self, WalRecord) -> Unit
+  fn load(Self) -> Array[WalRecord]
+}
+

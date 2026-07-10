@@ -24,7 +24,21 @@ using @raftpb {
   type Snapshot,
   type HardState,
   type ConfState,
+  no_limit,
+  ents_size,
+  limit_size,
+  payload_size,
 }
 
 ///|
 using @confchange {type Membership, type ConfChange, type ConfChangeV2}
+
+///|
+using @storage {
+  type MemoryStorage,
+  type StorageError,
+  type Persisted,
+  type WalRecord,
+  trait RaftStorage,
+  trait WalStore,
+}
