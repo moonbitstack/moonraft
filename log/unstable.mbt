@@ -25,7 +25,7 @@
 /// entries be exposed once for persistence and then withheld until stabilized.
 /// The snapshot is an `Option` rather than a sentinel — its absence is a real
 /// type state, not an index-0 magic value.
-pub struct Unstable {
+pub(all) struct Unstable {
   mut snapshot : Snapshot?
   mut entries : Array[Entry]
   mut offset : UInt64

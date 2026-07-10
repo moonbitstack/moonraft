@@ -1,0 +1,106 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/log"
+
+import {
+  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/raft-moonbit/storage",
+}
+
+// Values
+pub fn describe_conf_state(@raftpb.ConfState) -> String
+
+pub fn describe_entries(ArrayView[@raftpb.Entry], ((Bytes) -> String)?) -> String
+
+pub fn describe_entry(@raftpb.Entry, ((Bytes) -> String)?) -> String
+
+pub fn describe_hard_state(@raftpb.HardState) -> String
+
+pub fn describe_snapshot(@raftpb.Snapshot) -> String
+
+// Errors
+pub suberror LogCompacted
+
+// Types and methods
+pub(all) struct LogSlice {
+  term : UInt64
+  prev : @raftpb.EntryId
+  entries : Array[@raftpb.Entry]
+}
+pub fn LogSlice::last_entry_id(Self) -> @raftpb.EntryId
+pub fn LogSlice::last_index(Self) -> UInt64
+pub fn LogSlice::valid(Self) -> Bool
+
+pub struct RaftLog {
+  storage : &@storage.RaftStorage
+  unstable : Unstable
+  mut committed : UInt64
+  mut applying : UInt64
+  mut applied : UInt64
+  max_applying_ents_size : UInt64
+  mut applying_ents_size : UInt64
+  mut applying_ents_paused : Bool
+}
+pub fn RaftLog::accept_applying(Self, UInt64, UInt64, Bool) -> Unit
+pub fn RaftLog::accept_unstable(Self) -> Unit
+pub fn RaftLog::all_entries(Self) -> Array[@raftpb.Entry]
+pub fn RaftLog::append(Self, Array[@raftpb.Entry]) -> UInt64
+pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::commit_stable(Self, Array[@raftpb.Entry]) -> Unit
+pub fn RaftLog::commit_to(Self, UInt64) -> Unit
+pub fn RaftLog::committed(Self) -> UInt64
+pub fn RaftLog::entries(Self, UInt64, UInt64) -> Array[@raftpb.Entry] raise LogCompacted
+pub fn RaftLog::find_conflict(Self, ArrayView[@raftpb.Entry]) -> UInt64
+pub fn RaftLog::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
+pub fn RaftLog::first_index(Self) -> UInt64
+pub fn RaftLog::has_next_committed_ents(Self, Bool) -> Bool
+pub fn RaftLog::has_next_or_in_progress_unstable_ents(Self) -> Bool
+pub fn RaftLog::has_next_unstable_ents(Self) -> Bool
+pub fn RaftLog::has_next_unstable_snapshot(Self) -> Bool
+pub fn RaftLog::is_up_to_date(Self, @raftpb.EntryId) -> Bool
+pub fn RaftLog::last_entry_id(Self) -> @raftpb.EntryId
+pub fn RaftLog::last_index(Self) -> UInt64
+pub fn RaftLog::match_term(Self, @raftpb.EntryId) -> Bool
+pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
+pub fn RaftLog::maybe_commit(Self, @raftpb.EntryId) -> Bool
+pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise LogCompacted
+pub fn RaftLog::new(@storage.MemoryStorage) -> Self
+pub fn RaftLog::new_with_size(&@storage.RaftStorage, UInt64) -> Self
+pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[@raftpb.Entry]
+pub fn RaftLog::next_unstable_ents(Self) -> Array[@raftpb.Entry]
+pub fn RaftLog::next_unstable_snapshot(Self) -> @raftpb.Snapshot?
+pub fn RaftLog::restore(Self, @raftpb.Snapshot) -> Unit
+pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[@raftpb.Entry]) -> Unit raise) -> Unit raise
+pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise LogCompacted
+pub fn RaftLog::snapshot(Self) -> @raftpb.Snapshot raise @storage.StorageError
+pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
+pub fn RaftLog::stable_to(Self, @raftpb.EntryId) -> Unit
+pub fn RaftLog::term(Self, UInt64) -> UInt64 raise @storage.StorageError
+pub fn RaftLog::to_string(Self) -> String
+pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
+
+pub(all) struct Unstable {
+  mut snapshot : @raftpb.Snapshot?
+  mut entries : Array[@raftpb.Entry]
+  mut offset : UInt64
+  mut offset_in_progress : UInt64
+  mut snapshot_in_progress : Bool
+}
+pub fn Unstable::accept_in_progress(Self) -> Unit
+pub fn Unstable::maybe_first_index(Self) -> UInt64?
+pub fn Unstable::maybe_last_index(Self) -> UInt64?
+pub fn Unstable::maybe_term(Self, UInt64) -> UInt64?
+pub fn Unstable::new(UInt64) -> Self
+pub fn Unstable::next_entries(Self) -> Array[@raftpb.Entry]
+pub fn Unstable::next_snapshot(Self) -> @raftpb.Snapshot?
+pub fn Unstable::restore(Self, @raftpb.Snapshot) -> Unit
+pub fn Unstable::slice(Self, UInt64, UInt64) -> Array[@raftpb.Entry]
+pub fn Unstable::stable_snap_to(Self, UInt64) -> Unit
+pub fn Unstable::stable_to(Self, @raftpb.EntryId) -> Unit
+pub fn Unstable::truncate_and_append(Self, Array[@raftpb.Entry]) -> Unit
+
+// Type aliases
+
+// Traits
+

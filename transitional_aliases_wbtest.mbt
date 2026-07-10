@@ -6,4 +6,23 @@
 using @tracker {type Inflights}
 
 ///|
-using @raftpb {hard_state_equal, entry_encoding_size, payloads_size}
+using @raftpb {
+  hard_state_equal,
+  entry_encoding_size,
+  payloads_size,
+  type EntryId,
+}
+
+///|
+using @storage {type StorageError}
+
+///|
+using @log {
+  describe_entry,
+  describe_entries,
+  describe_hard_state,
+  describe_conf_state,
+  describe_snapshot,
+  type LogSlice,
+  type Unstable,
+}

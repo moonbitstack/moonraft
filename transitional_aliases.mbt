@@ -9,7 +9,6 @@ using @tracker {type Progress, type ProgressState}
 ///|
 using @raftpb {
   type Entry,
-  type EntryId,
   type Message,
   type Payload,
   type ReadIndexResp,
@@ -36,9 +35,11 @@ using @confchange {type Membership, type ConfChange, type ConfChangeV2}
 ///|
 using @storage {
   type MemoryStorage,
-  type StorageError,
   type Persisted,
   type WalRecord,
   trait RaftStorage,
   trait WalStore,
 }
+
+///|
+using @log {type RaftLog}

@@ -6,6 +6,7 @@ import {
   "Lfan-ke/raft-moonbit/raftpb",
   "Lfan-ke/raft-moonbit/confchange",
   "Lfan-ke/raft-moonbit/storage",
+  "Lfan-ke/raft-moonbit/log",
 }
 
 // Browser demo build (`moon build --target wasm`): each node runs in its own Web
