@@ -49,12 +49,10 @@ pub fn wnode_new(n : Int, self_idx : Int, seed : Int) -> Unit {
 /// to the pending queue. Called after any input so a single `wnode_drain`
 /// returns all traffic the step produced.
 fn pump() -> Unit {
-  match wctx.raw {
-    Some(raw) =>
-      for m in raw.stabilize() {
-        wctx.out.push(enc_msg(m))
-      }
-    None => ()
+  if wctx.raw is Some(raw) {
+    for m in raw.stabilize() {
+      wctx.out.push(enc_msg(m))
+    }
   }
 }
 
@@ -62,9 +60,8 @@ fn pump() -> Unit {
 /// Advance this node's logical clock by one tick (heartbeats on a leader, the
 /// election countdown on a follower).
 pub fn wnode_tick() -> Unit {
-  match wctx.raw {
-    Some(raw) => raw.tick()
-    None => ()
+  if wctx.raw is Some(raw) {
+    raw.tick()
   }
   pump()
 }
@@ -73,9 +70,8 @@ pub fn wnode_tick() -> Unit {
 /// Force this node to stand for election now (a manual kick; nodes also campaign
 /// on their own when the election timer fires during `wnode_tick`).
 pub fn wnode_campaign() -> Unit {
-  match wctx.raw {
-    Some(raw) => raw.campaign()
-    None => ()
+  if wctx.raw is Some(raw) {
+    raw.campaign()
   }
   pump()
 }
@@ -84,9 +80,8 @@ pub fn wnode_campaign() -> Unit {
 /// Propose command `cmd` (a small integer) on this node. It only takes effect
 /// on a leader; elsewhere the core drops it.
 pub fn wnode_propose(cmd : Int) -> Unit {
-  match wctx.raw {
-    Some(raw) => raw.propose(int_bytes(cmd))
-    None => ()
+  if wctx.raw is Some(raw) {
+    raw.propose(int_bytes(cmd))
   }
   pump()
 }
@@ -106,9 +101,8 @@ pub fn wnode_recv_push(v : Int) -> Unit {
 ///|
 /// Decode the buffered integers into a `Message` and step the core with it.
 pub fn wnode_recv_apply() -> Unit {
-  match (wctx.raw, dec_msg(wctx.inbuf)) {
-    (Some(raw), Some(m)) => raw.step(m)
-    _ => ()
+  if (wctx.raw, dec_msg(wctx.inbuf)) is (Some(raw), Some(m)) {
+    raw.step(m)
   }
   wctx.inbuf.clear()
   pump()
@@ -452,8 +446,5 @@ fn dec_msg(buf : Array[Int]) -> Message? {
     9 => Some(TimeoutNow(term))
     _ => None
   }
-  match payload {
-    Some(p) => Some(Message::new(from, to, p))
-    None => None
-  }
+  payload.map(fn(p) { Message::new(from, to, p) })
 }
