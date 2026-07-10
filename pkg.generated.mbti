@@ -486,6 +486,9 @@ pub struct RaftNode {
   heartbeat_timeout : Int
   mut randomized_election_timeout : Int
   max_entries : UInt64
+  max_msg_bytes : UInt64
+  max_uncommitted_size : UInt64
+  mut uncommitted_size : UInt64
   mut rng : UInt64
   mut conf_applied : UInt64
   mut lead_transferee : String?
@@ -503,7 +506,7 @@ pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
 pub fn RaftNode::leader(Self) -> String?
-pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, pre_vote? : Bool) -> Self
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, pre_vote? : Bool) -> Self
 pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
 pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
@@ -512,6 +515,7 @@ pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
 pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
 pub fn RaftNode::report_unreachable(Self, String) -> Unit
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
@@ -523,6 +527,7 @@ pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
 pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[Message]
 pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
+pub fn RaftNode::uncommitted_size(Self) -> UInt64
 
 pub(all) struct RaftStatus {
   id : String

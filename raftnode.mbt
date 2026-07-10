@@ -38,6 +38,12 @@ pub struct RaftNode {
   heartbeat_timeout : Int
   mut randomized_election_timeout : Int
   max_entries : UInt64
+  // Byte cap on a single outbound AppendEntries batch (etcd's MaxSizePerMsg).
+  max_msg_bytes : UInt64
+  // Byte cap on the uncommitted log tail (etcd's MaxUncommittedEntriesSize); 0
+  // disables the check. `uncommitted_size` is the running tally.
+  max_uncommitted_size : UInt64
+  mut uncommitted_size : UInt64
   mut rng : UInt64
   // Highest log index whose configuration change has been folded into the live
   // configuration, so a committed ConfChange is applied exactly once.
@@ -65,6 +71,8 @@ pub fn RaftNode::new(
   election_timeout? : Int = 10,
   heartbeat_timeout? : Int = 1,
   max_entries? : UInt64 = 256,
+  max_msg_bytes? : UInt64 = 18446744073709551615UL,
+  max_uncommitted_size? : UInt64 = 0,
   pre_vote? : Bool = true,
 ) -> RaftNode {
   let all = [id]
@@ -88,6 +96,9 @@ pub fn RaftNode::new(
     heartbeat_timeout,
     randomized_election_timeout: election_timeout,
     max_entries,
+    max_msg_bytes,
+    max_uncommitted_size,
+    uncommitted_size: 0,
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
@@ -344,6 +355,11 @@ pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
   if self.core.role() != Leader || self.lead_transferee is Some(_) {
     return []
   }
+  // Drop the proposal if it would push the uncommitted tail over its quota
+  // (etcd's ErrProposalDropped), unless the tail is currently empty.
+  if !self.increase_uncommitted_size(command.length().to_uint64()) {
+    return []
+  }
   let _ = self.core.append(self.core.current_term(), command)
   self.maybe_commit() |> ignore
   self.bcast_append()
@@ -439,7 +455,12 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   let entries = if p.state == Replicate && p.inflights.full() {
     []
   } else {
-    self.core.entries_after_limited(prev, self.max_entries)
+    // Cap the batch by both count (max_entries) and encoded byte size
+    // (MaxSizePerMsg); limit_size always keeps at least one entry.
+    limit_size(
+      self.core.entries_after_limited(prev, self.max_entries)[:],
+      self.max_msg_bytes,
+    )
   }
   let has = entries.length() > 0
   let last = if has { entries[entries.length() - 1].index } else { prev }
@@ -532,7 +553,19 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     // committed if this one is not.
     if mci > self.core.commit_index &&
       self.core.term_at(mci) == self.core.current_term() {
+      let old = self.core.commit_index
       self.core.advance_commit(mci)
+      // Newly committed entries leave the uncommitted tail; release their bytes.
+      let mut freed = 0UL
+      let mut i = old + 1
+      while i <= mci {
+        match self.core.entry_at(i) {
+          Some(e) => freed = freed + payload_size(e)
+          None => ()
+        }
+        i = i + 1
+      }
+      self.reduce_uncommitted_size(freed)
       self.apply_committed_conf()
       any = true
     } else {
@@ -540,6 +573,43 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     }
   }
   any
+}
+
+///|
+/// Account for `size` bytes of newly-proposed payload against the uncommitted
+/// quota (etcd's increaseUncommittedSize). Returns false — meaning the proposal
+/// must be dropped — only when the tail is already non-empty and this would push
+/// it over `max_uncommitted_size`; an empty tail always accepts at least one
+/// proposal, however large, and empty (zero-byte) entries always pass.
+fn RaftNode::increase_uncommitted_size(self : RaftNode, size : UInt64) -> Bool {
+  if self.max_uncommitted_size > 0 &&
+    self.uncommitted_size > 0 &&
+    size > 0 &&
+    self.uncommitted_size + size > self.max_uncommitted_size {
+    return false
+  }
+  self.uncommitted_size = self.uncommitted_size + size
+  true
+}
+
+///|
+/// Release `size` bytes from the uncommitted tally as entries commit or apply
+/// (etcd's reduceUncommittedSize). Never goes below zero.
+pub fn RaftNode::reduce_uncommitted_size(
+  self : RaftNode,
+  size : UInt64,
+) -> Unit {
+  self.uncommitted_size = if size > self.uncommitted_size {
+    0
+  } else {
+    self.uncommitted_size - size
+  }
+}
+
+///|
+/// The current size of the uncommitted log tail, in payload bytes.
+pub fn RaftNode::uncommitted_size(self : RaftNode) -> UInt64 {
+  self.uncommitted_size
 }
 
 ///|

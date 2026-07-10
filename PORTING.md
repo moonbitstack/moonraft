@@ -173,6 +173,20 @@ and a `to_string` renderer, so every case ports faithfully (no downgrade):
 - `TestMsgAppFlowControlMoveForward` — DONE.
 - `TestMsgAppFlowControlRecvHeartbeat` — DONE (see MsgHeartbeatResp below).
 
+## MaxSizePerMsg + MaxUncommittedEntriesSize — DONE (consensus-core)
+Both size limits the B-path marked N/A (they live in the consensus core, not the
+log layer) are now implemented in `raftnode.mbt`, calling B's `limit_size` /
+`payload_size`:
+- **MaxSizePerMsg** — `send_to` caps each outbound AppendEntries batch by encoded
+  byte size (`limit_size`), keeping at least one entry. Test in
+  `raft_limits_wbtest.mbt`.
+- **MaxUncommittedEntriesSize** — `RaftNode` tracks `uncommitted_size`;
+  `propose`/`propose_conf` drop a proposal that would push the uncommitted tail
+  over the cap (unless the tail is empty, or the entry is zero-byte);
+  `reduce_uncommitted_size` releases bytes as entries commit (auto on commit, and
+  exposed for the app). Ports `TestUncommittedEntryLimit` faithfully (1024
+  accepted, 1025th dropped, single-large accepted, empty always accepted).
+
 ## B5 — committed-entry truncation guard — DONE
 `store_entries` now aborts if an incoming entry would conflict at or below the
 commit index (which would delete a committed entry, breaking State-Machine
