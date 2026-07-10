@@ -260,10 +260,7 @@ fn msg_row(m : @raft.Message) -> MsgRow {
       index = a.last_index
       logterm = a.last_term
     }
-    SnapshotResp(a) => {
-      mtype = "SnapshotResp"
-      term = a.term
-    }
+    // 0.4.0: follower answers `Snapshot` with `AppendResp`, no dedicated reply.
     TimeoutNow(t) => {
       mtype = "TimeoutNow"
       term = t

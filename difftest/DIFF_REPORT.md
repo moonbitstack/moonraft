@@ -105,6 +105,94 @@ carried. None is new; none is a safety difference; final state converges on ever
 deterministic scenario. The harness proved it is still sensitive — it flags these
 4 in the very same run in which 5 others became MATCH.
 
+## 0.2 Re-verification on master `ac443c5` (0.4.0 breaking changes)
+
+The framework (its 4 commits) was rebased from `5fce34a` onto **`ac443c5`**, which
+adds the two 0.4.0 breaking changes on top of a docs-only commit (`f3ea10e`, test
+count corrected to 708):
+
+- **Change A** (`95b1211`): the self-invented 256-entry `MsgApp` count cap is
+  removed; `AppendEntries` is now capped by **bytes only**, matching etcd's
+  `sendAppend`.
+- **Change B** (`a7e0a47`): the self-invented `Payload::SnapshotResp` variant is
+  deleted; a follower now answers `MsgSnap` with a plain `AppendResp`, matching
+  etcd's `handleSnapshot` (raft.go:1840).
+
+Main-library gate after `moon clean`: **708 / 708 tests**, `moon check
+--deny-warn --target all` clean on all four backends. The Go side stays pinned at
+`26647d5` with the untracked `harness_export.go` overlay.
+
+**MoonBit harness edit (one, harness-only, no main-library change).** The mbt
+harness matched on `Payload::SnapshotResp`, deleted by change B, so it no longer
+compiled. The dead match arm was removed (`difftest/mbt-harness/main.mbt`); the
+harness now takes the `AppendResp` path a follower actually emits. No main-library
+source was touched. The Go harness needed no change (its `"SnapshotResp"` string
+case is simply never hit).
+
+**Result: 8 scenarios MATCH, 4 diverge — the identical MATCH set as §0.1
+(01/02/04/05/08/10/11/12). No scenario regressed from MATCH to DIVERGE.** The
+0.4.0 changes introduced **zero regressions**.
+
+| # | Scenario | `5fce34a` | `ac443c5` | Change | Nature of any residual diff |
+|---|----------|-----------|-----------|--------|-----------------------------|
+| 01 | elect + commit | MATCH | **MATCH** | — | — |
+| 02 | pre-vote on | MATCH | **MATCH** | — | — |
+| 03 | partition → heal | DIVERGE | **DIVERGE** | unchanged | heartbeat-resp Map-iteration order; state converges. |
+| 04 | leader crash | MATCH | **MATCH** | — | — |
+| 05 | divergent-log truncation | MATCH | **MATCH** | — | — |
+| 06 | flow control / batching | DIVERGE | **DIVERGE (cause changed)** | **256-cap eliminated** | see below. |
+| 07 | add voter | DIVERGE ×1 | **DIVERGE ×1** | unchanged | conf-change append shape (etcd 1-entry append at prev-index 1 vs mb empty append at index 2). |
+| 08 | remove voter | MATCH | **MATCH** | — | — |
+| 09 | add learner | DIVERGE ×1 | **DIVERGE ×1** | unchanged | same as 07. |
+| 10 | ReadIndex (safe) | MATCH | **MATCH** | — | — |
+| 11 | leadership transfer | MATCH | **MATCH** | — | — |
+| 12 | repeated campaigns / stale | MATCH | **MATCH** | — | — |
+
+**Change A — verified by trace (the 256-cap DIVERGENT is eliminated).** At §0.1
+the two harnesses emitted **different message counts** at scenario 06 (etcd 300 in
+one append, mb 256 + a 44-entry follow-up), the length mismatch cascading into the
+`.commit` tail. After change A the two traces are **frame-for-frame equal in count
+(308 / 308)** and **message-for-message equal in multiset** at the critical step:
+both emit exactly **257 `Append` + 513 `AppendResp` = 770 messages** to the same
+recipients at the same indices, and the sorted set of `(Append)` `commit` values is
+**byte-identical** between the two sides. The prior 256-vs-300 count difference is
+**gone**. The trace is the evidence: the self-invented cap no longer shapes the
+output.
+
+What *remains* at 06 resolves to two causes, **neither of which is the 256-cap**:
+
+1. **Message-ordering artifact (256 field diffs, step 305).** The 257 `Append`
+   messages carry the same *multiset* of `commit` values but in a different
+   sequence — the interleave of `AppendResp` processing vs `Append` emission
+   differs. This is the **same class as the §4 heartbeat Map-iteration order**
+   (03): identical set, permuted order, identical converged state.
+2. **Reject-response `Index` field (1 field diff, step 308) — newly *unmasked*,
+   not newly *introduced*.** On a rejected `AppendEntries`, etcd echoes
+   `Index: m.Index` (the rejected probe's `prev_log_index`, here 257);
+   raft-moonbit's `handle_append_entries` reject path (`core/replication.mbt`,
+   `match_index: 0`) reports 0. Both are rejects with `RejectHint = 1`; both
+   followers still converge to `commit = 301`. This lives in code **untouched by
+   0.4.0** — §0.1 could not see it because the 06 traces were length-mismatched and
+   never aligned to step 308. Change A aligning the counts is what exposed it. It
+   is a genuine (minor) port-faithfulness gap in the reject `Index` field, flagged
+   here for triage; it is **not** a 0.4.0 regression.
+
+**Change B — structurally in effect, not trace-exercised.** As §0.1/§5 note, the
+RawNode harness has no leader-side log-compaction hook, so no `MsgSnap` is ever
+emitted and no snapshot-reply scenario exists among the 12 scripts. Change B is
+confirmed structurally — the `SnapshotResp` variant is gone (the harness stopped
+compiling until its match arm was removed) and the follower now answers via
+`AppendResp` (`core/raftnode_step.mbt`) — but it cannot be surfaced by trace under
+the current harness. No scenario relies on the deleted variant, and none regressed.
+
+**Bottom line.** Change A makes scenario 06 **strictly closer to etcd** (message
+counts and multisets now coincide where they previously diverged) and eliminates
+the 256-cap DIVERGENT. Change B is a faithful, regression-free convergence not
+reachable by the present scripts. Residual DIVERGEs are the two standing §4 causes
+— heartbeat Map-iteration order (03, 06-step-305) and conf-change append shape
+(07, 09) — plus one newly-*unmasked* pre-existing reject-`Index` gap at 06-step-308.
+The 256-cap cause is retired.
+
 ## 1. Schema (shared by both harnesses)
 
 One JSON object ("frame") is emitted per DSL command. Keys are in a fixed order,
