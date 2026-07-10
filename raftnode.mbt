@@ -44,6 +44,12 @@ pub struct RaftNode {
   // disables the check. `uncommitted_size` is the running tally.
   max_uncommitted_size : UInt64
   mut uncommitted_size : UInt64
+  // Per-follower replication flow-control window: at most `max_inflight`
+  // outstanding AppendEntries and, when non-zero, at most `max_inflight_bytes`
+  // outstanding payload bytes (etcd's MaxInflightMsgs / MaxInflightBytes). Both
+  // are handed to each follower's `Progress` so its `Inflights` enforces them.
+  max_inflight : Int
+  max_inflight_bytes : UInt64
   mut rng : UInt64
   // Highest log index whose configuration change has been folded into the live
   // configuration, so a committed ConfChange is applied exactly once.
@@ -88,6 +94,8 @@ pub fn RaftNode::new(
   max_entries? : UInt64 = 256,
   max_msg_bytes? : UInt64 = 18446744073709551615UL,
   max_uncommitted_size? : UInt64 = 0,
+  max_inflight? : Int = 256,
+  max_inflight_bytes? : UInt64 = 0,
   pre_vote? : Bool = true,
   step_down_on_removal? : Bool = false,
   read_only_option? : ReadOnlyOption = LeaseBased,
@@ -118,6 +126,8 @@ pub fn RaftNode::new(
     max_msg_bytes,
     max_uncommitted_size,
     uncommitted_size: 0,
+    max_inflight,
+    max_inflight_bytes,
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
@@ -353,7 +363,11 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   self.progress.clear()
   let last = self.core.last_log_index()
   for p in self.peers {
-    self.progress[p] = Progress::new(last + 1)
+    self.progress[p] = Progress::new(
+      last + 1,
+      max_inflight=self.max_inflight,
+      max_inflight_bytes=self.max_inflight_bytes,
+    )
   }
   let _ = self.core.append(self.core.current_term(), b"")
   // Like etcd's reset() on every state change, re-randomize the election
@@ -541,8 +555,18 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   }
   let has = entries.length() > 0
   let last = if has { entries[entries.length() - 1].index } else { prev }
+  // Total payload bytes in this batch, for the in-flight byte budget
+  // (etcd's payloadsSize). Inert unless MaxInflightBytes is set.
+  let mut ents_size = 0UL
+  for e in entries {
+    ents_size = ents_size + payload_size(e)
+  }
   // Advance the flow controller: stream (consume a window slot) or pause a probe.
-  p.sent_entries(last, has)
+  p.sent_entries(last, has, bytes=ents_size)
+  // Record the commit index just put in flight to this follower, so a later
+  // eager commit-only send can be skipped when it would tell the follower
+  // nothing new (etcd's SentCommit / CanBumpCommit optimization).
+  p.note_commit_sent(self.core.commit_index)
   Message::new(
     self.id,
     peer,
@@ -589,6 +613,9 @@ fn RaftNode::bcast_heartbeat(
     } else {
       self.core.commit_index
     }
+    // A heartbeat carries a commit index too, so it also advances what the
+    // follower is known to have been told (etcd's sendHeartbeat SentCommit).
+    p.note_commit_sent(commit)
     out.push(
       Message::new(
         self.id,
@@ -997,7 +1024,11 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.peers.push(id)
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
-        self.progress[id] = Progress::new(self.core.last_log_index() + 1)
+        self.progress[id] = Progress::new(
+          self.core.last_log_index() + 1,
+          max_inflight=self.max_inflight,
+          max_inflight_bytes=self.max_inflight_bytes,
+        )
       }
       // Keep each progress's learner flag in step with the configuration.
       match self.progress.get(id) {

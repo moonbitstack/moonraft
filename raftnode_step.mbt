@@ -578,9 +578,17 @@ fn RaftNode::handle_append_resp(
           for m in self.bcast_append() {
             out.push(m)
           }
-        } else if p.match_index < self.core.last_log_index() && !p.is_paused() {
-          // This follower acked (often a heartbeat) but is still behind; push
-          // it the next entries now instead of waiting for a client proposal.
+          //
+        } else if (
+            p.match_index < self.core.last_log_index() ||
+            p.can_bump_commit(self.core.commit_index)
+          ) &&
+          !p.is_paused() {
+          // No new commit from this ack, but this follower is still behind — on
+          // entries (match < last) or merely on the commit index it has been told
+          // (etcd's `CanBumpCommit`, which skips a redundant commit-only MsgApp
+          // when the follower already knows the latest in-flight commit). Push it
+          // the next append now rather than waiting for a client proposal.
           out.push(self.send_to(from))
         }
         out
