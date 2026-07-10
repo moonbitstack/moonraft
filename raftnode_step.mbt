@@ -498,7 +498,8 @@ fn RaftNode::handle_heartbeat_resp(
   // delivered to its originator — recorded locally, or answered to the follower
   // that forwarded it with a ReadIndexResp.
   if reply.context.length() > 0 {
-    for req in self.read_only.recv_ack(from, reply.context, self.config) {
+    self.read_only.recv_ack(from, reply.context)
+    for req in self.read_only.maybe_advance(self.config) {
       for m in self.deliver_read(req) {
         out.push(m)
       }
@@ -567,12 +568,9 @@ fn RaftNode::handle_append_resp(
   if self.core.role() != Leader {
     return []
   }
-  if reply.term > self.core.current_term() {
-    self.core.become_follower(reply.term)
-    self.lead_transferee = None
-    self.pending_conf_index = 0
-    return []
-  }
+  // No higher-term guard here: `step` classifies the term first and
+  // `adopt_higher_term` steps a leader down before dispatch, so this handler
+  // only ever runs at the aligned term (a stale reply is dropped in `on_stale`).
   match self.progress.get(from) {
     None => []
     Some(p) => {
@@ -720,12 +718,9 @@ fn RaftNode::handle_snapshot_resp(
   if self.core.role() != Leader {
     return []
   }
-  if reply.term > self.core.current_term() {
-    self.core.become_follower(reply.term)
-    self.lead_transferee = None
-    self.pending_conf_index = 0
-    return []
-  }
+  // As in handle_append_resp: `step` has already stepped a leader down on a
+  // higher term before dispatch, so no higher-term guard is needed here.
+  let _ = reply
   match self.progress.get(from) {
     None => []
     Some(p) => {

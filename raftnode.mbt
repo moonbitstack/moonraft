@@ -760,11 +760,11 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
 ///|
 /// Send a heartbeat to every follower. The `commit` carried is capped at what
 /// the follower is known to hold, so it never learns of a commit index past its
-/// own log (Raft §5.3).
-fn RaftNode::bcast_heartbeat(
-  self : RaftNode,
-  context? : Bytes = b"",
-) -> Array[Message] {
+/// own log (Raft §5.3). Every heartbeat carries the read-confirmation position
+/// (etcd's `bcastHeartbeat` → `heartbeatCtx`); it is empty when no read is
+/// pending, and a follower echoes it back so a quorum confirms pending reads.
+fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
+  let context = self.read_only.heartbeat_ctx()
   let out : Array[Message] = []
   for peer in self.peers {
     let p = self.progress[peer]
