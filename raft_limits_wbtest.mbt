@@ -83,7 +83,7 @@ test "MaxSizePerMsg bounds the AppendEntries batch" {
   }
   // Probe from the start of the log; the batch must respect the byte cap.
   r.progress["2"].next_index = 1
-  let msg = r.send_to("2")
+  let msg = r.send_to("2").unwrap()
   match msg.payload {
     Append(a) => {
       assert_true(a.entries.length() >= 1)

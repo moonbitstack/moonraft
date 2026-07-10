@@ -298,6 +298,11 @@ fn RaftNode::step_down(self : RaftNode) -> Unit {
 /// pre-vote). Winning the pre-vote — or pre-vote being disabled — starts the
 /// real election.
 pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
+  // A leader ignores a fresh campaign (etcd's `hup`: "already leader"): it must
+  // not step itself down to candidate and inflate the term.
+  if self.core.role() == Leader {
+    return []
+  }
   // Only a voter may stand for election; a learner (non-voting member) never
   // campaigns even if its election timer fires (§4.2.1, promotable).
   if !self.config.contains(self.id) {
@@ -527,11 +532,35 @@ pub fn RaftNode::transfer_leadership(
   self : RaftNode,
   target : String,
 ) -> Array[Message] {
-  // A non-leader, a transfer to ourselves, or an unknown/non-member target is a
-  // no-op (§3.10). Transferring to a learner is likewise refused.
-  if self.core.role() != Leader ||
-    target == self.id ||
-    !self.config.contains(target) {
+  if self.core.role() != Leader {
+    return []
+  }
+  // A learner can never be leader, so a transfer to one is ignored outright,
+  // without disturbing any transfer already under way (etcd checks pr.IsLearner
+  // first).
+  if self.config.is_learner(target) {
+    return []
+  }
+  // A transfer already in progress (§3.10): a repeat to the same target is
+  // ignored (the handoff continues); a request naming a different target aborts
+  // the old one before the new is considered (etcd's stepLeader).
+  match self.lead_transferee {
+    Some(last) =>
+      if last == target {
+        return []
+      } else {
+        self.lead_transferee = None
+      }
+    None => ()
+  }
+  // Transferring to ourselves is a no-op — but note it still aborts a pending
+  // transfer above, which is how a leader cancels a handoff (etcd's
+  // "already leader" branch runs after abortLeaderTransfer).
+  if target == self.id {
+    return []
+  }
+  // An unknown / non-member target is a no-op.
+  if !self.config.contains(target) {
     return []
   }
   self.lead_transferee = Some(target)
@@ -542,7 +571,10 @@ pub fn RaftNode::transfer_leadership(
       if p.match_index == self.core.last_log_index() {
         [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
       } else {
-        [self.send_to(target)]
+        match self.send_to(target) {
+          Some(m) => [m]
+          None => []
+        }
       }
   }
 }
@@ -571,11 +603,18 @@ pub fn RaftNode::forget_leader(self : RaftNode) -> Unit {
 ///|
 /// Build the AppendEntries or InstallSnapshot message for one follower, based on
 /// its progress. If the entry the follower needs has been compacted away, a
-/// snapshot is sent instead (Raft §7).
-fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
+/// snapshot is sent instead (Raft §7). Returns `None` when nothing should be
+/// sent — currently only when a snapshot would be needed but the follower has
+/// not been heard from this liveness window (etcd's `maybeSendSnapshot` refuses
+/// to ship a snapshot to a `!RecentActive` follower, since it is probably gone
+/// and the snapshot would be wasted bandwidth).
+fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
   let p = self.progress[peer]
   let prev = p.next_index - 1
   if prev < self.core.snapshot_index {
+    if !p.is_active() {
+      return None
+    }
     p.become_snapshot(self.core.snapshot_index)
     let snap : Snapshot = {
       last_index: self.core.snapshot_index,
@@ -584,11 +623,13 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
       // Stamp the current membership so the follower rebuilds it on install.
       conf_state: self.conf_state(),
     }
-    return Message::new(
-      self.id,
-      peer,
-      Snapshot(
-        InstallSnapshotArgs::whole(self.core.current_term(), self.id, snap),
+    return Some(
+      Message::new(
+        self.id,
+        peer,
+        Snapshot(
+          InstallSnapshotArgs::whole(self.core.current_term(), self.id, snap),
+        ),
       ),
     )
   }
@@ -619,17 +660,19 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   // eager commit-only send can be skipped when it would tell the follower
   // nothing new (etcd's SentCommit / CanBumpCommit optimization).
   p.note_commit_sent(self.core.commit_index)
-  Message::new(
-    self.id,
-    peer,
-    Append({
-      term: self.core.current_term(),
-      leader_id: self.id,
-      prev_log_index: prev,
-      prev_log_term: self.core.term_at(prev),
-      entries,
-      leader_commit: self.core.commit_index,
-    }),
+  Some(
+    Message::new(
+      self.id,
+      peer,
+      Append({
+        term: self.core.current_term(),
+        leader_id: self.id,
+        prev_log_index: prev,
+        prev_log_term: self.core.term_at(prev),
+        entries,
+        leader_commit: self.core.commit_index,
+      }),
+    ),
   )
 }
 
@@ -644,7 +687,10 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
     if p.is_paused() {
       continue
     }
-    out.push(self.send_to(peer))
+    match self.send_to(peer) {
+      Some(m) => out.push(m)
+      None => ()
+    }
   }
   out
 }

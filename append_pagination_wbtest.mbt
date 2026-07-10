@@ -38,7 +38,7 @@ test "TestAppendPagination" {
   let mut steps = 0
   while r.progress["2"].next_index <= r.node().last_log_index() && steps < 100 {
     steps = steps + 1
-    let msg = r.send_to("2")
+    let msg = r.send_to("2").unwrap()
     match msg.payload {
       Append(a) => {
         let n = a.entries.length()
