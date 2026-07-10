@@ -1,0 +1,426 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/core"
+
+import {
+  "Lfan-ke/raft-moonbit/confchange",
+  "Lfan-ke/raft-moonbit/log",
+  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/raft-moonbit/storage",
+  "Lfan-ke/raft-moonbit/tracker",
+}
+
+// Values
+pub fn demo_report_lines(DemoReport) -> Array[String]
+
+pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> DemoReport
+
+pub fn must_sync(@raftpb.HardState, @raftpb.HardState, Int) -> Bool
+
+pub fn replicate(Node, Array[Node]) -> UInt64
+
+pub fn run_election(Node, Array[Node]) -> Bool
+
+pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
+
+// Errors
+pub suberror ConfigError {
+  EmptyId
+  HeartbeatTickNotPositive
+  ElectionTickNotGreater
+  MaxInflightNotPositive
+  MaxInflightBytesTooSmall
+  LeaseBasedNeedsCheckQuorum
+} derive(Eq)
+
+// Types and methods
+pub struct Cluster {
+  nodes : Map[String, RaftNode]
+  ids : Array[String]
+  mut inflight : Array[InFlight]
+  mut now : Int
+  part : Map[String, Int]
+  down : Map[String, Bool]
+  mut drop_permil : Int
+  mut max_delay : Int
+  mut next_group : Int
+  mut rng : UInt64
+}
+pub fn Cluster::all_committed(Self, UInt64) -> Bool
+pub fn Cluster::committed_agrees(Self) -> Bool
+pub fn Cluster::compact_leader(Self, UInt64, Bytes) -> Bool
+pub fn Cluster::crash(Self, String) -> Unit
+pub fn Cluster::enable_check_quorum(Self) -> Unit
+pub fn Cluster::heal(Self) -> Unit
+pub fn Cluster::invariants_hold(Self) -> Bool
+pub fn Cluster::is_down(Self, String) -> Bool
+pub fn Cluster::isolate(Self, String) -> Unit
+pub fn Cluster::leader(Self) -> String?
+pub fn Cluster::leaders(Self) -> Array[String]
+pub fn Cluster::logs_consistent(Self) -> Bool
+pub fn Cluster::new(Array[String], seed? : UInt64) -> Self
+pub fn Cluster::node(Self, String) -> RaftNode
+pub fn Cluster::one_leader_per_term(Self) -> Bool
+pub fn Cluster::partition(Self, Array[String], Array[String]) -> Unit
+pub fn Cluster::propose(Self, Bytes) -> Bool
+pub fn Cluster::propose_conf(Self, @confchange.ConfChange) -> Bool
+pub fn Cluster::propose_on(Self, String, Bytes) -> Bool
+pub fn Cluster::restart(Self, String) -> Unit
+pub fn Cluster::run(Self, Int) -> Unit
+pub fn Cluster::run_until_committed(Self, UInt64, Int) -> Bool
+pub fn Cluster::run_until_leader(Self, Int) -> String?
+pub fn Cluster::same_committed_commands(Self) -> Bool
+pub fn Cluster::set_delay(Self, Int) -> Unit
+pub fn Cluster::set_drop(Self, Int) -> Unit
+pub fn Cluster::tick(Self) -> Unit
+pub fn Cluster::transfer_leadership(Self, String) -> Bool
+
+pub struct ConfDriver {
+  config : @confchange.Membership
+  mut applied : UInt64
+}
+pub fn ConfDriver::config(Self) -> @confchange.Membership
+pub fn ConfDriver::drive(Self, Node) -> Int
+pub fn ConfDriver::new(Array[String]) -> Self
+
+pub struct Config {
+  id : String
+  peers : Array[String]
+  election_tick : Int
+  heartbeat_tick : Int
+  max_entries : UInt64
+  max_msg_bytes : UInt64
+  max_uncommitted_size : UInt64
+  max_inflight : Int
+  max_inflight_bytes : UInt64
+  check_quorum : Bool
+  pre_vote : Bool
+  read_only_option : ReadOnlyOption
+  step_down_on_removal : Bool
+  disable_proposal_forwarding : Bool
+  disable_conf_change_validation : Bool
+  applied : UInt64
+  logger : &Logger
+  tracer : &Tracer
+  seed : UInt64
+}
+pub fn Config::new(String, Array[String], election_tick? : Int, heartbeat_tick? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
+pub fn Config::validate(Self) -> Unit raise ConfigError
+
+pub struct DemoReport {
+  seed : UInt64
+  node_count : Int
+  first_leader : String?
+  proposal_accepted : Bool
+  committed : Bool
+  second_leader : String?
+  one_leader_per_term : Bool
+  committed_agrees : Bool
+  invariants_hold : Bool
+}
+
+pub(all) struct FullStatus {
+  basic : RaftStatus
+  progress : Array[ProgressStatus]
+  config : @raftpb.ConfState
+}
+
+type InFlight
+
+pub enum LogLevel {
+  Debug
+  Info
+  Warning
+  Error
+  Fatal
+  Panic
+} derive(Eq)
+
+pub struct Node {
+  id : String
+  mut role : Role
+  mut current_term : UInt64
+  mut voted_for : String?
+  log : Array[@raftpb.Entry]
+  mut commit_index : UInt64
+  mut last_applied : UInt64
+  mut snapshot_index : UInt64
+  mut snapshot_term : UInt64
+}
+pub fn Node::advance_commit(Self, UInt64) -> Unit
+pub fn Node::append(Self, UInt64, Bytes) -> @raftpb.Entry
+pub fn Node::append_conf(Self, UInt64, Bytes) -> @raftpb.Entry
+pub fn Node::apply_committed(Self, &StateMachine) -> Unit
+pub fn Node::apply_hard_state(Self, @raftpb.HardState) -> Unit
+pub fn Node::become_candidate(Self) -> Unit
+pub fn Node::become_follower(Self, UInt64) -> Unit
+pub fn Node::become_leader(Self) -> Unit
+pub fn Node::become_pre_candidate(Self) -> Unit
+pub fn Node::compact(Self, UInt64, Bytes, conf_state? : @raftpb.ConfState) -> @raftpb.Snapshot
+pub fn Node::current_term(Self) -> UInt64
+pub fn Node::entries_after(Self, UInt64) -> Array[@raftpb.Entry]
+pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[@raftpb.Entry]
+pub fn Node::entry_at(Self, UInt64) -> @raftpb.Entry?
+pub fn Node::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
+pub fn Node::handle_append_entries(Self, @raftpb.AppendEntriesArgs) -> @raftpb.AppendEntriesReply
+pub fn Node::handle_install_snapshot(Self, @raftpb.InstallSnapshotArgs) -> @raftpb.InstallSnapshotReply
+pub fn Node::handle_request_vote(Self, @raftpb.RequestVoteArgs) -> @raftpb.RequestVoteReply
+pub fn Node::hard_state(Self) -> @raftpb.HardState
+pub fn Node::install_snapshot(Self, @raftpb.Snapshot) -> Unit
+pub fn Node::last_log_index(Self) -> UInt64
+pub fn Node::last_log_term(Self) -> UInt64
+pub fn Node::load_from(Self, &@storage.RaftStorage) -> Unit
+pub fn Node::log_len(Self) -> Int
+pub fn Node::mark_applied(Self, UInt64) -> Unit
+pub fn Node::new(String) -> Self
+pub fn Node::persisted(Self) -> @storage.Persisted
+pub fn Node::propose_conf_change(Self, UInt64, @confchange.ConfChange) -> @raftpb.Entry
+pub fn Node::recover(Self, @storage.Persisted) -> Unit
+pub fn Node::recover_from(Self, &@storage.WalStore) -> Unit
+pub fn Node::replay(Self, Array[@storage.WalRecord]) -> Unit
+pub fn Node::request_vote_args(Self) -> @raftpb.RequestVoteArgs
+pub fn Node::role(Self) -> Role
+pub fn Node::save_into(Self, @storage.MemoryStorage) -> Unit
+pub fn Node::save_to(Self, &@storage.WalStore) -> Unit
+pub fn Node::term_at(Self, UInt64) -> UInt64
+
+pub struct NopLogger {
+}
+
+pub struct NopTracer {
+}
+
+pub(all) struct ProgressStatus {
+  id : String
+  match_index : UInt64
+  next_index : UInt64
+  state : @tracker.ProgressState
+  paused : Bool
+  pending_snapshot : UInt64
+  is_learner : Bool
+} derive(Eq)
+
+pub struct RaftNode {
+  core : Node
+  id : String
+  peers : Array[String]
+  config : @confchange.Membership
+  progress : Map[String, @tracker.Progress]
+  votes : Map[String, Bool]
+  pre_vote : Bool
+  mut check_quorum : Bool
+  mut in_pre_campaign : Bool
+  mut leader_id : String?
+  mut election_elapsed : Int
+  mut heartbeat_elapsed : Int
+  election_timeout : Int
+  heartbeat_timeout : Int
+  mut randomized_election_timeout : Int
+  max_entries : UInt64
+  max_msg_bytes : UInt64
+  max_uncommitted_size : UInt64
+  mut uncommitted_size : UInt64
+  max_inflight : Int
+  max_inflight_bytes : UInt64
+  mut rng : UInt64
+  mut conf_applied : UInt64
+  mut lead_transferee : String?
+  read_only : ReadOnly
+  pending_read_index : Array[(String, Bytes)]
+  mut no_forward : Bool
+  mut pending_conf_index : UInt64
+  no_conf_change_validation : Bool
+  step_down_on_removal : Bool
+  pending_farewell : Array[@raftpb.Message]
+  logger : &Logger
+  tracer : &Tracer
+}
+pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
+pub fn RaftNode::become_candidate(Self) -> Unit
+pub fn RaftNode::become_follower(Self, UInt64) -> Unit
+pub fn RaftNode::campaign(Self) -> Array[@raftpb.Message]
+pub fn RaftNode::commit_index(Self) -> UInt64
+pub fn RaftNode::conf_state(Self) -> @raftpb.ConfState
+pub fn RaftNode::disable_proposal_forwarding(Self) -> Unit
+pub fn RaftNode::election_deadline(Self) -> Int
+pub fn RaftNode::enable_check_quorum(Self) -> Unit
+pub fn RaftNode::enable_read_only_safe(Self) -> Unit
+pub fn RaftNode::forget_leader(Self) -> Unit
+pub fn RaftNode::from_config(Config) -> Self raise ConfigError
+pub fn RaftNode::full_status(Self) -> FullStatus
+pub fn RaftNode::has_lease(Self) -> Bool
+pub fn RaftNode::id(Self) -> String
+pub fn RaftNode::is_leader(Self) -> Bool
+pub fn RaftNode::leader(Self) -> String?
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, step_down_on_removal? : Bool, disable_conf_change_validation? : Bool, read_only_option? : ReadOnlyOption, logger? : &Logger, tracer? : &Tracer) -> Self
+pub fn RaftNode::node(Self) -> Node
+pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
+pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]
+pub fn RaftNode::promotable(Self) -> Bool
+pub fn RaftNode::propose(Self, Bytes) -> Array[@raftpb.Message]
+pub fn RaftNode::propose_conf(Self, @confchange.ConfChange) -> Array[@raftpb.Message]
+pub fn RaftNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Array[@raftpb.Message]
+pub fn RaftNode::quorum_active(Self) -> Bool
+pub fn RaftNode::raw(Self) -> RawNode
+pub fn RaftNode::raw_async(Self) -> RawNode
+pub fn RaftNode::raw_async_sized(Self, UInt64) -> RawNode
+pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
+pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::read_only_option(Self) -> ReadOnlyOption
+pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
+pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
+pub fn RaftNode::report_unreachable(Self, String) -> Unit
+pub fn RaftNode::request_read_index(Self, Bytes) -> Array[@raftpb.Message]
+pub fn RaftNode::request_transfer_leader(Self, String) -> Array[@raftpb.Message]
+pub fn RaftNode::role(Self) -> Role
+pub fn RaftNode::set_read_only_option(Self, ReadOnlyOption) -> Unit
+pub fn RaftNode::soft_state(Self) -> SoftState
+pub fn RaftNode::status(Self) -> RaftStatus
+pub fn RaftNode::step(Self, @raftpb.Message) -> Array[@raftpb.Message]
+pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
+pub fn RaftNode::term(Self) -> UInt64
+pub fn RaftNode::tick(Self) -> Array[@raftpb.Message]
+pub fn RaftNode::transfer_leadership(Self, String) -> Array[@raftpb.Message]
+pub fn RaftNode::uncommitted_size(Self) -> UInt64
+pub fn RaftNode::voter_nodes(Self) -> Array[String]
+pub fn RaftNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
+
+pub(all) struct RaftStatus {
+  id : String
+  role : Role
+  term : UInt64
+  leader : String?
+  commit : UInt64
+  last_index : UInt64
+  applied : UInt64
+} derive(Eq)
+pub fn RaftStatus::describe(Self) -> String
+
+pub struct RawNode {
+  raft : RaftNode
+  log : @log.RaftLog
+  msgs : Array[@raftpb.Message]
+  read_states : Array[ReadState]
+  mut prev_soft : SoftState
+  mut prev_hard : @raftpb.HardState
+  mut async_storage : Bool
+}
+pub fn RawNode::advance(Self, Ready) -> Unit
+pub fn RawNode::apply_conf_change(Self, @confchange.ConfChange) -> Array[String]
+pub fn RawNode::basic_status(Self) -> RaftStatus
+pub fn RawNode::campaign(Self) -> Unit
+pub fn RawNode::conf_state(Self) -> @raftpb.ConfState
+pub fn RawNode::forget_leader(Self) -> Unit
+pub fn RawNode::full_status(Self) -> FullStatus
+pub fn RawNode::has_ready(Self) -> Bool
+pub fn RawNode::is_async(Self) -> Bool
+pub fn RawNode::new(RaftNode) -> Self
+pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
+pub fn RawNode::node(Self) -> RaftNode
+pub fn RawNode::propose(Self, Bytes) -> Unit
+pub fn RawNode::propose_conf(Self, @confchange.ConfChange) -> Unit
+pub fn RawNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Unit
+pub fn RawNode::read_index(Self, Bytes) -> Unit
+pub fn RawNode::ready(Self) -> Ready
+pub fn RawNode::ready_without_accept(Self) -> Ready
+pub fn RawNode::report_snapshot(Self, String, Bool) -> Unit
+pub fn RawNode::report_unreachable(Self, String) -> Unit
+pub fn RawNode::stabilize(Self) -> Array[@raftpb.Message]
+pub fn RawNode::status(Self) -> RaftStatus
+pub fn RawNode::step(Self, @raftpb.Message) -> Unit
+pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
+pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
+pub fn RawNode::store(Self, Ready) -> Unit
+pub fn RawNode::tick(Self) -> Unit
+pub fn RawNode::transfer_leader(Self, String) -> Unit
+pub fn RawNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
+
+type ReadOnly
+
+pub enum ReadOnlyOption {
+  Safe
+  LeaseBased
+} derive(Eq)
+
+pub(all) struct ReadState {
+  index : UInt64
+  request_ctx : Bytes
+} derive(Eq)
+
+pub(all) struct Ready {
+  soft_state : SoftState?
+  hard_state : @raftpb.HardState?
+  read_states : Array[ReadState]
+  entries : Array[@raftpb.Entry]
+  snapshot : @raftpb.Snapshot?
+  committed_entries : Array[@raftpb.Entry]
+  messages : Array[@raftpb.Message]
+  must_sync : Bool
+  storage_append : StorageAppend?
+  storage_apply : StorageApply?
+}
+
+pub(all) enum Role {
+  Follower
+  PreCandidate
+  Candidate
+  Leader
+} derive(Eq)
+
+pub(all) struct SoftState {
+  lead : String?
+  state : Role
+} derive(Eq)
+pub fn SoftState::equal(Self, Self) -> Bool
+
+pub(all) struct StorageAppend {
+  entries : Array[@raftpb.Entry]
+  hard_state : @raftpb.HardState?
+  snapshot : @raftpb.Snapshot?
+  resp : StorageAppendResp
+}
+
+pub(all) struct StorageAppendResp {
+  index : UInt64
+  log_term : UInt64
+  term : UInt64
+} derive(Eq)
+
+pub(all) struct StorageApply {
+  entries : Array[@raftpb.Entry]
+  resp : StorageApplyResp
+}
+
+pub(all) struct StorageApplyResp {
+  entries : Array[@raftpb.Entry]
+}
+
+pub enum TraceEvent {
+  InitState(String)
+  StateChange(String, Role, UInt64)
+  Commit(String, UInt64)
+  Replicate(String, Array[@raftpb.Entry])
+  SendMessage(@raftpb.Message)
+  ReceiveMessage(@raftpb.Message)
+  ConfChange(String, @raftpb.ConfState)
+}
+
+// Type aliases
+
+// Traits
+pub trait Logger {
+  fn log(Self, LogLevel, String) -> Unit
+}
+
+pub trait StateMachine {
+  fn apply(Self, Bytes) -> Unit
+}
+
+pub trait Tracer {
+  fn on_event(Self, TraceEvent) -> Unit
+}
+
+pub trait Transport {
+  fn request_vote(Self, String, @raftpb.RequestVoteArgs) -> @raftpb.RequestVoteReply
+  fn append_entries(Self, String, @raftpb.AppendEntriesArgs) -> @raftpb.AppendEntriesReply
+}
+

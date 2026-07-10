@@ -1,897 +1,199 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Lfan-ke/raft-moonbit"
 
+import {
+  "Lfan-ke/raft-moonbit/confchange",
+  "Lfan-ke/raft-moonbit/core",
+  "Lfan-ke/raft-moonbit/log",
+  "Lfan-ke/raft-moonbit/quorum",
+  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/raft-moonbit/storage",
+  "Lfan-ke/raft-moonbit/tracker",
+}
+
 // Values
 pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
 
-pub fn demo_report_lines(DemoReport) -> Array[String]
+pub fn demo_report_lines(@core.DemoReport) -> Array[String]
 
-pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> DemoReport
+pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> @core.DemoReport
 
 pub fn describe(Array[String], Map[String, UInt64]) -> String
 
-pub fn describe_conf_state(ConfState) -> String
+pub fn describe_conf_state(@raftpb.ConfState) -> String
 
-pub fn describe_entries(ArrayView[Entry], ((Bytes) -> String)?) -> String
+pub fn describe_entries(ArrayView[@raftpb.Entry], ((Bytes) -> String)?) -> String
 
-pub fn describe_entry(Entry, ((Bytes) -> String)?) -> String
+pub fn describe_entry(@raftpb.Entry, ((Bytes) -> String)?) -> String
 
-pub fn describe_hard_state(HardState) -> String
+pub fn describe_hard_state(@raftpb.HardState) -> String
 
-pub fn describe_snapshot(Snapshot) -> String
+pub fn describe_snapshot(@raftpb.Snapshot) -> String
 
-pub fn entry_encoding_size(Entry) -> UInt64
+pub fn entry_encoding_size(@raftpb.Entry) -> UInt64
 
-pub fn ents_size(ArrayView[Entry]) -> UInt64
+pub fn ents_size(ArrayView[@raftpb.Entry]) -> UInt64
 
-pub fn hard_state_equal(HardState, HardState) -> Bool
+pub fn hard_state_equal(@raftpb.HardState, @raftpb.HardState) -> Bool
 
-pub fn limit_size(ArrayView[Entry], UInt64) -> Array[Entry]
+pub fn limit_size(ArrayView[@raftpb.Entry], UInt64) -> Array[@raftpb.Entry]
 
-pub fn must_sync(HardState, HardState, Int) -> Bool
+pub fn must_sync(@raftpb.HardState, @raftpb.HardState, Int) -> Bool
 
 pub let no_limit : UInt64
 
-pub fn payload_size(Entry) -> UInt64
+pub fn payload_size(@raftpb.Entry) -> UInt64
 
-pub fn payloads_size(ArrayView[Entry]) -> UInt64
+pub fn payloads_size(ArrayView[@raftpb.Entry]) -> UInt64
 
-pub fn replicate(Node, Array[Node]) -> UInt64
+pub fn replicate(@core.Node, Array[@core.Node]) -> UInt64
 
-pub fn run_election(Node, Array[Node]) -> Bool
+pub fn run_election(@core.Node, Array[@core.Node]) -> Bool
 
 pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
 
-pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
-
-pub fn wnode_campaign() -> Unit
-
-pub fn wnode_drain() -> String
-
-pub fn wnode_new(Int, Int, Int) -> Unit
-
-pub fn wnode_propose(Int) -> Unit
-
-pub fn wnode_recv_apply() -> Unit
-
-pub fn wnode_recv_push(Int) -> Unit
-
-pub fn wnode_recv_reset() -> Unit
-
-pub fn wnode_state() -> String
-
-pub fn wnode_tick() -> Unit
+pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> @quorum.VoteState
 
 // Errors
-pub suberror ConfigError {
-  EmptyId
-  HeartbeatTickNotPositive
-  ElectionTickNotGreater
-  MaxInflightNotPositive
-  MaxInflightBytesTooSmall
-  LeaseBasedNeedsCheckQuorum
-} derive(Eq)
-
-pub suberror LogCompacted
-
-pub suberror StorageError {
-  Compacted
-  Unavailable
-  SnapOutOfDate
-  SnapshotTemporarilyUnavailable
-} derive(Eq)
 
 // Types and methods
-pub(all) struct AppendEntriesArgs {
-  term : UInt64
-  leader_id : String
-  prev_log_index : UInt64
-  prev_log_term : UInt64
-  entries : Array[Entry]
-  leader_commit : UInt64
-} derive(Eq)
-
-pub(all) struct AppendEntriesReply {
-  term : UInt64
-  success : Bool
-  match_index : UInt64
-  conflict_index : UInt64
-  conflict_term : UInt64
-} derive(Eq)
-
-pub struct Changer {
-  mut cfg : ChangerConfig
-  mut prs : Map[String, Progress]
-  mut last_index : UInt64
-  max_inflight : Int
-  max_inflight_bytes : UInt64
-}
-pub fn Changer::advance_index(Self) -> Unit
-pub fn Changer::conf_state(Self) -> ConfState
-pub fn Changer::describe(Self) -> String
-pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
-pub fn Changer::leave_joint(Self) -> String?
-pub fn Changer::new(last_index? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
-pub fn Changer::restore(Self, ConfState) -> String?
-pub fn Changer::simple(Self, Array[(String, String)]) -> String?
-
-pub struct ChangerConfig {
-  incoming : Array[String]
-  outgoing : Array[String]
-  learners : Array[String]
-  learners_next : Array[String]
-  mut auto_leave : Bool
-}
-
-pub struct Cluster {
-  nodes : Map[String, RaftNode]
-  ids : Array[String]
-  mut inflight : Array[InFlight]
-  mut now : Int
-  part : Map[String, Int]
-  down : Map[String, Bool]
-  mut drop_permil : Int
-  mut max_delay : Int
-  mut next_group : Int
-  mut rng : UInt64
-}
-pub fn Cluster::all_committed(Self, UInt64) -> Bool
-pub fn Cluster::committed_agrees(Self) -> Bool
-pub fn Cluster::compact_leader(Self, UInt64, Bytes) -> Bool
-pub fn Cluster::crash(Self, String) -> Unit
-pub fn Cluster::enable_check_quorum(Self) -> Unit
-pub fn Cluster::heal(Self) -> Unit
-pub fn Cluster::invariants_hold(Self) -> Bool
-pub fn Cluster::is_down(Self, String) -> Bool
-pub fn Cluster::isolate(Self, String) -> Unit
-pub fn Cluster::leader(Self) -> String?
-pub fn Cluster::leaders(Self) -> Array[String]
-pub fn Cluster::logs_consistent(Self) -> Bool
-pub fn Cluster::new(Array[String], seed? : UInt64) -> Self
-pub fn Cluster::node(Self, String) -> RaftNode
-pub fn Cluster::one_leader_per_term(Self) -> Bool
-pub fn Cluster::partition(Self, Array[String], Array[String]) -> Unit
-pub fn Cluster::propose(Self, Bytes) -> Bool
-pub fn Cluster::propose_conf(Self, ConfChange) -> Bool
-pub fn Cluster::propose_on(Self, String, Bytes) -> Bool
-pub fn Cluster::restart(Self, String) -> Unit
-pub fn Cluster::run(Self, Int) -> Unit
-pub fn Cluster::run_until_committed(Self, UInt64, Int) -> Bool
-pub fn Cluster::run_until_leader(Self, Int) -> String?
-pub fn Cluster::same_committed_commands(Self) -> Bool
-pub fn Cluster::set_delay(Self, Int) -> Unit
-pub fn Cluster::set_drop(Self, Int) -> Unit
-pub fn Cluster::tick(Self) -> Unit
-pub fn Cluster::transfer_leadership(Self, String) -> Bool
-
-pub(all) struct ConfChange {
-  change_type : ConfChangeType
-  node_id : String
-} derive(Eq)
-pub fn ConfChange::add(String) -> Self
-pub fn ConfChange::add_learner(String) -> Self
-pub fn ConfChange::apply_to(Self, Membership) -> Unit
-pub fn ConfChange::decode(Bytes) -> Self?
-pub fn ConfChange::encode(Self) -> Bytes
-pub fn ConfChange::remove(String) -> Self
-
-pub enum ConfChangeTransition {
-  Auto
-  JointImplicit
-  JointExplicit
-} derive(Eq)
-
-pub enum ConfChangeType {
-  AddNode
-  RemoveNode
-  AddLearnerNode
-} derive(Eq)
-
-pub(all) struct ConfChangeV2 {
-  changes : Array[ConfChange]
-  transition : ConfChangeTransition
-} derive(Eq)
-pub fn ConfChangeV2::auto(Array[ConfChange]) -> Self
-pub fn ConfChangeV2::auto_leave(Self) -> Bool
-pub fn ConfChangeV2::decode(Bytes) -> Self?
-pub fn ConfChangeV2::encode(Self) -> Bytes
-pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
-pub fn ConfChangeV2::enters_joint(Self) -> (Bool, Bool)
-pub fn ConfChangeV2::is_leave(Self) -> Bool
-pub fn ConfChangeV2::leave_joint() -> Self
-
-pub struct ConfDriver {
-  config : Membership
-  mut applied : UInt64
-}
-pub fn ConfDriver::config(Self) -> Membership
-pub fn ConfDriver::drive(Self, Node) -> Int
-pub fn ConfDriver::new(Array[String]) -> Self
-
-pub(all) struct ConfState {
-  voters : Array[String]
-  learners : Array[String]
-  voters_outgoing : Array[String]
-  learners_next : Array[String]
-  auto_leave : Bool
-} derive(Eq)
-pub fn ConfState::empty() -> Self
-pub fn ConfState::equivalent(Self, Self) -> Bool
-pub fn ConfState::is_empty(Self) -> Bool
-
-pub struct Config {
-  id : String
-  peers : Array[String]
-  election_tick : Int
-  heartbeat_tick : Int
-  max_entries : UInt64
-  max_msg_bytes : UInt64
-  max_uncommitted_size : UInt64
-  max_inflight : Int
-  max_inflight_bytes : UInt64
-  check_quorum : Bool
-  pre_vote : Bool
-  read_only_option : ReadOnlyOption
-  step_down_on_removal : Bool
-  disable_proposal_forwarding : Bool
-  disable_conf_change_validation : Bool
-  applied : UInt64
-  logger : &Logger
-  tracer : &Tracer
-  seed : UInt64
-}
-pub fn Config::new(String, Array[String], election_tick? : Int, heartbeat_tick? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
-pub fn Config::validate(Self) -> Unit raise ConfigError
-
-pub struct DemoReport {
-  seed : UInt64
-  node_count : Int
-  first_leader : String?
-  proposal_accepted : Bool
-  committed : Bool
-  second_leader : String?
-  one_leader_per_term : Bool
-  committed_agrees : Bool
-  invariants_hold : Bool
-}
-
-pub(all) struct Entry {
-  term : UInt64
-  index : UInt64
-  entry_type : EntryType
-  command : Bytes
-} derive(Eq)
-pub fn Entry::conf(UInt64, UInt64, Bytes) -> Self
-pub fn Entry::id(Self) -> EntryId
-pub fn Entry::is_conf_change(Self) -> Bool
-pub fn Entry::normal(UInt64, UInt64, Bytes) -> Self
-
-pub(all) struct EntryId {
-  term : UInt64
-  index : UInt64
-} derive(Eq)
-
-pub enum EntryType {
-  Normal
-  ConfChange
-} derive(Eq)
-
-pub(all) struct FullStatus {
-  basic : RaftStatus
-  progress : Array[ProgressStatus]
-  config : ConfState
-}
-
-pub(all) struct HardState {
-  term : UInt64
-  vote : String?
-  commit : UInt64
-} derive(Eq)
-pub fn HardState::initial() -> Self
-pub fn HardState::is_empty(Self) -> Bool
-
-pub(all) struct HeartbeatArgs {
-  term : UInt64
-  leader_id : String
-  commit : UInt64
-  context : Bytes
-} derive(Eq)
-
-pub(all) struct HeartbeatReply {
-  term : UInt64
-  context : Bytes
-} derive(Eq)
-
-type InFlight
-
-pub(all) struct Inflight {
-  mut index : UInt64
-  mut bytes : UInt64
-} derive(Eq)
-
-pub struct Inflights {
-  mut start : Int
-  mut count : Int
-  mut bytes : UInt64
-  size : Int
-  max_bytes : UInt64
-  mut buffer : Array[Inflight]
-}
-pub fn Inflights::add(Self, UInt64, UInt64) -> Unit
-pub fn Inflights::clone(Self) -> Self
-pub fn Inflights::count(Self) -> Int
-pub fn Inflights::free_le(Self, UInt64) -> Unit
-pub fn Inflights::full(Self) -> Bool
-pub fn Inflights::new(Int, UInt64) -> Self
-pub fn Inflights::reset(Self) -> Unit
-
-pub(all) struct InstallSnapshotArgs {
-  term : UInt64
-  leader_id : String
-  last_index : UInt64
-  last_term : UInt64
-  offset : UInt64
-  data : Bytes
-  done : Bool
-  conf_state : ConfState
-} derive(Eq)
-pub fn InstallSnapshotArgs::whole(UInt64, String, Snapshot) -> Self
-
-pub(all) struct InstallSnapshotReply {
-  term : UInt64
-} derive(Eq)
-
-pub enum LogLevel {
-  Debug
-  Info
-  Warning
-  Error
-  Fatal
-  Panic
-} derive(Eq)
-
-pub(all) struct LogSlice {
-  term : UInt64
-  prev : EntryId
-  entries : Array[Entry]
-}
-pub fn LogSlice::last_entry_id(Self) -> EntryId
-pub fn LogSlice::last_index(Self) -> UInt64
-pub fn LogSlice::valid(Self) -> Bool
-
-pub(all) struct Membership {
-  members : Array[String]
-  outgoing : Array[String]
-  mut joint : Bool
-  learners : Array[String]
-  learners_next : Array[String]
-  mut auto_leave : Bool
-}
-pub fn Membership::add(Self, String) -> Unit
-pub fn Membership::add_learner(Self, String) -> Unit
-pub fn Membership::begin_joint(Self, Array[String]) -> Unit
-pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
-pub fn Membership::contains(Self, String) -> Bool
-pub fn Membership::enter_joint(Self, Array[String]) -> Unit
-pub fn Membership::has_majority(Self, Array[String]) -> Bool
-pub fn Membership::is_joint(Self) -> Bool
-pub fn Membership::is_learner(Self, String) -> Bool
-pub fn Membership::leave_joint(Self) -> Unit
-pub fn Membership::new(Array[String]) -> Self
-pub fn Membership::nodes(Self) -> Array[String]
-pub fn Membership::quorum(Self) -> Int
-pub fn Membership::remove(Self, String) -> Unit
-pub fn Membership::size(Self) -> Int
-pub fn Membership::vote_result(Self, Map[String, Bool]) -> VoteState
-pub fn Membership::voters(Self) -> Array[String]
-
-pub struct MemoryStorage {
-  mut hard : HardState
-  mut snap : Snapshot
-  mut ents : Array[Entry]
-  mut snapshot_pending : Bool
-}
-pub fn MemoryStorage::append(Self, Array[Entry]) -> Unit
-pub fn MemoryStorage::apply_snapshot(Self, Snapshot) -> Unit raise StorageError
-pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
-pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : ConfState?) -> Snapshot raise StorageError
-pub fn MemoryStorage::from_ents(Array[Entry]) -> Self
-pub fn MemoryStorage::new() -> Self
-pub fn MemoryStorage::raw_ents(Self) -> Array[Entry]
-pub fn MemoryStorage::seed_snapshot(Self, Snapshot) -> Unit
-pub fn MemoryStorage::set_hard_state(Self, HardState) -> Unit
-pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
-pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[Entry]
-
-pub(all) struct Message {
-  from : String
-  to : String
-  payload : Payload
-  force : Bool
-}
-pub fn Message::is_response(Self) -> Bool
-pub fn Message::kind(Self) -> String
-pub fn Message::new(String, String, Payload, force? : Bool) -> Self
-pub fn Message::term(Self) -> UInt64
-
-pub struct Node {
-  id : String
-  mut role : Role
-  mut current_term : UInt64
-  mut voted_for : String?
-  log : Array[Entry]
-  mut commit_index : UInt64
-  mut last_applied : UInt64
-  mut snapshot_index : UInt64
-  mut snapshot_term : UInt64
-}
-pub fn Node::advance_commit(Self, UInt64) -> Unit
-pub fn Node::append(Self, UInt64, Bytes) -> Entry
-pub fn Node::append_conf(Self, UInt64, Bytes) -> Entry
-pub fn Node::apply_committed(Self, &StateMachine) -> Unit
-pub fn Node::apply_hard_state(Self, HardState) -> Unit
-pub fn Node::become_candidate(Self) -> Unit
-pub fn Node::become_follower(Self, UInt64) -> Unit
-pub fn Node::become_leader(Self) -> Unit
-pub fn Node::become_pre_candidate(Self) -> Unit
-pub fn Node::compact(Self, UInt64, Bytes, conf_state? : ConfState) -> Snapshot
-pub fn Node::current_term(Self) -> UInt64
-pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
-pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
-pub fn Node::entry_at(Self, UInt64) -> Entry?
-pub fn Node::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
-pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
-pub fn Node::handle_install_snapshot(Self, InstallSnapshotArgs) -> InstallSnapshotReply
-pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
-pub fn Node::hard_state(Self) -> HardState
-pub fn Node::install_snapshot(Self, Snapshot) -> Unit
-pub fn Node::last_log_index(Self) -> UInt64
-pub fn Node::last_log_term(Self) -> UInt64
-pub fn Node::load_from(Self, &RaftStorage) -> Unit
-pub fn Node::log_len(Self) -> Int
-pub fn Node::mark_applied(Self, UInt64) -> Unit
-pub fn Node::new(String) -> Self
-pub fn Node::persisted(Self) -> Persisted
-pub fn Node::propose_conf_change(Self, UInt64, ConfChange) -> Entry
-pub fn Node::recover(Self, Persisted) -> Unit
-pub fn Node::recover_from(Self, &WalStore) -> Unit
-pub fn Node::replay(Self, Array[WalRecord]) -> Unit
-pub fn Node::request_vote_args(Self) -> RequestVoteArgs
-pub fn Node::role(Self) -> Role
-pub fn Node::save_into(Self, MemoryStorage) -> Unit
-pub fn Node::save_to(Self, &WalStore) -> Unit
-pub fn Node::term_at(Self, UInt64) -> UInt64
-
-pub struct NopLogger {
-}
-
-pub struct NopTracer {
-}
-
-pub enum Payload {
-  PreVote(RequestVoteArgs)
-  PreVoteResp(RequestVoteReply)
-  Vote(RequestVoteArgs)
-  VoteResp(RequestVoteReply)
-  Append(AppendEntriesArgs)
-  AppendResp(AppendEntriesReply)
-  Heartbeat(HeartbeatArgs)
-  HeartbeatResp(HeartbeatReply)
-  Snapshot(InstallSnapshotArgs)
-  SnapshotResp(InstallSnapshotReply)
-  TimeoutNow(UInt64)
-  Propose(Array[Entry])
-  ReadIndex(Bytes)
-  ReadIndexResp(ReadIndexResp)
-  TransferLeader(String)
-  ForgetLeader
-}
-pub fn Payload::is_local(Self) -> Bool
-
-pub(all) struct Persisted {
-  term : UInt64
-  voted_for : String?
-  log : Array[Entry]
-}
-
-pub struct Progress {
-  mut next_index : UInt64
-  mut match_index : UInt64
-  mut state : ProgressState
-  mut recent_active : Bool
-  mut msg_app_flow_paused : Bool
-  mut pending_snapshot : UInt64
-  mut is_learner : Bool
-  mut sent_commit : UInt64
-  inflights : Inflights
-}
-pub fn Progress::become_probe(Self) -> Unit
-pub fn Progress::become_replicate(Self) -> Unit
-pub fn Progress::become_snapshot(Self, UInt64) -> Unit
-pub fn Progress::can_bump_commit(Self, UInt64) -> Bool
-pub fn Progress::copy(Self) -> Self
-pub fn Progress::free_le(Self, UInt64) -> Unit
-pub fn Progress::is_active(Self) -> Bool
-pub fn Progress::is_paused(Self) -> Bool
-pub fn Progress::mark_active(Self) -> Unit
-pub fn Progress::maybe_decr_to(Self, UInt64, UInt64) -> Bool
-pub fn Progress::maybe_decrease(Self, UInt64) -> Bool
-pub fn Progress::maybe_update(Self, UInt64) -> Bool
-pub fn Progress::new(UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
-pub fn Progress::note_commit_sent(Self, UInt64) -> Unit
-pub fn Progress::optimistic_advance(Self, UInt64) -> Unit
-pub fn Progress::reset_active(Self) -> Unit
-pub fn Progress::sent_entries(Self, UInt64, Bool, bytes? : UInt64) -> Unit
-pub fn Progress::to_string(Self) -> String
-pub fn Progress::unpause(Self) -> Unit
-
-pub enum ProgressState {
-  Probe
-  Replicate
-  Snapshot
-} derive(Eq)
-
-pub(all) struct ProgressStatus {
-  id : String
-  match_index : UInt64
-  next_index : UInt64
-  state : ProgressState
-  paused : Bool
-  pending_snapshot : UInt64
-  is_learner : Bool
-} derive(Eq)
-
-pub struct RaftLog {
-  storage : &RaftStorage
-  unstable : Unstable
-  mut committed : UInt64
-  mut applying : UInt64
-  mut applied : UInt64
-  max_applying_ents_size : UInt64
-  mut applying_ents_size : UInt64
-  mut applying_ents_paused : Bool
-}
-pub fn RaftLog::accept_applying(Self, UInt64, UInt64, Bool) -> Unit
-pub fn RaftLog::accept_unstable(Self) -> Unit
-pub fn RaftLog::all_entries(Self) -> Array[Entry]
-pub fn RaftLog::append(Self, Array[Entry]) -> UInt64
-pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
-pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
-pub fn RaftLog::commit_stable(Self, Array[Entry]) -> Unit
-pub fn RaftLog::commit_to(Self, UInt64) -> Unit
-pub fn RaftLog::committed(Self) -> UInt64
-pub fn RaftLog::entries(Self, UInt64, UInt64) -> Array[Entry] raise LogCompacted
-pub fn RaftLog::find_conflict(Self, ArrayView[Entry]) -> UInt64
-pub fn RaftLog::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
-pub fn RaftLog::first_index(Self) -> UInt64
-pub fn RaftLog::has_next_committed_ents(Self, Bool) -> Bool
-pub fn RaftLog::has_next_or_in_progress_unstable_ents(Self) -> Bool
-pub fn RaftLog::has_next_unstable_ents(Self) -> Bool
-pub fn RaftLog::has_next_unstable_snapshot(Self) -> Bool
-pub fn RaftLog::is_up_to_date(Self, EntryId) -> Bool
-pub fn RaftLog::last_entry_id(Self) -> EntryId
-pub fn RaftLog::last_index(Self) -> UInt64
-pub fn RaftLog::match_term(Self, EntryId) -> Bool
-pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
-pub fn RaftLog::maybe_commit(Self, EntryId) -> Bool
-pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise LogCompacted
-pub fn RaftLog::new(MemoryStorage) -> Self
-pub fn RaftLog::new_with_size(&RaftStorage, UInt64) -> Self
-pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[Entry]
-pub fn RaftLog::next_unstable_ents(Self) -> Array[Entry]
-pub fn RaftLog::next_unstable_snapshot(Self) -> Snapshot?
-pub fn RaftLog::restore(Self, Snapshot) -> Unit
-pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[Entry]) -> Unit raise) -> Unit raise
-pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
-pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise LogCompacted
-pub fn RaftLog::snapshot(Self) -> Snapshot raise StorageError
-pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
-pub fn RaftLog::stable_to(Self, EntryId) -> Unit
-pub fn RaftLog::term(Self, UInt64) -> UInt64 raise StorageError
-pub fn RaftLog::to_string(Self) -> String
-pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
-
-pub struct RaftNode {
-  core : Node
-  id : String
-  peers : Array[String]
-  config : Membership
-  progress : Map[String, Progress]
-  votes : Map[String, Bool]
-  pre_vote : Bool
-  mut check_quorum : Bool
-  mut in_pre_campaign : Bool
-  mut leader_id : String?
-  mut election_elapsed : Int
-  mut heartbeat_elapsed : Int
-  election_timeout : Int
-  heartbeat_timeout : Int
-  mut randomized_election_timeout : Int
-  max_entries : UInt64
-  max_msg_bytes : UInt64
-  max_uncommitted_size : UInt64
-  mut uncommitted_size : UInt64
-  max_inflight : Int
-  max_inflight_bytes : UInt64
-  mut rng : UInt64
-  mut conf_applied : UInt64
-  mut lead_transferee : String?
-  read_only : ReadOnly
-  pending_read_index : Array[(String, Bytes)]
-  mut no_forward : Bool
-  mut pending_conf_index : UInt64
-  no_conf_change_validation : Bool
-  step_down_on_removal : Bool
-  pending_farewell : Array[Message]
-  logger : &Logger
-  tracer : &Tracer
-}
-pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
-pub fn RaftNode::become_candidate(Self) -> Unit
-pub fn RaftNode::become_follower(Self, UInt64) -> Unit
-pub fn RaftNode::campaign(Self) -> Array[Message]
-pub fn RaftNode::commit_index(Self) -> UInt64
-pub fn RaftNode::conf_state(Self) -> ConfState
-pub fn RaftNode::disable_proposal_forwarding(Self) -> Unit
-pub fn RaftNode::election_deadline(Self) -> Int
-pub fn RaftNode::enable_check_quorum(Self) -> Unit
-pub fn RaftNode::enable_read_only_safe(Self) -> Unit
-pub fn RaftNode::forget_leader(Self) -> Unit
-pub fn RaftNode::from_config(Config) -> Self raise ConfigError
-pub fn RaftNode::full_status(Self) -> FullStatus
-pub fn RaftNode::has_lease(Self) -> Bool
-pub fn RaftNode::id(Self) -> String
-pub fn RaftNode::is_leader(Self) -> Bool
-pub fn RaftNode::leader(Self) -> String?
-pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, step_down_on_removal? : Bool, disable_conf_change_validation? : Bool, read_only_option? : ReadOnlyOption, logger? : &Logger, tracer? : &Tracer) -> Self
-pub fn RaftNode::node(Self) -> Node
-pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
-pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]
-pub fn RaftNode::promotable(Self) -> Bool
-pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
-pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
-pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[Message]
-pub fn RaftNode::quorum_active(Self) -> Bool
-pub fn RaftNode::raw(Self) -> RawNode
-pub fn RaftNode::raw_async(Self) -> RawNode
-pub fn RaftNode::raw_async_sized(Self, UInt64) -> RawNode
-pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
-pub fn RaftNode::read_index(Self) -> UInt64?
-pub fn RaftNode::read_only_option(Self) -> ReadOnlyOption
-pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
-pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
-pub fn RaftNode::report_unreachable(Self, String) -> Unit
-pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
-pub fn RaftNode::request_transfer_leader(Self, String) -> Array[Message]
-pub fn RaftNode::role(Self) -> Role
-pub fn RaftNode::set_read_only_option(Self, ReadOnlyOption) -> Unit
-pub fn RaftNode::soft_state(Self) -> SoftState
-pub fn RaftNode::status(Self) -> RaftStatus
-pub fn RaftNode::step(Self, Message) -> Array[Message]
-pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
-pub fn RaftNode::term(Self) -> UInt64
-pub fn RaftNode::tick(Self) -> Array[Message]
-pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
-pub fn RaftNode::uncommitted_size(Self) -> UInt64
-pub fn RaftNode::voter_nodes(Self) -> Array[String]
-pub fn RaftNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
-
-pub(all) struct RaftStatus {
-  id : String
-  role : Role
-  term : UInt64
-  leader : String?
-  commit : UInt64
-  last_index : UInt64
-  applied : UInt64
-} derive(Eq)
-pub fn RaftStatus::describe(Self) -> String
-
-pub struct RawNode {
-  raft : RaftNode
-  log : RaftLog
-  msgs : Array[Message]
-  read_states : Array[ReadState]
-  mut prev_soft : SoftState
-  mut prev_hard : HardState
-  mut async_storage : Bool
-}
-pub fn RawNode::advance(Self, Ready) -> Unit
-pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
-pub fn RawNode::basic_status(Self) -> RaftStatus
-pub fn RawNode::campaign(Self) -> Unit
-pub fn RawNode::conf_state(Self) -> ConfState
-pub fn RawNode::forget_leader(Self) -> Unit
-pub fn RawNode::full_status(Self) -> FullStatus
-pub fn RawNode::has_ready(Self) -> Bool
-pub fn RawNode::is_async(Self) -> Bool
-pub fn RawNode::new(RaftNode) -> Self
-pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
-pub fn RawNode::node(Self) -> RaftNode
-pub fn RawNode::propose(Self, Bytes) -> Unit
-pub fn RawNode::propose_conf(Self, ConfChange) -> Unit
-pub fn RawNode::propose_conf_v2(Self, ConfChangeV2) -> Unit
-pub fn RawNode::read_index(Self, Bytes) -> Unit
-pub fn RawNode::ready(Self) -> Ready
-pub fn RawNode::ready_without_accept(Self) -> Ready
-pub fn RawNode::report_snapshot(Self, String, Bool) -> Unit
-pub fn RawNode::report_unreachable(Self, String) -> Unit
-pub fn RawNode::stabilize(Self) -> Array[Message]
-pub fn RawNode::status(Self) -> RaftStatus
-pub fn RawNode::step(Self, Message) -> Unit
-pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
-pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
-pub fn RawNode::store(Self, Ready) -> Unit
-pub fn RawNode::tick(Self) -> Unit
-pub fn RawNode::transfer_leader(Self, String) -> Unit
-pub fn RawNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
-
-pub(all) struct ReadIndexResp {
-  term : UInt64
-  index : UInt64
-  context : Bytes
-} derive(Eq)
-
-type ReadOnly
-
-pub enum ReadOnlyOption {
-  Safe
-  LeaseBased
-} derive(Eq)
-
-pub(all) struct ReadState {
-  index : UInt64
-  request_ctx : Bytes
-} derive(Eq)
-
-pub(all) struct Ready {
-  soft_state : SoftState?
-  hard_state : HardState?
-  read_states : Array[ReadState]
-  entries : Array[Entry]
-  snapshot : Snapshot?
-  committed_entries : Array[Entry]
-  messages : Array[Message]
-  must_sync : Bool
-  storage_append : StorageAppend?
-  storage_apply : StorageApply?
-}
-
-pub(all) struct RequestVoteArgs {
-  term : UInt64
-  candidate_id : String
-  last_log_index : UInt64
-  last_log_term : UInt64
-} derive(Eq)
-
-pub(all) struct RequestVoteReply {
-  term : UInt64
-  vote_granted : Bool
-} derive(Eq)
-
-pub enum Role {
-  Follower
-  PreCandidate
-  Candidate
-  Leader
-} derive(Eq)
-
-pub(all) struct Snapshot {
-  last_index : UInt64
-  last_term : UInt64
-  data : Bytes
-  conf_state : ConfState
-} derive(Eq)
-pub fn Snapshot::empty() -> Self
-pub fn Snapshot::is_empty(Self) -> Bool
-
-pub(all) struct SoftState {
-  lead : String?
-  state : Role
-} derive(Eq)
-pub fn SoftState::equal(Self, Self) -> Bool
-
-pub(all) struct StorageAppend {
-  entries : Array[Entry]
-  hard_state : HardState?
-  snapshot : Snapshot?
-  resp : StorageAppendResp
-}
-
-pub(all) struct StorageAppendResp {
-  index : UInt64
-  log_term : UInt64
-  term : UInt64
-} derive(Eq)
-
-pub(all) struct StorageApply {
-  entries : Array[Entry]
-  resp : StorageApplyResp
-}
-
-pub(all) struct StorageApplyResp {
-  entries : Array[Entry]
-}
-
-pub enum TraceEvent {
-  InitState(String)
-  StateChange(String, Role, UInt64)
-  Commit(String, UInt64)
-  Replicate(String, Array[Entry])
-  SendMessage(Message)
-  ReceiveMessage(Message)
-  ConfChange(String, ConfState)
-}
-
-pub struct Unstable {
-  mut snapshot : Snapshot?
-  mut entries : Array[Entry]
-  mut offset : UInt64
-  mut offset_in_progress : UInt64
-  mut snapshot_in_progress : Bool
-}
-pub fn Unstable::accept_in_progress(Self) -> Unit
-pub fn Unstable::maybe_first_index(Self) -> UInt64?
-pub fn Unstable::maybe_last_index(Self) -> UInt64?
-pub fn Unstable::maybe_term(Self, UInt64) -> UInt64?
-pub fn Unstable::new(UInt64) -> Self
-pub fn Unstable::next_entries(Self) -> Array[Entry]
-pub fn Unstable::next_snapshot(Self) -> Snapshot?
-pub fn Unstable::restore(Self, Snapshot) -> Unit
-pub fn Unstable::slice(Self, UInt64, UInt64) -> Array[Entry]
-pub fn Unstable::stable_snap_to(Self, UInt64) -> Unit
-pub fn Unstable::stable_to(Self, EntryId) -> Unit
-pub fn Unstable::truncate_and_append(Self, Array[Entry]) -> Unit
-
-pub enum VoteState {
-  VoteWon
-  VoteLost
-  VotePending
-} derive(Eq)
-
-pub enum WalRecord {
-  WalHardState(HardState)
-  WalEntry(Entry)
-  WalSnapshot(Snapshot)
-} derive(Eq)
 
 // Type aliases
+pub using @raftpb {type AppendEntriesArgs}
+
+pub using @raftpb {type AppendEntriesReply}
+
+pub using @confchange {type Changer}
+
+pub using @confchange {type ChangerConfig}
+
+pub using @core {type Cluster}
+
+pub using @confchange {type ConfChange}
+
+pub using @confchange {type ConfChangeTransition}
+
+pub using @confchange {type ConfChangeType}
+
+pub using @confchange {type ConfChangeV2}
+
+pub using @core {type ConfDriver}
+
+pub using @raftpb {type ConfState}
+
+pub using @core {type Config}
+
+pub using @core {type ConfigError}
+
+pub using @core {type DemoReport}
+
+pub using @raftpb {type Entry}
+
+pub using @raftpb {type EntryId}
+
+pub using @raftpb {type EntryType}
+
+pub using @core {type FullStatus}
+
+pub using @raftpb {type HardState}
+
+pub using @raftpb {type HeartbeatArgs}
+
+pub using @raftpb {type HeartbeatReply}
+
+pub using @tracker {type Inflight}
+
+pub using @tracker {type Inflights}
+
+pub using @raftpb {type InstallSnapshotArgs}
+
+pub using @raftpb {type InstallSnapshotReply}
+
+pub using @log {type LogCompacted}
+
+pub using @core {type LogLevel}
+
+pub using @log {type LogSlice}
+
+pub using @confchange {type Membership}
+
+pub using @storage {type MemoryStorage}
+
+pub using @raftpb {type Message}
+
+pub using @core {type Node}
+
+pub using @core {type NopLogger}
+
+pub using @core {type NopTracer}
+
+pub using @raftpb {type Payload}
+
+pub using @storage {type Persisted}
+
+pub using @tracker {type Progress}
+
+pub using @tracker {type ProgressState}
+
+pub using @core {type ProgressStatus}
+
+pub using @log {type RaftLog}
+
+pub using @core {type RaftNode}
+
+pub using @core {type RaftStatus}
+
+pub using @core {type RawNode}
+
+pub using @raftpb {type ReadIndexResp}
+
+pub using @core {type ReadOnlyOption}
+
+pub using @core {type ReadState}
+
+pub using @core {type Ready}
+
+pub using @raftpb {type RequestVoteArgs}
+
+pub using @raftpb {type RequestVoteReply}
+
+pub using @core {type Role}
+
+pub using @raftpb {type Snapshot}
+
+pub using @core {type SoftState}
+
+pub using @core {type StorageAppend}
+
+pub using @core {type StorageAppendResp}
+
+pub using @core {type StorageApply}
+
+pub using @core {type StorageApplyResp}
+
+pub using @storage {type StorageError}
+
+pub using @core {type TraceEvent}
+
+pub using @log {type Unstable}
+
+pub using @quorum {type VoteState}
+
+pub using @storage {type WalRecord}
+
+pub using @storage {trait LogStore}
+
+pub using @core {trait Logger}
+
+pub using @storage {trait RaftStorage}
+
+pub using @core {trait StateMachine}
+
+pub using @core {trait Tracer}
+
+pub using @core {trait Transport}
+
+pub using @storage {trait WalStore}
 
 // Traits
-pub trait LogStore {
-  fn persist(Self, Persisted) -> Unit
-  fn restore(Self) -> Persisted?
-}
-
-pub trait Logger {
-  fn log(Self, LogLevel, String) -> Unit
-}
-
-pub trait RaftStorage {
-  fn initial_state(Self) -> HardState
-  fn storage_entries(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise StorageError
-  fn storage_term(Self, UInt64) -> UInt64 raise StorageError
-  fn first_index(Self) -> UInt64
-  fn last_index(Self) -> UInt64
-  fn storage_snapshot(Self) -> Snapshot raise StorageError
-  fn append(Self, Array[Entry]) -> Unit
-}
-
-pub trait StateMachine {
-  fn apply(Self, Bytes) -> Unit
-}
-
-pub trait Tracer {
-  fn on_event(Self, TraceEvent) -> Unit
-}
-
-pub trait Transport {
-  fn request_vote(Self, String, RequestVoteArgs) -> RequestVoteReply
-  fn append_entries(Self, String, AppendEntriesArgs) -> AppendEntriesReply
-}
-
-pub trait WalStore {
-  fn append_record(Self, WalRecord) -> Unit
-  fn load(Self) -> Array[WalRecord]
-}
 

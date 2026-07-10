@@ -40,7 +40,7 @@ jobs:
           mkdir -p _site
           cp -r docs/. _site/
           # ship the freshly built wasm, not whatever was committed
-          cp _build/wasm/release/build/raft-moonbit.wasm _site/raft-moonbit.wasm
+          cp _build/wasm/release/build/demo/demo.wasm _site/raft-moonbit.wasm
           # the generator source and dev screenshots are not part of the site
           rm -f _site/gen-api.mjs
           touch _site/.nojekyll

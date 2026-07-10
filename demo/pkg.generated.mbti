@@ -1,0 +1,30 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/demo"
+
+// Values
+pub fn wnode_campaign() -> Unit
+
+pub fn wnode_drain() -> String
+
+pub fn wnode_new(Int, Int, Int) -> Unit
+
+pub fn wnode_propose(Int) -> Unit
+
+pub fn wnode_recv_apply() -> Unit
+
+pub fn wnode_recv_push(Int) -> Unit
+
+pub fn wnode_recv_reset() -> Unit
+
+pub fn wnode_state() -> String
+
+pub fn wnode_tick() -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

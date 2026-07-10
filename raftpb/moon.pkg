@@ -1,0 +1,2 @@
+// raft-moonbit raftpb: on-the-wire data types (etcd raftpb) — entries, messages,
+// RPC payloads, snapshot, hard state, and conf state.

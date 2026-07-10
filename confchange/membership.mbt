@@ -1,0 +1,258 @@
+// Copyright 2015 The etcd Authors
+// Copyright 2026 Leo Cheng
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+///|
+/// The set of servers that currently form the cluster. Raft changes membership
+/// through the log so every server adopts each change at the same point in the
+/// sequence (Raft §6). Two disciplines are supported: single-server changes,
+/// where the old and new majorities always overlap; and joint consensus, where
+/// the cluster passes through a transitional configuration C(old,new) that
+/// needs a majority of *both* the old and the new voter sets to agree.
+///
+/// `members` is the incoming configuration C(new). `outgoing` holds the old
+/// configuration C(old) and is non-empty only while `joint` is true.
+pub(all) struct Membership {
+  members : Array[String]
+  outgoing : Array[String]
+  mut joint : Bool
+  // Non-voting members: they receive replicated entries and can be caught up,
+  // but are never counted toward a quorum and never vote (Raft §4.2.1 learners).
+  learners : Array[String]
+  // Voters demoted to learner *during* a joint change: they keep voting via the
+  // outgoing half (so a demotion can't strand the old majority) and only become
+  // real learners when the joint config is left (etcd's LearnersNext, §4.3).
+  learners_next : Array[String]
+  // Whether this joint configuration should leave automatically once committed
+  // (etcd's ConfState.AutoLeave). This is *durable* config state, set from the
+  // committed EnterJoint entry, so it survives even if a not-yet-committed
+  // LeaveJoint entry is truncated by a new leader.
+  mut auto_leave : Bool
+}
+
+///|
+/// Create a simple (non-joint) cluster configuration from an initial voter set.
+pub fn Membership::new(members : Array[String]) -> Membership {
+  {
+    members: members.copy(),
+    outgoing: [],
+    joint: false,
+    learners: [],
+    learners_next: [],
+    auto_leave: false,
+  }
+}
+
+///|
+/// Add `id` as a learner (non-voting member). If it is currently a voter this
+/// *demotes* it (etcd's `l<id>`). A voter demoted while a joint config is active
+/// and still present in the outgoing half is *staged* in `learners_next`: it
+/// leaves the incoming voters but keeps voting through the outgoing half until
+/// the config is left, so its removal from the quorum is atomic with the leave
+/// (Raft §4.3). Otherwise it becomes a learner right away.
+pub fn Membership::add_learner(self : Membership, id : String) -> Unit {
+  self.members.retain(fn(m) { m != id })
+  if self.joint && self.outgoing.contains(id) {
+    if !self.learners_next.contains(id) {
+      self.learners_next.push(id)
+    }
+  } else if !self.learners.contains(id) {
+    self.learners.push(id)
+  }
+}
+
+///|
+/// Whether `id` is a learner (a non-voting member).
+pub fn Membership::is_learner(self : Membership, id : String) -> Bool {
+  self.learners.contains(id)
+}
+
+///|
+/// Every server that participates in replication: voters and learners alike.
+pub fn Membership::nodes(self : Membership) -> Array[String] {
+  let out = self.voters()
+  for l in self.learners {
+    if !out.contains(l) {
+      out.push(l)
+    }
+  }
+  // NB: staged learners (learners_next) need no separate pass — by construction
+  // they are always outgoing voters, hence already returned by `voters()`.
+  out
+}
+
+///|
+/// The majority size of the current (incoming) configuration. Meaningful for a
+/// simple configuration; in a joint configuration use `has_majority`, which
+/// accounts for both halves.
+pub fn Membership::quorum(self : Membership) -> Int {
+  self.members.length() / 2 + 1
+}
+
+///|
+/// Whether `id` is a voter in the current configuration — in the incoming set,
+/// or, during a joint transition, in either half.
+pub fn Membership::contains(self : Membership, id : String) -> Bool {
+  self.members.contains(id) || (self.joint && self.outgoing.contains(id))
+}
+
+///|
+/// The number of servers in the incoming configuration.
+pub fn Membership::size(self : Membership) -> Int {
+  self.members.length()
+}
+
+///|
+/// Whether the configuration is currently in the joint (transitional) state.
+pub fn Membership::is_joint(self : Membership) -> Bool {
+  self.joint
+}
+
+///|
+/// The number of `granted` ids that are voters in `voters`.
+fn count_in(voters : Array[String], granted : Array[String]) -> Int {
+  let mut n = 0
+  for id in voters {
+    if granted.contains(id) {
+      n = n + 1
+    }
+  }
+  n
+}
+
+///|
+/// Whether `granted` (the ids that agreed, e.g. voted or acknowledged) forms a
+/// majority. A simple configuration needs a majority of the incoming set; a
+/// joint configuration needs a majority of the incoming set *and* a majority of
+/// the outgoing set, which is what makes joint consensus safe against split
+/// decisions during a change (Raft §6).
+pub fn Membership::has_majority(
+  self : Membership,
+  granted : Array[String],
+) -> Bool {
+  let inc = count_in(self.members, granted) > self.members.length() / 2
+  if !self.joint {
+    return inc
+  }
+  let out = count_in(self.outgoing, granted) > self.outgoing.length() / 2
+  inc && out
+}
+
+///|
+/// Add a server as a voter, unless it already is one. A learner being added as
+/// a voter is *promoted*: it leaves the learner set (Raft §4.2.1).
+pub fn Membership::add(self : Membership, id : String) -> Unit {
+  self.learners.retain(fn(l) { l != id })
+  self.learners_next.retain(fn(l) { l != id })
+  if self.members.contains(id) {
+    return
+  }
+  self.members.push(id)
+}
+
+///|
+/// Remove a server from the configuration entirely — voter or learner.
+pub fn Membership::remove(self : Membership, id : String) -> Unit {
+  self.members.retain(fn(m) { m != id })
+  self.learners.retain(fn(l) { l != id })
+  self.learners_next.retain(fn(l) { l != id })
+}
+
+///|
+/// Enter joint consensus, moving to the target voter set `new_members` while
+/// keeping the current set as the outgoing half. Until the transition is
+/// committed and `leave_joint` is called, decisions need both majorities.
+pub fn Membership::enter_joint(
+  self : Membership,
+  new_members : Array[String],
+) -> Unit {
+  self.outgoing.clear()
+  for m in self.members {
+    self.outgoing.push(m)
+  }
+  self.members.clear()
+  for m in new_members {
+    self.members.push(m)
+  }
+  self.joint = true
+}
+
+///|
+/// Enter joint consensus keeping the already-updated incoming set, recording
+/// `outgoing` as the old half. Used when the incoming voters have been mutated
+/// in place by a batch of changes (etcd's ConfChangeV2 EnterJoint).
+pub fn Membership::begin_joint(
+  self : Membership,
+  outgoing : Array[String],
+) -> Unit {
+  self.outgoing.clear()
+  for m in outgoing {
+    self.outgoing.push(m)
+  }
+  self.joint = true
+}
+
+///|
+/// Leave joint consensus once C(old,new) is committed: the outgoing half is
+/// dropped and the cluster runs on the incoming configuration alone.
+pub fn Membership::leave_joint(self : Membership) -> Unit {
+  // Staged voters now become real learners (their progress is untouched).
+  for l in self.learners_next {
+    if !self.learners.contains(l) {
+      self.learners.push(l)
+    }
+  }
+  self.learners_next.clear()
+  self.outgoing.clear()
+  self.joint = false
+  self.auto_leave = false
+}
+
+///|
+/// The voters of the current configuration, de-duplicated across both halves.
+pub fn Membership::voters(self : Membership) -> Array[String] {
+  let out : Array[String] = []
+  for m in self.members {
+    out.push(m)
+  }
+  if self.joint {
+    for m in self.outgoing {
+      if !out.contains(m) {
+        out.push(m)
+      }
+    }
+  }
+  out
+}
+
+///|
+/// The committed index this configuration agrees on, given the acked indices,
+/// accounting for the joint transition when one is in progress.
+pub fn Membership::committed_index(
+  self : Membership,
+  acked : Map[String, UInt64],
+) -> UInt64 {
+  let out = if self.joint { self.outgoing } else { [] }
+  @quorum.committed_index(self.members, out, acked)
+}
+
+///|
+/// The vote outcome for this configuration, accounting for a joint transition.
+pub fn Membership::vote_result(
+  self : Membership,
+  votes : Map[String, Bool],
+) -> @quorum.VoteState {
+  let out = if self.joint { self.outgoing } else { [] }
+  @quorum.vote_result(self.members, out, votes)
+}

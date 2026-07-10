@@ -1,0 +1,104 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/confchange"
+
+import {
+  "Lfan-ke/raft-moonbit/quorum",
+  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/raft-moonbit/tracker",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Changer {
+  mut cfg : ChangerConfig
+  mut prs : Map[String, @tracker.Progress]
+  mut last_index : UInt64
+  max_inflight : Int
+  max_inflight_bytes : UInt64
+}
+pub fn Changer::advance_index(Self) -> Unit
+pub fn Changer::conf_state(Self) -> @raftpb.ConfState
+pub fn Changer::describe(Self) -> String
+pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
+pub fn Changer::leave_joint(Self) -> String?
+pub fn Changer::new(last_index? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
+pub fn Changer::restore(Self, @raftpb.ConfState) -> String?
+pub fn Changer::simple(Self, Array[(String, String)]) -> String?
+
+pub struct ChangerConfig {
+  incoming : Array[String]
+  outgoing : Array[String]
+  learners : Array[String]
+  learners_next : Array[String]
+  mut auto_leave : Bool
+}
+
+pub(all) struct ConfChange {
+  change_type : ConfChangeType
+  node_id : String
+} derive(Eq)
+pub fn ConfChange::add(String) -> Self
+pub fn ConfChange::add_learner(String) -> Self
+pub fn ConfChange::apply_to(Self, Membership) -> Unit
+pub fn ConfChange::decode(Bytes) -> Self?
+pub fn ConfChange::encode(Self) -> Bytes
+pub fn ConfChange::remove(String) -> Self
+
+pub(all) enum ConfChangeTransition {
+  Auto
+  JointImplicit
+  JointExplicit
+} derive(Eq)
+
+pub(all) enum ConfChangeType {
+  AddNode
+  RemoveNode
+  AddLearnerNode
+} derive(Eq)
+
+pub(all) struct ConfChangeV2 {
+  changes : Array[ConfChange]
+  transition : ConfChangeTransition
+} derive(Eq)
+pub fn ConfChangeV2::auto(Array[ConfChange]) -> Self
+pub fn ConfChangeV2::auto_leave(Self) -> Bool
+pub fn ConfChangeV2::decode(Bytes) -> Self?
+pub fn ConfChangeV2::encode(Self) -> Bytes
+pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
+pub fn ConfChangeV2::enters_joint(Self) -> (Bool, Bool)
+pub fn ConfChangeV2::is_leave(Self) -> Bool
+pub fn ConfChangeV2::leave_joint() -> Self
+
+pub(all) struct Membership {
+  members : Array[String]
+  outgoing : Array[String]
+  mut joint : Bool
+  learners : Array[String]
+  learners_next : Array[String]
+  mut auto_leave : Bool
+}
+pub fn Membership::add(Self, String) -> Unit
+pub fn Membership::add_learner(Self, String) -> Unit
+pub fn Membership::begin_joint(Self, Array[String]) -> Unit
+pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
+pub fn Membership::contains(Self, String) -> Bool
+pub fn Membership::enter_joint(Self, Array[String]) -> Unit
+pub fn Membership::has_majority(Self, Array[String]) -> Bool
+pub fn Membership::is_joint(Self) -> Bool
+pub fn Membership::is_learner(Self, String) -> Bool
+pub fn Membership::leave_joint(Self) -> Unit
+pub fn Membership::new(Array[String]) -> Self
+pub fn Membership::nodes(Self) -> Array[String]
+pub fn Membership::quorum(Self) -> Int
+pub fn Membership::remove(Self, String) -> Unit
+pub fn Membership::size(Self) -> Int
+pub fn Membership::vote_result(Self, Map[String, Bool]) -> @quorum.VoteState
+pub fn Membership::voters(Self) -> Array[String]
+
+// Type aliases
+
+// Traits
+

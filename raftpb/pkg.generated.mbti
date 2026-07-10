@@ -1,0 +1,168 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/raftpb"
+
+// Values
+pub fn entry_encoding_size(Entry) -> UInt64
+
+pub fn ents_size(ArrayView[Entry]) -> UInt64
+
+pub fn hard_state_equal(HardState, HardState) -> Bool
+
+pub fn limit_size(ArrayView[Entry], UInt64) -> Array[Entry]
+
+pub let no_limit : UInt64
+
+pub fn payload_size(Entry) -> UInt64
+
+pub fn payloads_size(ArrayView[Entry]) -> UInt64
+
+// Errors
+
+// Types and methods
+pub(all) struct AppendEntriesArgs {
+  term : UInt64
+  leader_id : String
+  prev_log_index : UInt64
+  prev_log_term : UInt64
+  entries : Array[Entry]
+  leader_commit : UInt64
+} derive(Eq)
+
+pub(all) struct AppendEntriesReply {
+  term : UInt64
+  success : Bool
+  match_index : UInt64
+  conflict_index : UInt64
+  conflict_term : UInt64
+} derive(Eq)
+
+pub(all) struct ConfState {
+  voters : Array[String]
+  learners : Array[String]
+  voters_outgoing : Array[String]
+  learners_next : Array[String]
+  auto_leave : Bool
+} derive(Eq)
+pub fn ConfState::empty() -> Self
+pub fn ConfState::equivalent(Self, Self) -> Bool
+pub fn ConfState::is_empty(Self) -> Bool
+
+pub(all) struct Entry {
+  term : UInt64
+  index : UInt64
+  entry_type : EntryType
+  command : Bytes
+} derive(Eq)
+pub fn Entry::conf(UInt64, UInt64, Bytes) -> Self
+pub fn Entry::id(Self) -> EntryId
+pub fn Entry::is_conf_change(Self) -> Bool
+pub fn Entry::normal(UInt64, UInt64, Bytes) -> Self
+
+pub(all) struct EntryId {
+  term : UInt64
+  index : UInt64
+} derive(Eq)
+
+pub(all) enum EntryType {
+  Normal
+  ConfChange
+} derive(Eq)
+
+pub(all) struct HardState {
+  term : UInt64
+  vote : String?
+  commit : UInt64
+} derive(Eq)
+pub fn HardState::initial() -> Self
+pub fn HardState::is_empty(Self) -> Bool
+
+pub(all) struct HeartbeatArgs {
+  term : UInt64
+  leader_id : String
+  commit : UInt64
+  context : Bytes
+} derive(Eq)
+
+pub(all) struct HeartbeatReply {
+  term : UInt64
+  context : Bytes
+} derive(Eq)
+
+pub(all) struct InstallSnapshotArgs {
+  term : UInt64
+  leader_id : String
+  last_index : UInt64
+  last_term : UInt64
+  offset : UInt64
+  data : Bytes
+  done : Bool
+  conf_state : ConfState
+} derive(Eq)
+pub fn InstallSnapshotArgs::whole(UInt64, String, Snapshot) -> Self
+
+pub(all) struct InstallSnapshotReply {
+  term : UInt64
+} derive(Eq)
+
+pub(all) struct Message {
+  from : String
+  to : String
+  payload : Payload
+  force : Bool
+}
+pub fn Message::is_response(Self) -> Bool
+pub fn Message::kind(Self) -> String
+pub fn Message::new(String, String, Payload, force? : Bool) -> Self
+pub fn Message::term(Self) -> UInt64
+
+pub(all) enum Payload {
+  PreVote(RequestVoteArgs)
+  PreVoteResp(RequestVoteReply)
+  Vote(RequestVoteArgs)
+  VoteResp(RequestVoteReply)
+  Append(AppendEntriesArgs)
+  AppendResp(AppendEntriesReply)
+  Heartbeat(HeartbeatArgs)
+  HeartbeatResp(HeartbeatReply)
+  Snapshot(InstallSnapshotArgs)
+  SnapshotResp(InstallSnapshotReply)
+  TimeoutNow(UInt64)
+  Propose(Array[Entry])
+  ReadIndex(Bytes)
+  ReadIndexResp(ReadIndexResp)
+  TransferLeader(String)
+  ForgetLeader
+}
+pub fn Payload::is_local(Self) -> Bool
+
+pub(all) struct ReadIndexResp {
+  term : UInt64
+  index : UInt64
+  context : Bytes
+} derive(Eq)
+
+pub(all) struct RequestVoteArgs {
+  term : UInt64
+  candidate_id : String
+  last_log_index : UInt64
+  last_log_term : UInt64
+} derive(Eq)
+
+pub(all) struct RequestVoteReply {
+  term : UInt64
+  vote_granted : Bool
+} derive(Eq)
+
+pub(all) struct Snapshot {
+  last_index : UInt64
+  last_term : UInt64
+  data : Bytes
+  conf_state : ConfState
+} derive(Eq)
+pub fn Snapshot::empty() -> Self
+pub fn Snapshot::is_empty(Self) -> Bool
+
+// Type aliases
+
+// Traits
+
