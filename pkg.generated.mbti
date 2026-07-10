@@ -102,6 +102,28 @@ pub(all) struct AppendEntriesReply {
   conflict_term : UInt64
 } derive(Eq)
 
+pub struct Changer {
+  mut cfg : ChangerConfig
+  mut prs : Map[String, Progress]
+  mut last_index : UInt64
+  max_inflight : Int
+}
+pub fn Changer::advance_index(Self) -> Unit
+pub fn Changer::describe(Self) -> String
+pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
+pub fn Changer::leave_joint(Self) -> String?
+pub fn Changer::new(last_index? : UInt64, max_inflight? : Int) -> Self
+pub fn Changer::restore(Self, ConfState) -> String?
+pub fn Changer::simple(Self, Array[(String, String)]) -> String?
+
+pub struct ChangerConfig {
+  incoming : Array[String]
+  outgoing : Array[String]
+  learners : Array[String]
+  learners_next : Array[String]
+  mut auto_leave : Bool
+}
+
 pub struct Cluster {
   nodes : Map[String, RaftNode]
   ids : Array[String]
@@ -177,6 +199,14 @@ pub struct ConfDriver {
 pub fn ConfDriver::config(Self) -> Membership
 pub fn ConfDriver::drive(Self, Node) -> Int
 pub fn ConfDriver::new(Array[String]) -> Self
+
+pub(all) struct ConfState {
+  voters : Array[String]
+  learners : Array[String]
+  voters_outgoing : Array[String]
+  learners_next : Array[String]
+  auto_leave : Bool
+} derive(Eq)
 
 pub(all) struct Entry {
   term : UInt64
@@ -401,6 +431,7 @@ pub struct Progress {
 pub fn Progress::become_probe(Self) -> Unit
 pub fn Progress::become_replicate(Self) -> Unit
 pub fn Progress::become_snapshot(Self, UInt64) -> Unit
+pub fn Progress::copy(Self) -> Self
 pub fn Progress::free_le(Self, UInt64) -> Unit
 pub fn Progress::is_active(Self) -> Bool
 pub fn Progress::is_paused(Self) -> Bool

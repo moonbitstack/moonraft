@@ -475,22 +475,28 @@ in `joint_wbtest.mbt` (encoding round-trip, enter→auto-leave, both-majorities
 safety). Covers the core of `TestRawNodeJointAutoLeave` and the confchange
 EnterJoint/LeaveJoint path.
 
-## confchange/testdata (internal state) — DONE (partial)
-The internal voter/learner/joint state a batch of changes produces is now
-asserted directly in `confchange_internal_wbtest.mbt`, expanding datadriven
-cases from `simple_promote_demote.txt` / `simple_safety.txt` and the joint
-enter/leave flow (v=add voter, l=demote/add learner, r=remove). This surfaced
-and fixed a real bug: `add_learner` on an existing voter now **demotes** it
-(previously a no-op), so etcd's `l<id>` on a voter works.
-- Remaining: **`learners_next`** — a voter demoted *during* a joint change is
-  kept a voter in the outgoing half and becomes a learner only on leave. Our
-  live `Membership` demotes immediately; modelling the deferred `learners_next`
-  needs the confchange-package `Changer` abstraction (separate from the live
-  apply path). Tracked as the one confchange internal-state gap.
-- **`confchange/restore_test.go` (Restore from ConfState)** — TODO: our
-  `Snapshot` does not yet carry a `ConfState`, so rebuilding a configuration from
-  a snapshot's membership is not wired; the live snapshot path restores log/state
-  but not the voter/learner sets.
+## confchange package (Changer + learners_next + Restore) — DONE
+Implemented the confchange-package `Changer` (`changer.mbt`), separate from the
+live `RaftNode` apply path: `ChangerConfig` (incoming/outgoing/learners/
+`learners_next`/auto_leave) + a `ProgressMap`, with `simple` / `enter_joint` /
+`leave_joint` / `restore`, transactional (rolled back on error, etcd's
+`checkAndCopy`), progress anchored at `max(last_index, 1)`, and a `describe`
+renderer in etcd's datadriven format.
+- **`learners_next`** (the core invariant) — a voter demoted *during* a joint
+  change is staged in `learners_next`, stays a voter via the outgoing half, and
+  becomes a learner (progress preserved, not recreated) only on `leave_joint`.
+  Ported `joint_learners_next.txt` exactly, incl. the `next`-round check.
+- Also ported `simple_promote_demote.txt`, the simple-safety error cases (>1
+  voter changed / simple-while-joint), and (bug fix) `add_learner`-demotes-voter
+  in the live `Membership`.
+- **`confchange/restore_test.go`** — DONE: `Changer::restore(ConfState)` runs the
+  outgoing→incoming change sequence (etcd's `toConfChangeSingle`/`Restore`);
+  ported the joint worked-example and a plain ConfState in `changer_wbtest.mbt`.
+- Follow-up (needs cross-agent coordination, tracked): wiring `ConfState` into
+  the live `Snapshot` so a node rebuilds its voter/learner sets on snapshot
+  restore — `Snapshot` is constructed in B's `raftlog.mbt`/`rawnode.mbt` too, so
+  adding the field is not purely additive in MoonBit. The pure `Restore` logic
+  and the `ConfState` type are done and tested above.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

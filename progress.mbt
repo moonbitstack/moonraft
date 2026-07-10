@@ -136,6 +136,22 @@ pub fn Progress::unpause(self : Progress) -> Unit {
 }
 
 ///|
+/// A deep copy sharing no mutable state (used by the confchange Changer, which
+/// preserves a demoted voter's progress across a joint transition).
+pub fn Progress::copy(self : Progress) -> Progress {
+  {
+    next_index: self.next_index,
+    match_index: self.match_index,
+    state: self.state,
+    recent_active: self.recent_active,
+    msg_app_flow_paused: self.msg_app_flow_paused,
+    pending_snapshot: self.pending_snapshot,
+    is_learner: self.is_learner,
+    inflights: self.inflights.clone(),
+  }
+}
+
+///|
 /// Record that a replication message ending at `last` and carrying `has_entries`
 /// entries was sent. In `Replicate` this consumes an in-flight slot and pauses
 /// once the window fills; in `Probe` any non-empty send pauses until acked.
