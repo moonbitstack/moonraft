@@ -396,6 +396,56 @@ pub enum ProgressState {
   Snapshot
 } derive(Eq)
 
+pub struct RaftLog {
+  storage : MemoryStorage
+  unstable : Unstable
+  mut committed : UInt64
+  mut applying : UInt64
+  mut applied : UInt64
+  max_applying_ents_size : UInt64
+  mut applying_ents_size : UInt64
+  mut applying_ents_paused : Bool
+}
+pub fn RaftLog::accept_applying(Self, UInt64, UInt64, Bool) -> Unit
+pub fn RaftLog::accept_unstable(Self) -> Unit
+pub fn RaftLog::all_entries(Self) -> Array[Entry]
+pub fn RaftLog::append(Self, Array[Entry]) -> UInt64
+pub fn RaftLog::applied(Self) -> UInt64
+pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::commit_stable(Self, Array[Entry]) -> Unit
+pub fn RaftLog::commit_to(Self, UInt64) -> Unit
+pub fn RaftLog::committed(Self) -> UInt64
+pub fn RaftLog::entries(Self, UInt64, UInt64) -> Array[Entry] raise StorageError
+pub fn RaftLog::find_conflict(Self, ArrayView[Entry]) -> UInt64
+pub fn RaftLog::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
+pub fn RaftLog::first_index(Self) -> UInt64
+pub fn RaftLog::has_next_committed_ents(Self, Bool) -> Bool
+pub fn RaftLog::has_next_or_in_progress_unstable_ents(Self) -> Bool
+pub fn RaftLog::has_next_unstable_ents(Self) -> Bool
+pub fn RaftLog::has_next_unstable_snapshot(Self) -> Bool
+pub fn RaftLog::is_up_to_date(Self, EntryId) -> Bool
+pub fn RaftLog::last_entry_id(Self) -> EntryId
+pub fn RaftLog::last_index(Self) -> UInt64
+pub fn RaftLog::match_term(Self, EntryId) -> Bool
+pub fn RaftLog::maybe_append(Self, LogSlice, UInt64) -> UInt64?
+pub fn RaftLog::maybe_commit(Self, EntryId) -> Bool
+pub fn RaftLog::must_check_out_of_bounds(Self, UInt64, UInt64) -> Unit raise StorageError
+pub fn RaftLog::new(MemoryStorage) -> Self
+pub fn RaftLog::new_with_size(MemoryStorage, UInt64) -> Self
+pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[Entry]
+pub fn RaftLog::next_unstable_ents(Self) -> Array[Entry]
+pub fn RaftLog::next_unstable_snapshot(Self) -> Snapshot?
+pub fn RaftLog::restore(Self, Snapshot) -> Unit
+pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[Entry]) -> Unit raise) -> Unit raise
+pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise StorageError
+pub fn RaftLog::snapshot(Self) -> Snapshot raise StorageError
+pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
+pub fn RaftLog::stable_to(Self, EntryId) -> Unit
+pub fn RaftLog::term(Self, UInt64) -> UInt64 raise StorageError
+pub fn RaftLog::unstable_view(Self) -> Unstable
+pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
+
 pub struct RaftNode {
   core : Node
   id : String
@@ -437,6 +487,7 @@ pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
 pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[Message]
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
+pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
 pub fn RaftNode::role(Self) -> Role
@@ -461,17 +512,18 @@ pub fn RaftStatus::describe(Self) -> String
 
 pub struct RawNode {
   raft : RaftNode
+  log : RaftLog
   msgs : Array[Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : HardState
-  mut stabled : UInt64
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
 pub fn RawNode::apply_conf_change(Self, ConfChange) -> Array[String]
 pub fn RawNode::campaign(Self) -> Unit
 pub fn RawNode::has_ready(Self) -> Bool
 pub fn RawNode::new(RaftNode) -> Self
+pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
 pub fn RawNode::node(Self) -> RaftNode
 pub fn RawNode::propose(Self, Bytes) -> Unit
 pub fn RawNode::propose_conf(Self, ConfChange) -> Unit
@@ -533,6 +585,26 @@ pub(all) struct SoftState {
   state : Role
 } derive(Eq)
 pub fn SoftState::equal(Self, Self) -> Bool
+
+pub struct Unstable {
+  mut snapshot : Snapshot?
+  mut entries : Array[Entry]
+  mut offset : UInt64
+  mut offset_in_progress : UInt64
+  mut snapshot_in_progress : Bool
+}
+pub fn Unstable::accept_in_progress(Self) -> Unit
+pub fn Unstable::maybe_first_index(Self) -> UInt64?
+pub fn Unstable::maybe_last_index(Self) -> UInt64?
+pub fn Unstable::maybe_term(Self, UInt64) -> UInt64?
+pub fn Unstable::new(UInt64) -> Self
+pub fn Unstable::next_entries(Self) -> Array[Entry]
+pub fn Unstable::next_snapshot(Self) -> Snapshot?
+pub fn Unstable::restore(Self, Snapshot) -> Unit
+pub fn Unstable::slice(Self, UInt64, UInt64) -> Array[Entry]
+pub fn Unstable::stable_snap_to(Self, UInt64) -> Unit
+pub fn Unstable::stable_to(Self, EntryId) -> Unit
+pub fn Unstable::truncate_and_append(Self, Array[Entry]) -> Unit
 
 pub enum VoteState {
   VoteWon

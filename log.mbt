@@ -83,15 +83,14 @@ fn varint_len(v : UInt64) -> UInt64 {
 /// Only the byte total matters — it is what `limit_size` and `Storage.Entries`
 /// budget against.
 pub fn entry_encoding_size(e : Entry) -> UInt64 {
-  let mut size : UInt64 = 0
+  // The entry type is a first-class field of every entry here (unlike etcd's
+  // optional proto field), so its tag + one-byte enum value is always counted.
+  let mut size : UInt64 = 2
   if e.term != 0 {
     size = size + 1 + varint_len(e.term)
   }
   if e.index != 0 {
     size = size + 1 + varint_len(e.index)
-  }
-  if e.entry_type == ConfChange {
-    size = size + 2
   }
   let dl = e.command.length().to_uint64()
   if dl > 0 {
