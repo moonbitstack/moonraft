@@ -23,5 +23,19 @@ options(
       ],
       "format": "esm",
     },
+    "wasm": {
+      "exports": [
+        "wnode_new",
+        "wnode_tick",
+        "wnode_campaign",
+        "wnode_propose",
+        "wnode_recv_reset",
+        "wnode_recv_push",
+        "wnode_recv_apply",
+        "wnode_drain",
+        "wnode_state",
+      ],
+      "export-memory-name": "memory",
+    },
   },
 )
