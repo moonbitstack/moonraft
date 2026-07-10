@@ -1,4 +1,254 @@
 ///|
+/// The sentinel used for an unbounded size cap: no `entries`/`slice` request is
+/// ever limited by size. Mirrors etcd's `noLimit = math.MaxUint64`.
+pub let no_limit : UInt64 = 18446744073709551615
+
+///|
+/// Uniquely identifies a log entry by the term that first appended it and its
+/// index. There is only ever one leader per term and a leader never issues two
+/// entries at the same index, so `(term, index)` pins an entry down. Mirrors
+/// etcd's `entryID`.
+pub(all) struct EntryId {
+  term : UInt64
+  index : UInt64
+} derive(Eq)
+
+///|
+/// The identity `(term, index)` of this entry.
+pub fn Entry::id(self : Entry) -> EntryId {
+  { term: self.term, index: self.index }
+}
+
+///|
+/// A contiguous, well-formed slice of a raft log considered under a specific
+/// leader `term`. `prev` is the entry immediately before `entries`. Mirrors
+/// etcd's `logSlice`, whose invariants a well-formed append must satisfy:
+/// entries are contiguous after `prev`, entry terms never regress, and no entry
+/// carries a term newer than the leader term.
+pub(all) struct LogSlice {
+  term : UInt64
+  prev : EntryId
+  entries : Array[Entry]
+}
+
+///|
+/// The index of the last entry, or `prev.index` when the slice is empty.
+pub fn LogSlice::last_index(self : LogSlice) -> UInt64 {
+  self.prev.index + self.entries.length().to_uint64()
+}
+
+///|
+/// The identity of the last entry, or `prev` when the slice is empty.
+pub fn LogSlice::last_entry_id(self : LogSlice) -> EntryId {
+  let n = self.entries.length()
+  if n != 0 {
+    self.entries[n - 1].id()
+  } else {
+    self.prev
+  }
+}
+
+///|
+/// Whether the slice is well-formed: every entry follows the previous one by
+/// exactly one index, entry terms never regress below the preceding entry, and
+/// the last entry's term does not exceed the leader term. This is the "gateway"
+/// check etcd runs on a slice sourced from a message or from storage.
+pub fn LogSlice::valid(self : LogSlice) -> Bool {
+  let mut prev = self.prev
+  for e in self.entries {
+    let id = e.id()
+    if id.term < prev.term || id.index != prev.index + 1 {
+      return false
+    }
+    prev = id
+  }
+  self.term >= prev.term
+}
+
+///|
+/// The number of bytes a base-128 varint of `v` occupies.
+fn varint_len(v : UInt64) -> UInt64 {
+  let mut n : UInt64 = 1
+  let mut x = v
+  while x >= 128 {
+    x = x / 128
+    n = n + 1
+  }
+  n
+}
+
+///|
+/// The protobuf wire size of one entry, following etcd's `proto.Size`: each
+/// non-zero field costs a tag byte plus its varint/length-delimited encoding.
+/// Only the byte total matters — it is what `limit_size` and `Storage.Entries`
+/// budget against.
+pub fn entry_encoding_size(e : Entry) -> UInt64 {
+  let mut size : UInt64 = 0
+  if e.term != 0 {
+    size = size + 1 + varint_len(e.term)
+  }
+  if e.index != 0 {
+    size = size + 1 + varint_len(e.index)
+  }
+  if e.entry_type == ConfChange {
+    size = size + 2
+  }
+  let dl = e.command.length().to_uint64()
+  if dl > 0 {
+    size = size + 1 + varint_len(dl) + dl
+  }
+  size
+}
+
+///|
+/// The total encoding size of a run of entries.
+pub fn ents_size(entries : ArrayView[Entry]) -> UInt64 {
+  let mut size : UInt64 = 0
+  for e in entries {
+    size = size + entry_encoding_size(e)
+  }
+  size
+}
+
+///|
+/// The longest prefix of `entries` whose total encoding size does not exceed
+/// `max_size`. Always returns at least one entry when the input is non-empty —
+/// so a single oversized entry is still returned — matching etcd's `limitSize`.
+pub fn limit_size(
+  entries : ArrayView[Entry],
+  max_size : UInt64,
+) -> Array[Entry] {
+  if entries.length() == 0 {
+    return []
+  }
+  let out : Array[Entry] = [entries[0]]
+  let mut size = entry_encoding_size(entries[0])
+  let mut i = 1
+  while i < entries.length() {
+    size = size + entry_encoding_size(entries[i])
+    if size > max_size {
+      break
+    }
+    out.push(entries[i])
+    i = i + 1
+  }
+  out
+}
+
+///|
+/// The size of an entry's payload: its command bytes only, independent of term
+/// and index. Empty-payload entries (like the no-op a new leader appends) are
+/// zero size, so they do not count against the uncommitted-log quota. Mirrors
+/// etcd's `payloadSize`.
+pub fn payload_size(e : Entry) -> UInt64 {
+  e.command.length().to_uint64()
+}
+
+///|
+/// etcd classifies a handful of message types as node-local — MsgHup, MsgBeat,
+/// MsgSnapStatus, MsgCheckQuorum and the storage-thread messages — which never
+/// travel over the transport. This port has no such messages: those triggers are
+/// direct method calls (tick / campaign / step), not `Payload`s. Every
+/// transportable `Payload` is therefore, by construction, a network message.
+pub fn Payload::is_local(self : Payload) -> Bool {
+  match self {
+    _ => false
+  }
+}
+
+///|
+/// One nibble as a lowercase hex digit.
+fn hex_digit(n : Int) -> Char {
+  if n < 10 {
+    ('0'.to_int() + n).unsafe_to_char()
+  } else {
+    ('a'.to_int() + (n - 10)).unsafe_to_char()
+  }
+}
+
+///|
+/// Go `%q`-style quoting of a byte string: wrap in double quotes, escaping the
+/// quote, backslash and the usual control characters, and rendering any other
+/// non-printable byte as `\xHH`. This is the default `describe_entry` renderer.
+fn quote_bytes(data : Bytes) -> String {
+  let buf = StringBuilder::new()
+  buf.write_char('"')
+  for i in 0..<data.length() {
+    let b = data[i].to_int()
+    if b == 0x22 {
+      buf.write_string("\\\"")
+    } else if b == 0x5c {
+      buf.write_string("\\\\")
+    } else if b == 0x0a {
+      buf.write_string("\\n")
+    } else if b == 0x09 {
+      buf.write_string("\\t")
+    } else if b == 0x0d {
+      buf.write_string("\\r")
+    } else if b >= 0x20 && b <= 0x7e {
+      buf.write_char(b.unsafe_to_char())
+    } else {
+      buf.write_string("\\x")
+      buf.write_char(hex_digit(b / 16))
+      buf.write_char(hex_digit(b % 16))
+    }
+  }
+  buf.write_char('"')
+  buf.to_string()
+}
+
+///|
+/// A concise, human-readable description of an entry for debugging:
+/// `term/index Type payload`. `format` renders the payload; when it is `None`
+/// the default Go `%q`-style quoting is used. Mirrors etcd's `DescribeEntry`.
+pub fn describe_entry(e : Entry, format : ((Bytes) -> String)?) -> String {
+  let formatted = match format {
+    Some(f) => f(e.command)
+    None => quote_bytes(e.command)
+  }
+  let type_name = match e.entry_type {
+    Normal => "EntryNormal"
+    ConfChange => "EntryConfChange"
+  }
+  let head = "\{e.term}/\{e.index} \{type_name}"
+  if formatted != "" {
+    head + " " + formatted
+  } else {
+    head
+  }
+}
+
+///|
+/// Whether this node's log is at least as up-to-date as the log ending at `id`
+/// (Raft §5.4.1): a higher last term wins, ties break on the longer log.
+pub fn Node::is_up_to_date(self : Node, id : EntryId) -> Bool {
+  self.candidate_log_up_to_date(id.term, id.index)
+}
+
+///|
+/// Whether the entry identified by `id` is present in this log with a matching
+/// term. An index outside the log has term 0 here, so it matches only `id.term`
+/// 0 — the same "zero term on out of bounds" behaviour etcd's `matchTerm` uses.
+pub fn Node::match_term(self : Node, id : EntryId) -> Bool {
+  self.term_at(id.index) == id.term
+}
+
+///|
+/// The index of the first entry in `entries` that conflicts with this log — the
+/// first whose `(index, term)` does not match what we hold — or 0 if there is no
+/// conflict. An entry beyond the end of the log has an unknown (zero) term and so
+/// is reported as the conflict point, which is where the new tail begins.
+/// Mirrors etcd's `raftLog.findConflict`.
+pub fn Node::find_conflict(self : Node, entries : ArrayView[Entry]) -> UInt64 {
+  for ne in entries {
+    if !self.match_term(ne.id()) {
+      return ne.index
+    }
+  }
+  0
+}
+
+///|
 /// The index of the last entry in the log, or the snapshot baseline when the
 /// log is empty (0 on a fresh node).
 pub fn Node::last_log_index(self : Node) -> UInt64 {
