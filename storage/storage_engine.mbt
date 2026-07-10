@@ -336,15 +336,11 @@ pub fn MemoryStorage::create_snapshot(
   // etcd's CreateSnapshot(i, cs, data): a supplied ConfState is recorded;
   // otherwise the snapshot keeps the membership already on record, rather than
   // silently dropping it (which would lose the cluster config on restore).
-  let cs = match conf_state {
-    Some(c) => c
-    None => self.snap.conf_state
-  }
   let snap : Snapshot = {
     last_index: index,
     last_term: term,
     data,
-    conf_state: cs,
+    conf_state: conf_state.unwrap_or(self.snap.conf_state),
   }
   self.snap = snap
   snap
