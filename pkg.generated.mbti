@@ -305,6 +305,7 @@ pub(all) struct Membership {
   outgoing : Array[String]
   mut joint : Bool
   learners : Array[String]
+  learners_next : Array[String]
 }
 pub fn Membership::add(Self, String) -> Unit
 pub fn Membership::add_learner(Self, String) -> Unit

@@ -506,6 +506,19 @@ renderer in etcd's datadriven format.
   them. Tests in `snapshot_confstate_wbtest.mbt` (simple + joint restore + a
   leader→follower round-trip). Adding the field touched every `Snapshot` literal
   (source + tests) — a mechanical one-field compile-fix, no logic changed.
+- **`learners_next` in the LIVE path** — DONE. The staging is no longer only in
+  the offline `Changer`: `Membership` now carries `learners_next`, and
+  `add_learner` on a voter that is still an outgoing voter stages it there (via
+  `apply_conf_change_v2`, which now snapshots the outgoing half *before* applying
+  the batch); `leave_joint` promotes staged nodes to real learners; `remove`/`add`
+  clear the staging; `reconcile_peers` preserves (never recreates) their
+  Progress; `conf_state`/`restore_conf_state` carry it through a snapshot. So a
+  voter demoted mid-joint keeps voting via the outgoing half and only stops
+  counting after leave — the production path now matches what the tests assert.
+  End-to-end proof in `learners_next_wbtest.mbt`: node 4, demoted in joint,
+  blocks a commit that needs the outgoing 3-of-4 until a third ack, then after
+  leave becomes a non-voting learner with its Progress (its `next` round)
+  intact; plus a snapshot-restore case.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

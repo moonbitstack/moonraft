@@ -679,8 +679,8 @@ pub fn RaftNode::conf_state(self : RaftNode) -> ConfState {
     } else {
       []
     },
-    learners_next: [],
-    auto_leave: false,
+    learners_next: self.config.learners_next.copy(),
+    auto_leave: self.auto_leave_pending,
   }
 }
 
@@ -703,6 +703,10 @@ fn RaftNode::restore_conf_state(self : RaftNode, cs : ConfState) -> Unit {
   for l in cs.learners {
     self.config.learners.push(l)
   }
+  self.config.learners_next.clear()
+  for l in cs.learners_next {
+    self.config.learners_next.push(l)
+  }
   self.reconcile_peers()
 }
 
@@ -712,14 +716,15 @@ fn RaftNode::apply_conf_change_v2(self : RaftNode, v2 : ConfChangeV2) -> Unit {
   if v2.is_leave() {
     self.config.leave_joint()
   } else {
-    // Enter joint consensus: the current voters become the outgoing half, and
-    // the batch's changes are folded into the incoming half. Decisions then
-    // need a majority of *both* halves until the matching leave commits (§4.3).
-    let outgoing = self.config.members.copy()
+    // Enter joint consensus: snapshot the current voters as the outgoing half
+    // *before* applying the batch, so a voter demoted here is seen to still be
+    // an outgoing voter and is staged in learners_next rather than losing its
+    // vote mid-transition. Decisions then need a majority of *both* halves until
+    // the matching leave commits (§4.3).
+    self.config.begin_joint(self.config.members.copy())
     for c in v2.changes {
       c.apply_to(self.config)
     }
-    self.config.begin_joint(outgoing)
     if v2.auto_leave {
       self.auto_leave_pending = true
     }

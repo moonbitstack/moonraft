@@ -30,21 +30,38 @@ pub(all) struct Membership {
   // Non-voting members: they receive replicated entries and can be caught up,
   // but are never counted toward a quorum and never vote (Raft §4.2.1 learners).
   learners : Array[String]
+  // Voters demoted to learner *during* a joint change: they keep voting via the
+  // outgoing half (so a demotion can't strand the old majority) and only become
+  // real learners when the joint config is left (etcd's LearnersNext, §4.3).
+  learners_next : Array[String]
 }
 
 ///|
 /// Create a simple (non-joint) cluster configuration from an initial voter set.
 pub fn Membership::new(members : Array[String]) -> Membership {
-  { members: members.copy(), outgoing: [], joint: false, learners: [] }
+  {
+    members: members.copy(),
+    outgoing: [],
+    joint: false,
+    learners: [],
+    learners_next: [],
+  }
 }
 
 ///|
 /// Add `id` as a learner (non-voting member). If it is currently a voter this
-/// *demotes* it — it leaves the voter set and joins the learners (Raft §4.2.1,
-/// etcd's `l<id>` change).
+/// *demotes* it (etcd's `l<id>`). A voter demoted while a joint config is active
+/// and still present in the outgoing half is *staged* in `learners_next`: it
+/// leaves the incoming voters but keeps voting through the outgoing half until
+/// the config is left, so its removal from the quorum is atomic with the leave
+/// (Raft §4.3). Otherwise it becomes a learner right away.
 pub fn Membership::add_learner(self : Membership, id : String) -> Unit {
   self.members.retain(fn(m) { m != id })
-  if !self.learners.contains(id) {
+  if self.joint && self.outgoing.contains(id) {
+    if !self.learners_next.contains(id) {
+      self.learners_next.push(id)
+    }
+  } else if !self.learners.contains(id) {
     self.learners.push(id)
   }
 }
@@ -60,6 +77,13 @@ pub fn Membership::is_learner(self : Membership, id : String) -> Bool {
 pub fn Membership::nodes(self : Membership) -> Array[String] {
   let out = self.voters()
   for l in self.learners {
+    if !out.contains(l) {
+      out.push(l)
+    }
+  }
+  // Staged learners are still replicated to (they are outgoing voters now, but
+  // list them explicitly so they survive the leave even if dropped elsewhere).
+  for l in self.learners_next {
     if !out.contains(l) {
       out.push(l)
     }
@@ -129,6 +153,7 @@ pub fn Membership::has_majority(
 /// a voter is *promoted*: it leaves the learner set (Raft §4.2.1).
 pub fn Membership::add(self : Membership, id : String) -> Unit {
   self.learners.retain(fn(l) { l != id })
+  self.learners_next.retain(fn(l) { l != id })
   if self.members.contains(id) {
     return
   }
@@ -140,6 +165,7 @@ pub fn Membership::add(self : Membership, id : String) -> Unit {
 pub fn Membership::remove(self : Membership, id : String) -> Unit {
   self.members.retain(fn(m) { m != id })
   self.learners.retain(fn(l) { l != id })
+  self.learners_next.retain(fn(l) { l != id })
 }
 
 ///|
@@ -180,6 +206,13 @@ pub fn Membership::begin_joint(
 /// Leave joint consensus once C(old,new) is committed: the outgoing half is
 /// dropped and the cluster runs on the incoming configuration alone.
 pub fn Membership::leave_joint(self : Membership) -> Unit {
+  // Staged voters now become real learners (their progress is untouched).
+  for l in self.learners_next {
+    if !self.learners.contains(l) {
+      self.learners.push(l)
+    }
+  }
+  self.learners_next.clear()
   self.outgoing.clear()
   self.joint = false
 }
