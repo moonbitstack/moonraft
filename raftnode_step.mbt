@@ -559,6 +559,12 @@ fn RaftNode::handle_append_resp(
           )
         }
         if self.maybe_commit() {
+          // The commit index advanced into the current term, so it is now safe
+          // to answer any read-index requests that were waiting for it (etcd
+          // releases pending reads here before broadcasting).
+          for m in self.release_pending_read_index() {
+            out.push(m)
+          }
           // A new commit: tell every follower, which also carries entries to
           // any that are behind.
           for m in self.bcast_append() {

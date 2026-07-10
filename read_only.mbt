@@ -207,13 +207,21 @@ fn RaftNode::lead_read_index(
   from : String,
   context : Bytes,
 ) -> Array[Message] {
-  // The read must be anchored at an index from the current term, else the commit
-  // index may not yet reflect the latest leader's writes (§5.4.2).
-  if self.core.term_at(self.core.commit_index) != self.core.current_term() {
-    return []
-  }
+  // A singleton leader (its only voter) has its leadership trivially confirmed,
+  // so the read is answered at once against the commit index — etcd's
+  // `IsSingleton` fast path, taken before the in-term-commit gate below.
   if self.peers.length() == 0 {
     return self.deliver_read({ from, index: self.core.commit_index, context })
+  }
+  // The read must be anchored at an index from the current term, else the commit
+  // index may not yet reflect the latest leader's writes (§5.4.2). Until the
+  // leader has committed in its term the request is *queued*, not dropped: etcd
+  // holds it in `pendingReadIndexMessages` and releases it on the first in-term
+  // commit, so a read issued right after an election is answered rather than
+  // lost.
+  if self.core.term_at(self.core.commit_index) != self.core.current_term() {
+    self.pending_read_index.push((from, context))
+    return []
   }
   if self.read_only.safe {
     self.read_only.add_request(self.core.commit_index, context, from, self.id)
@@ -246,6 +254,30 @@ fn RaftNode::deliver_read(self : RaftNode, req : ReadReq) -> Array[Message] {
       ),
     ]
   }
+}
+
+///|
+/// Answer the read-index requests that were queued before the leader had
+/// committed an entry in its current term, now that it has (etcd's
+/// `releasePendingReadIndexMessages`). Returns any messages the served reads
+/// produce (heartbeats to confirm leadership under `ReadOnlySafe`). A no-op
+/// while the queue is empty or the leader still has no in-term commit.
+fn RaftNode::release_pending_read_index(self : RaftNode) -> Array[Message] {
+  if self.pending_read_index.length() == 0 {
+    return []
+  }
+  if self.core.term_at(self.core.commit_index) != self.core.current_term() {
+    return []
+  }
+  let pending = self.pending_read_index.copy()
+  self.pending_read_index.clear()
+  let out : Array[Message] = []
+  for req in pending {
+    for m in self.lead_read_index(req.0, req.1) {
+      out.push(m)
+    }
+  }
+  out
 }
 
 ///|

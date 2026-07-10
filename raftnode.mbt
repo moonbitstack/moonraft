@@ -54,6 +54,11 @@ pub struct RaftNode {
   mut lead_transferee : String?
   // Linearizable read-index bookkeeping (Raft §6.4).
   read_only : ReadOnly
+  // Read-index requests (origin id, opaque context) received before the leader
+  // has committed an entry in its current term. etcd holds these in
+  // `pendingReadIndexMessages` and releases them on the first in-term commit
+  // rather than dropping the read.
+  pending_read_index : Array[(String, Bytes)]
   // etcd's DisableProposalForwarding: when set, a follower drops client proposals
   // instead of forwarding them to the leader (for deployments that route writes
   // to the leader out-of-band). Off by default: a follower forwards.
@@ -117,6 +122,7 @@ pub fn RaftNode::new(
     conf_applied: 0,
     lead_transferee: None,
     read_only: ReadOnly::new(),
+    pending_read_index: [],
     no_forward: false,
     step_down_on_removal,
     logger,
