@@ -135,9 +135,20 @@ handlers. Tests in `checkquorum_wbtest.mbt` (reject vote, reject pre-vote, grant
 again once the lease lapses). Covers the core of etcd
 `TestLeaderSupersedingWithCheckQuorum` / `TestDisruptiveFollower`.
 
+## leadTransferee state machine (§3.10) — DONE (core)
+`RaftNode` now tracks `lead_transferee`: `transfer_leadership` validates the
+target (no self, no non-member/learner), records it, and either sends
+`TimeoutNow` (target caught up) or first replicates; while a transfer is in
+flight proposals are refused; the target is handed off the moment its ack
+catches it up to the last index; the transfer aborts on an election-timeout, on
+step-down, and when the target is removed. Tests in `leader_transfer_wbtest.mbt`.
+Covers the core of etcd `TestLeaderTransferToUpToDateNode` /
+`ToSlowFollower` / `Timeout` / `ToSelf` / `ToNonExistingNode` /
+`IgnoreProposal` / `RemoveNode`.
+
 ## raft_test.go — IMPL/TODO (0/118)
-The core file. Remaining ones need: ReadOnlySafe, leadTransferee state machine,
-RawNode/Ready (owned by another workstream). Ported incrementally.
+The core file. Remaining ones need: ReadOnlySafe two-mode, RawNode/Ready (owned
+by another workstream). Ported incrementally.
 
 ## node_test.go — IMPL (0/22)
 Needs the `Node`/`Ready`/`Advance` async API (RawNode layer).

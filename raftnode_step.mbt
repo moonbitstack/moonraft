@@ -279,6 +279,14 @@ fn RaftNode::handle_append_resp(
           Snapshot => ()
         }
         let out : Array[Message] = []
+        // A leadership-transfer target that has now caught up to the leader's
+        // last index is told to time out and campaign at once (§3.10).
+        if self.lead_transferee == Some(from) &&
+          p.match_index == self.core.last_log_index() {
+          out.push(
+            Message::new(self.id, from, TimeoutNow(self.core.current_term())),
+          )
+        }
         if self.maybe_commit() {
           // A new commit: tell every follower, which also carries entries to
           // any that are behind.

@@ -27,6 +27,10 @@ pub struct RaftNode {
   // Highest log index whose configuration change has been folded into the live
   // configuration, so a committed ConfChange is applied exactly once.
   mut conf_applied : UInt64
+  // The target of an in-flight leadership transfer, if any (Raft §3.10). While
+  // set, the leader stops accepting proposals and hands off once the target is
+  // caught up; it is cleared on timeout, step-down, or the target's removal.
+  mut lead_transferee : String?
 }
 
 ///|
@@ -66,6 +70,7 @@ pub fn RaftNode::new(
     max_entries,
     rng: seed,
     conf_applied: 0,
+    lead_transferee: None,
   }
   node.reset_timeout()
   node
@@ -163,6 +168,9 @@ pub fn RaftNode::tick(self : RaftNode) -> Array[Message] {
     // so a partitioned-away leader cannot linger (etcd's CheckQuorum, §6.4).
     if self.election_elapsed >= self.election_timeout {
       self.election_elapsed = 0
+      // A leadership transfer that has not completed within an election timeout
+      // is abandoned, so proposals are not blocked indefinitely (§3.10).
+      self.lead_transferee = None
       if self.check_quorum && !self.quorum_active() {
         self.step_down()
         return []
@@ -195,6 +203,7 @@ pub fn RaftNode::enable_check_quorum(self : RaftNode) -> Unit {
 fn RaftNode::step_down(self : RaftNode) -> Unit {
   self.core.become_follower(self.core.current_term())
   self.leader_id = None
+  self.lead_transferee = None
   self.reset_timeout()
 }
 
@@ -266,6 +275,7 @@ fn RaftNode::start_real_campaign(self : RaftNode) -> Array[Message] {
 fn RaftNode::become_leader(self : RaftNode) -> Unit {
   self.core.become_leader()
   self.leader_id = Some(self.id)
+  self.lead_transferee = None
   self.progress.clear()
   let last = self.core.last_log_index()
   for p in self.peers {
@@ -282,7 +292,9 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
 /// Append a client command to the leader's log and replicate it. A no-op on a
 /// non-leader. Returns the AppendEntries messages to send.
 pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
-  if self.core.role() != Leader {
+  // A leader in the middle of handing off leadership stops accepting new
+  // proposals, so the transfer target can catch up to a fixed log (§3.10).
+  if self.core.role() != Leader || self.lead_transferee is Some(_) {
     return []
   }
   let _ = self.core.append(self.core.current_term(), command)
@@ -298,7 +310,7 @@ pub fn RaftNode::propose_conf(
   self : RaftNode,
   change : ConfChange,
 ) -> Array[Message] {
-  if self.core.role() != Leader {
+  if self.core.role() != Leader || self.lead_transferee is Some(_) {
     return []
   }
   let _ = self.core.append_conf(self.core.current_term(), change.encode())
@@ -315,9 +327,15 @@ pub fn RaftNode::transfer_leadership(
   self : RaftNode,
   target : String,
 ) -> Array[Message] {
-  if self.core.role() != Leader {
+  // A non-leader, a transfer to ourselves, or an unknown/non-member target is a
+  // no-op (§3.10). Transferring to a learner is likewise refused.
+  if self.core.role() != Leader ||
+    target == self.id ||
+    !self.config.contains(target) {
     return []
   }
+  self.lead_transferee = Some(target)
+  self.election_elapsed = 0
   match self.progress.get(target) {
     None => []
     Some(p) =>
@@ -495,6 +513,10 @@ fn RaftNode::apply_conf_change(self : RaftNode, cc : ConfChange) -> Unit {
       self.config.remove(cc.node_id)
       self.peers.retain(fn(p) { p != cc.node_id })
       self.progress.remove(cc.node_id)
+      // Abort an in-flight transfer whose target just left the cluster (§3.10).
+      if self.lead_transferee == Some(cc.node_id) {
+        self.lead_transferee = None
+      }
       // A leader that removed itself steps down: it cannot safely lead a cluster
       // it no longer belongs to (Raft §6).
       if cc.node_id == self.id && self.core.role() == Leader {

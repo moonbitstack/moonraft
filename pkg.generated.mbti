@@ -341,6 +341,7 @@ pub struct RaftNode {
   max_entries : UInt64
   mut rng : UInt64
   mut conf_applied : UInt64
+  mut lead_transferee : String?
 }
 pub fn RaftNode::campaign(Self) -> Array[Message]
 pub fn RaftNode::commit_index(Self) -> UInt64
