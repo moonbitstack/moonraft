@@ -11,3 +11,7 @@ target/
 
 bisect.coverage
 cobertura.xml
+
+difftest/traces/
+difftest/go-harness/harness.exe
+*.exe

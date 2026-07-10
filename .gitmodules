@@ -1,0 +1,3 @@
+[submodule "difftest/vendor/etcd-raft"]
+	path = difftest/vendor/etcd-raft
+	url = https://github.com/etcd-io/raft
