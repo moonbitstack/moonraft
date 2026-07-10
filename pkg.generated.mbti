@@ -447,20 +447,17 @@ pub fn Node::current_term(Self) -> UInt64
 pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
 pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
 pub fn Node::entry_at(Self, UInt64) -> Entry?
-pub fn Node::find_conflict(Self, ArrayView[Entry]) -> UInt64
 pub fn Node::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
 pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
 pub fn Node::handle_install_snapshot(Self, InstallSnapshotArgs) -> InstallSnapshotReply
 pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
 pub fn Node::hard_state(Self) -> HardState
 pub fn Node::install_snapshot(Self, Snapshot) -> Unit
-pub fn Node::is_up_to_date(Self, EntryId) -> Bool
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::load_from(Self, &RaftStorage) -> Unit
 pub fn Node::log_len(Self) -> Int
 pub fn Node::mark_applied(Self, UInt64) -> Unit
-pub fn Node::match_term(Self, EntryId) -> Bool
 pub fn Node::new(String) -> Self
 pub fn Node::persisted(Self) -> Persisted
 pub fn Node::propose_conf_change(Self, UInt64, ConfChange) -> Entry
@@ -566,7 +563,6 @@ pub fn RaftLog::accept_applying(Self, UInt64, UInt64, Bool) -> Unit
 pub fn RaftLog::accept_unstable(Self) -> Unit
 pub fn RaftLog::all_entries(Self) -> Array[Entry]
 pub fn RaftLog::append(Self, Array[Entry]) -> UInt64
-pub fn RaftLog::applied(Self) -> UInt64
 pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::commit_stable(Self, Array[Entry]) -> Unit
@@ -601,7 +597,6 @@ pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, EntryId) -> Unit
 pub fn RaftLog::term(Self, UInt64) -> UInt64 raise StorageError
 pub fn RaftLog::to_string(Self) -> String
-pub fn RaftLog::unstable_view(Self) -> Unstable
 pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
 
 pub struct RaftNode {

@@ -21,14 +21,27 @@
 ///|
 test "coverage: describe_entry quoting, hex, ConfChange, empty format" {
   // All the %q escape branches plus a high byte (hex a–f) in one payload.
-  let data = Bytes::from_array([b'"', b'\\', b'\n', b'\t', b'\r', (0xAA).to_byte()])
-  inspect(describe_entry(Entry::normal(1, 1, data), None), content=(
-    #|1/1 EntryNormal "\"\\\n\t\r\xaa"
-  ))
+  let data = Bytes::from_array([
+    b'"',
+    b'\\',
+    b'\n',
+    b'\t',
+    b'\r',
+    (0xAA).to_byte(),
+  ])
+  inspect(
+    describe_entry(Entry::normal(1, 1, data), None),
+    content=(
+      #|1/1 EntryNormal "\"\\\n\t\r\xaa"
+    ),
+  )
   // A ConfChange entry renders its type name.
-  inspect(describe_entry(Entry::conf(1, 2, b""), None), content=(
-    #|1/2 EntryConfChange ""
-  ))
+  inspect(
+    describe_entry(Entry::conf(1, 2, b""), None),
+    content=(
+      #|1/2 EntryConfChange ""
+    ),
+  )
   // A formatter that renders nothing leaves just the header (no trailing space).
   inspect(
     describe_entry(Entry::normal(1, 3, b"x"), Some(fn(_bytes) { "" })),
@@ -49,9 +62,7 @@ test "coverage: raftLog empty/async/snapshot API and storage-compacted slice" {
   l.async_stabilize(99, 1)
   assert_false(l.has_next_unstable_ents())
   // snapshot() falls through to storage when the unstable log has none.
-  let empty = l.snapshot() catch {
-    _ => Snapshot::empty()
-  }
+  let empty = l.snapshot() catch { _ => Snapshot::empty() }
   assert_true(empty.is_empty())
   // Restoring a snapshot exposes it through the unstable snapshot API.
   l.restore({
@@ -78,7 +89,10 @@ test "coverage: storage boundary — Unavailable, snapshot pending" {
   assert_raises(() => s.storage_entries(1, 1, no_limit) |> ignore, Unavailable)
   // A pending snapshot is reported as temporarily unavailable.
   s.set_snapshot_pending(true)
-  assert_raises(() => s.storage_snapshot() |> ignore, SnapshotTemporarilyUnavailable)
+  assert_raises(
+    () => s.storage_snapshot() |> ignore,
+    SnapshotTemporarilyUnavailable,
+  )
   s.set_snapshot_pending(false)
   s.storage_snapshot() |> ignore
 }
@@ -141,10 +155,7 @@ test "coverage: create_snapshot rejects an index at or before the current one" {
   s.append([ent(1, 1), ent(2, 1), ent(3, 1)])
   s.create_snapshot(3, b"snap", conf_state=Some(ConfState::empty())) |> ignore
   // A second snapshot at or below index 3 is out of date.
-  assert_raises(
-    () => s.create_snapshot(2, b"older") |> ignore,
-    SnapOutOfDate,
-  )
+  assert_raises(() => s.create_snapshot(2, b"older") |> ignore, SnapOutOfDate)
 }
 
 ///|
