@@ -334,6 +334,7 @@ pub struct RaftNode {
   mut randomized_election_timeout : Int
   max_entries : UInt64
   mut rng : UInt64
+  mut conf_applied : UInt64
 }
 pub fn RaftNode::campaign(Self) -> Array[Message]
 pub fn RaftNode::commit_index(Self) -> UInt64

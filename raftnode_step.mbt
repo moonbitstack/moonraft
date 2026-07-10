@@ -209,6 +209,9 @@ fn RaftNode::handle_append(
     self.election_elapsed = 0
     self.in_pre_campaign = false
   }
+  // A follower folds committed configuration changes into its own view of the
+  // membership as its commit index advances, so every server shares one config.
+  self.apply_committed_conf()
   [Message::new(self.id, from, AppendResp(reply))]
 }
 

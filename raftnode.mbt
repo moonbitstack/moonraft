@@ -24,6 +24,9 @@ pub struct RaftNode {
   mut randomized_election_timeout : Int
   max_entries : UInt64
   mut rng : UInt64
+  // Highest log index whose configuration change has been folded into the live
+  // configuration, so a committed ConfChange is applied exactly once.
+  mut conf_applied : UInt64
 }
 
 ///|
@@ -62,6 +65,7 @@ pub fn RaftNode::new(
     randomized_election_timeout: election_timeout,
     max_entries,
     rng: seed,
+    conf_applied: 0,
   }
   node.reset_timeout()
   node
@@ -418,23 +422,84 @@ fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
 /// a leader never commits an entry from an earlier term by counting replicas
 /// alone (Raft §5.4.2). Self counts as having stored up to its last index.
 fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
-  // The highest index a quorum of the configuration has stored (the leader
-  // itself included, at its last index). In a joint configuration this is the
-  // smaller of the two halves' agreed indices.
-  let acked : Map[String, UInt64] = {}
-  acked[self.id] = self.core.last_log_index()
-  for peer, p in self.progress {
-    acked[peer] = p.match_index
+  let mut any = false
+  // Committing a configuration change can shrink the quorum, which may in turn
+  // let a further entry commit, so re-evaluate until the commit index is stable.
+  // A leader that removed itself steps down inside apply, ending the loop.
+  while self.core.role() == Leader {
+    // The highest index a quorum of the configuration has stored (the leader
+    // itself included, at its last index). In a joint configuration this is the
+    // smaller of the two halves' agreed indices.
+    let acked : Map[String, UInt64] = {}
+    acked[self.id] = self.core.last_log_index()
+    for peer, p in self.progress {
+      acked[peer] = p.match_index
+    }
+    let mci = self.config.committed_index(acked)
+    // §5.4.2: a leader only commits an index whose entry is from its own term;
+    // since terms are monotonic in the log, no lower current-term index can be
+    // committed if this one is not.
+    if mci > self.core.commit_index &&
+      self.core.term_at(mci) == self.core.current_term() {
+      self.core.advance_commit(mci)
+      self.apply_committed_conf()
+      any = true
+    } else {
+      break
+    }
   }
-  let mci = self.config.committed_index(acked)
-  // §5.4.2: a leader only commits an index whose entry is from its own term;
-  // since terms are monotonic in the log, no lower current-term index can be
-  // committed if this one is not.
-  if mci > self.core.commit_index &&
-    self.core.term_at(mci) == self.core.current_term() {
-    self.core.advance_commit(mci)
-    true
-  } else {
-    false
+  any
+}
+
+///|
+/// Fold every committed-but-unapplied `ConfChange` entry into the live
+/// configuration, replication progress and peer set, in log order (Raft §6).
+/// This is what actually makes an added server a voter, stops a removed server
+/// counting toward quorum, and steps down a leader that removed itself.
+fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
+  while self.conf_applied < self.core.commit_index {
+    let idx = self.conf_applied + 1
+    match self.core.entry_at(idx) {
+      Some(e) =>
+        if e.is_conf_change() {
+          match ConfChange::decode(e.command) {
+            Some(cc) => self.apply_conf_change(cc)
+            None => ()
+          }
+        }
+      None => ()
+    }
+    self.conf_applied = idx
+  }
+}
+
+///|
+/// Apply one committed configuration change to the live server state.
+fn RaftNode::apply_conf_change(self : RaftNode, cc : ConfChange) -> Unit {
+  match cc.change_type {
+    AddNode => {
+      self.config.add(cc.node_id)
+      if cc.node_id != self.id {
+        if !self.peers.contains(cc.node_id) {
+          self.peers.push(cc.node_id)
+        }
+        // On the leader, begin replicating to the newcomer at once.
+        if self.core.role() == Leader && !self.progress.contains(cc.node_id) {
+          self.progress[cc.node_id] = Progress::new(
+            self.core.last_log_index() + 1,
+          )
+        }
+      }
+    }
+    RemoveNode => {
+      self.config.remove(cc.node_id)
+      self.peers.retain(fn(p) { p != cc.node_id })
+      self.progress.remove(cc.node_id)
+      // A leader that removed itself steps down: it cannot safely lead a cluster
+      // it no longer belongs to (Raft §6).
+      if cc.node_id == self.id && self.core.role() == Leader {
+        self.step_down()
+      }
+    }
   }
 }

@@ -135,8 +135,24 @@ Needs the `Node`/`Ready`/`Advance` async API (RawNode layer).
 ## rawnode_test.go — IMPL (0/12, +2 benchmarks N/A)
 Needs `RawNode` + `Ready`/`HasReady`/`Advance`/`acceptReady`.
 
+## B2 — committed ConfChange applied to the live node — DONE (core)
+Fixed the biggest gap: a committed `ConfChange` now mutates the running server,
+not just a side `ConfDriver`. `RaftNode::apply_committed_conf` folds every
+committed-but-unapplied conf entry (tracked by `conf_applied`) into the live
+`config`, `progress` and `peers`; `maybe_commit` re-evaluates in a loop because a
+removal can shrink the quorum and unblock further commits; a leader that removes
+itself steps down. Both leader (`maybe_commit`) and follower (`handle_append`)
+apply. End-to-end tests in `confchange_apply_wbtest.mbt`:
+- AddNode makes the newcomer a voter with its own progress — DONE.
+- Leader removing itself steps down and leaves the config — DONE.
+- Removal shrinks the quorum and unblocks a pending commit — DONE.
+Still TODO for full parity: joint auto-leave, learner demotion, aborting an
+in-flight leadership transfer to a removed target (tracked with learners /
+leadTransferee below).
+
 ## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs, many cases)
-Needs the confchange applier (Simple/EnterJoint/LeaveJoint/Restore) + learners.
+Needs the confchange applier's learner support (Simple/EnterJoint/LeaveJoint/
+Restore over voters+learners); B2 covers the single add/remove voter path.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.
