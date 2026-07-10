@@ -14,6 +14,41 @@
 // limitations under the License.
 
 ///|
+/// How a linearizable read is confirmed (etcd's `ReadOnlyOption`).
+///
+/// `Safe` confirms every read with a fresh heartbeat quorum, so it holds even
+/// under unbounded clock drift — etcd's default and recommended setting.
+/// `LeaseBased` trusts the leader's election lease instead, saving the round
+/// trip at the cost of depending on bounded clock drift; etcd requires
+/// check-quorum to be on when it is selected.
+pub enum ReadOnlyOption {
+  Safe
+  LeaseBased
+} derive(Eq)
+
+///|
+/// Select how this leader confirms linearizable reads (etcd's
+/// `Config.ReadOnlyOption`). `Safe` is etcd's default; this server defaults to
+/// `LeaseBased` for backward compatibility with existing callers, so a
+/// deployment that wants etcd's default must ask for `Safe` explicitly.
+pub fn RaftNode::set_read_only_option(
+  self : RaftNode,
+  option : ReadOnlyOption,
+) -> Unit {
+  self.read_only.safe = option is Safe
+}
+
+///|
+/// The read-confirmation mode this server is currently using.
+pub fn RaftNode::read_only_option(self : RaftNode) -> ReadOnlyOption {
+  if self.read_only.safe {
+    Safe
+  } else {
+    LeaseBased
+  }
+}
+
+///|
 /// One in-flight linearizable read: the caller's opaque context, the leader's
 /// commit index captured when the read was requested (Raft §6.4), and the id of
 /// the server that originated the read — the leader itself for a local read, or a

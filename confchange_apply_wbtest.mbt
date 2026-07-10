@@ -50,9 +50,16 @@ test "B2: committed AddNode makes the new server a voter" {
 
 ///|
 /// A leader that commits its own removal steps down and drops out of the
-/// configuration (Raft §6).
+/// configuration (Raft §6) — when `step_down_on_removal` is set. etcd gates this
+/// on `Config.StepDownOnRemoval`; the default (tested separately below) leaves
+/// the removed leader in place.
 test "B2: leader that removes itself steps down" {
-  let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  let r = RaftNode::new(
+    "1",
+    ["2", "3"],
+    pre_vote=false,
+    step_down_on_removal=true,
+  )
   r.node().become_candidate()
   r.become_leader() // no-op at index 1
   assert_true(r.is_leader())
