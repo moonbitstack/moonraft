@@ -86,6 +86,32 @@ pub fn RaftLog::unstable_view(self : RaftLog) -> Unstable {
 }
 
 ///|
+/// Seed the commit and applied cursors from a recovered node on construction.
+/// Commit only moves forward; applied and applying jump to the recovered point.
+pub fn RaftLog::seed(
+  self : RaftLog,
+  committed : UInt64,
+  applied : UInt64,
+) -> Unit {
+  if committed > self.committed {
+    self.commit_to(committed)
+  }
+  self.applied = applied
+  self.applying = u64_max(self.applying, applied)
+}
+
+///|
+/// Move `entries` from the unstable tail into stable storage, then mark them
+/// stable — the persist half of a driver's Ready/Advance cycle.
+pub fn RaftLog::commit_stable(self : RaftLog, entries : Array[Entry]) -> Unit {
+  if entries.length() == 0 {
+    return
+  }
+  self.storage.append(entries)
+  self.stable_to(entries[entries.length() - 1].id())
+}
+
+///|
 /// The committed index.
 pub fn RaftLog::committed(self : RaftLog) -> UInt64 {
   self.committed

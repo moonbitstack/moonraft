@@ -29,35 +29,79 @@ pub fn RaftNode::soft_state(self : RaftNode) -> SoftState {
 /// its committed entries, then call `advance`.
 ///
 /// It needs no language-level `async`: a `Ready` is a plain value and `advance`
-/// a plain call. The one piece of bookkeeping the core does not track is which
-/// log entries the application has already persisted; `stabled` is that
-/// watermark, and it is what separates entries still to be written (`entries`)
-/// from committed entries ready to apply (`committed_entries`).
+/// a plain call. The unstable-vs-stable split that separates entries still to be
+/// written (`entries`) from committed entries ready to apply
+/// (`committed_entries`) is kept by a real `RaftLog`: its `storage` holds what
+/// the application has persisted, its `unstable` tail holds what has not.
 pub struct RawNode {
   raft : RaftNode
+  log : RaftLog
   msgs : Array[Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : HardState
-  mut stabled : UInt64
 }
 
 ///|
 /// Build a driver over `raft` (etcd's `NewRawNode`). The previous soft and hard
 /// states are seeded from the server as it stands, so the first `Ready` reports
-/// a change only if one genuinely happens afterwards. Whatever is already in the
-/// log counts as durably stored — on a restart the recovered log is stable, and
-/// only newly appended entries need writing — so `stabled` starts at the last
-/// log index.
+/// a change only if one genuinely happens afterwards. The `RaftLog` is recovered
+/// from the node's durable state: whatever is already in the node's log (and its
+/// snapshot baseline) is loaded into stable storage, so only entries appended
+/// afterwards land in the unstable tail and need writing.
 pub fn RawNode::new(raft : RaftNode) -> RawNode {
+  let node = raft.node()
+  let storage = MemoryStorage::new()
+  if node.snapshot_index > 0 {
+    storage.apply_snapshot({
+      last_index: node.snapshot_index,
+      last_term: node.snapshot_term,
+      data: b"",
+    }) catch {
+      _ => ()
+    }
+  }
+  storage.append(node.entries_after(node.snapshot_index))
+  let log = RaftLog::new(storage)
+  log.seed(node.commit_index, node.last_applied)
   {
     raft,
+    log,
     msgs: [],
     read_states: [],
     prev_soft: raft.soft_state(),
-    prev_hard: raft.node().hard_state(),
-    stabled: raft.node().last_log_index(),
+    prev_hard: node.hard_state(),
   }
+}
+
+///|
+/// Reconcile the log with the consensus core: fold any entries the core has
+/// appended (or a divergent suffix it rewrote) into the unstable tail, and pull
+/// the commit index forward. The core keeps the authoritative log on `Node`;
+/// this is where that truth flows into the unstable/stable split the driver
+/// reports. Committed entries never change, so the scan starts just past them.
+fn RawNode::sync_log(self : RawNode) -> Unit {
+  let node = self.raft.node()
+  let node_last = node.last_log_index()
+  let mut i = self.log.committed() + 1
+  let known_last = self.log.last_index()
+  while i <= node_last && i <= known_last {
+    if node.term_at(i) != self.log.zero_term_on_out_of_bounds(i) {
+      break
+    }
+    i = i + 1
+  }
+  if i <= node_last {
+    self.log.append(node.entries_after(i - 1)) |> ignore
+  }
+  let last = self.log.last_index()
+  self.log.commit_to(
+    if node.commit_index < last {
+      node.commit_index
+    } else {
+      last
+    },
+  )
 }
 
 ///|
@@ -150,35 +194,19 @@ pub fn RawNode::transfer_leader(self : RawNode, target : String) -> Unit {
 }
 
 ///|
-/// The entries appended but not yet persisted by the application — everything
-/// past the `stabled` watermark (etcd's `nextUnstableEnts`).
+/// The entries appended but not yet persisted by the application (etcd's
+/// `nextUnstableEnts`): the unstable tail not already being written.
 fn RawNode::next_unstable(self : RawNode) -> Array[Entry] {
-  self.raft.node().entries_after(self.stabled)
+  self.log.next_unstable_ents()
 }
 
 ///|
 /// The committed-but-unapplied entries ready to hand to the state machine
-/// (etcd's `nextCommittedEnts`): those in `(applied, min(commit, stabled)]`.
-/// Capping at `stabled` enforces the contract that an entry is applied only
-/// after it has been persisted, which is what makes a freshly appended entry
-/// surface as `entries` in one `Ready` and as `committed_entries` in the next.
+/// (etcd's `nextCommittedEnts`). Disallowing unstable entries caps application at
+/// the last stable index, which is what makes a freshly appended entry surface as
+/// `entries` in one `Ready` and as `committed_entries` in the next.
 fn RawNode::next_committed(self : RawNode) -> Array[Entry] {
-  let node = self.raft.node()
-  let hi = if node.commit_index < self.stabled {
-    node.commit_index
-  } else {
-    self.stabled
-  }
-  let out : Array[Entry] = []
-  let mut i = node.last_applied + 1
-  while i <= hi {
-    match node.entry_at(i) {
-      Some(e) => out.push(e)
-      None => ()
-    }
-    i = i + 1
-  }
-  out
+  self.log.next_committed_ents(false)
 }
 
 ///|
@@ -187,6 +215,7 @@ fn RawNode::next_committed(self : RawNode) -> Array[Entry] {
 /// states, and cursors untouched, so a caller may inspect pending work and
 /// decide not to consume it.
 pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
+  self.sync_log()
   let node = self.raft.node()
   let entries = self.next_unstable()
   let committed = self.next_committed()
@@ -226,6 +255,19 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     Some(h) => self.prev_hard = h
     None => ()
   }
+  // Mark the reported entries and committed entries as being written / applied,
+  // so the next Ready does not re-offer them.
+  if rd.entries.length() > 0 {
+    self.log.accept_unstable()
+  }
+  let c = rd.committed_entries.length()
+  if c > 0 {
+    self.log.accept_applying(
+      rd.committed_entries[c - 1].index,
+      ents_size(rd.committed_entries[:]),
+      false,
+    )
+  }
   if rd.read_states.length() != 0 {
     self.read_states.clear()
   }
@@ -248,6 +290,7 @@ pub fn RawNode::ready(self : RawNode) -> Ready {
 /// change, buffered messages, entries to persist or apply, or pending read
 /// states. Lets a driver skip building a `Ready` when the node is idle.
 pub fn RawNode::has_ready(self : RawNode) -> Bool {
+  self.sync_log()
   if self.raft.soft_state() != self.prev_soft {
     return true
   }
@@ -275,13 +318,14 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
 /// (etcd's `Advance`): move the stable watermark past the entries that were
 /// written, and the applied cursor past the entries that were applied.
 pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
-  let n = rd.entries.length()
-  if n != 0 {
-    self.stabled = rd.entries[n - 1].index
+  if rd.entries.length() != 0 {
+    self.log.commit_stable(rd.entries)
   }
   let c = rd.committed_entries.length()
   if c != 0 {
-    self.raft.node().mark_applied(rd.committed_entries[c - 1].index)
+    let last = rd.committed_entries[c - 1].index
+    self.log.applied_to(last, ents_size(rd.committed_entries[:]))
+    self.raft.node().mark_applied(last)
   }
 }
 
