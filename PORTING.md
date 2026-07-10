@@ -501,6 +501,17 @@ across a change (add/drop, transfer-abort, leader self-removal step-down). Tests
 in `joint_wbtest.mbt` (encoding round-trip, enter→auto-leave, both-majorities
 safety). Covers the core of `TestRawNodeJointAutoLeave` and the confchange
 EnterJoint/LeaveJoint path.
+- **auto-leave is durable, not transient (bug fix).** `auto_leave` now lives in
+  `Membership` (set from the committed EnterJoint, cleared only when the
+  LeaveJoint commits/applies), *not* a marker cleared when the LeaveJoint is
+  appended. Only committed entries change state (Raft §5.3): if the appended
+  LeaveJoint is truncated by a new leader before it commits, the config is still
+  an auto-leave joint, and the leader re-appends the LeaveJoint
+  (`maybe_append_auto_leave` + `has_pending_leave` scan the uncommitted tail;
+  also driven from `become_leader`). Red→green regression in
+  `auto_leave_truncation_wbtest.mbt` (fails before the fix: `auto_leave` reads
+  false once the LeaveJoint is merely appended). `ConfState.auto_leave` is now a
+  reliable field to assert on.
 
 ## confchange package (Changer + learners_next + Restore) — DONE
 Implemented the confchange-package `Changer` (`changer.mbt`), separate from the

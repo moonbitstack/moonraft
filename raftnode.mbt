@@ -52,9 +52,6 @@ pub struct RaftNode {
   // set, the leader stops accepting proposals and hands off once the target is
   // caught up; it is cleared on timeout, step-down, or the target's removal.
   mut lead_transferee : String?
-  // Set when an applied EnterJoint asked to auto-leave, so the leader appends
-  // the matching LeaveJoint on the next apply pass (Raft §4.3).
-  mut auto_leave_pending : Bool
   // Linearizable read-index bookkeeping (Raft §6.4).
   read_only : ReadOnly
 }
@@ -102,7 +99,6 @@ pub fn RaftNode::new(
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
-    auto_leave_pending: false,
     read_only: ReadOnly::new(),
   }
   node.reset_timeout()
@@ -324,6 +320,9 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   self.reset_timeout()
   // In a single-node cluster the no-op commits at once, which also arms reads.
   self.maybe_commit() |> ignore
+  // A leader inheriting a committed auto-leave joint config (whose LeaveJoint
+  // was never committed, e.g. truncated on the term change) appends the leave.
+  self.maybe_append_auto_leave()
 }
 
 ///|
@@ -655,16 +654,49 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
     }
     self.conf_applied = idx
   }
-  // Auto-leave: once an EnterJoint that requested it has been applied, the
-  // leader appends the matching LeaveJoint so the cluster settles on the new
-  // configuration without a second client request (§4.3).
-  if self.auto_leave_pending && self.core.role() == Leader {
-    self.auto_leave_pending = false
+  // Auto-leave: a leader in an auto-leave joint config appends the matching
+  // LeaveJoint (§4.3). This is driven by the *durable* config flag, not a
+  // one-shot marker, and re-checked whenever the committed prefix advances, so
+  // if the LeaveJoint is truncated before committing the leader appends it
+  // again — the flag is only cleared when the LeaveJoint itself commits.
+  self.maybe_append_auto_leave()
+}
+
+///|
+/// If we are a leader in an auto-leave joint config and no LeaveJoint entry is
+/// already in flight, append one. Robust to truncation: `has_pending_leave`
+/// scans the uncommitted tail, so a truncated LeaveJoint is simply re-appended.
+fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
+  if self.core.role() == Leader &&
+    self.config.is_joint() &&
+    self.config.auto_leave &&
+    !self.has_pending_leave() {
     let _ = self.core.append_conf(
       self.core.current_term(),
       ConfChangeV2::leave_joint().encode(),
     )
   }
+}
+
+///|
+/// Whether a LeaveJoint conf-change entry is already present in the uncommitted
+/// tail (so we should not append another).
+fn RaftNode::has_pending_leave(self : RaftNode) -> Bool {
+  let mut i = self.core.commit_index + 1
+  while i <= self.core.last_log_index() {
+    match self.core.entry_at(i) {
+      Some(e) =>
+        if e.is_conf_change() {
+          match ConfChangeV2::decode(e.command) {
+            Some(v2) => if v2.is_leave() { return true }
+            None => ()
+          }
+        }
+      None => ()
+    }
+    i = i + 1
+  }
+  false
 }
 
 ///|
@@ -680,7 +712,7 @@ pub fn RaftNode::conf_state(self : RaftNode) -> ConfState {
       []
     },
     learners_next: self.config.learners_next.copy(),
-    auto_leave: self.auto_leave_pending,
+    auto_leave: self.config.auto_leave,
   }
 }
 
@@ -830,9 +862,9 @@ fn RaftNode::apply_conf_change_v2(self : RaftNode, v2 : ConfChangeV2) -> Unit {
     for c in v2.changes {
       c.apply_to(self.config)
     }
-    if v2.auto_leave {
-      self.auto_leave_pending = true
-    }
+    // Record auto-leave as *durable* config state (from this committed entry),
+    // not a transient flag, so a truncated LeaveJoint cannot lose the intent.
+    self.config.auto_leave = v2.auto_leave
   }
   self.reconcile_peers()
 }

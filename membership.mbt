@@ -34,6 +34,11 @@ pub(all) struct Membership {
   // outgoing half (so a demotion can't strand the old majority) and only become
   // real learners when the joint config is left (etcd's LearnersNext, §4.3).
   learners_next : Array[String]
+  // Whether this joint configuration should leave automatically once committed
+  // (etcd's ConfState.AutoLeave). This is *durable* config state, set from the
+  // committed EnterJoint entry, so it survives even if a not-yet-committed
+  // LeaveJoint entry is truncated by a new leader.
+  mut auto_leave : Bool
 }
 
 ///|
@@ -45,6 +50,7 @@ pub fn Membership::new(members : Array[String]) -> Membership {
     joint: false,
     learners: [],
     learners_next: [],
+    auto_leave: false,
   }
 }
 
@@ -215,6 +221,7 @@ pub fn Membership::leave_joint(self : Membership) -> Unit {
   self.learners_next.clear()
   self.outgoing.clear()
   self.joint = false
+  self.auto_leave = false
 }
 
 ///|

@@ -312,6 +312,7 @@ pub(all) struct Membership {
   mut joint : Bool
   learners : Array[String]
   learners_next : Array[String]
+  mut auto_leave : Bool
 }
 pub fn Membership::add(Self, String) -> Unit
 pub fn Membership::add_learner(Self, String) -> Unit
@@ -546,7 +547,6 @@ pub struct RaftNode {
   mut rng : UInt64
   mut conf_applied : UInt64
   mut lead_transferee : String?
-  mut auto_leave_pending : Bool
   read_only : ReadOnly
 }
 pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
