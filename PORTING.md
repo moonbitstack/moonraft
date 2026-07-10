@@ -363,10 +363,15 @@ Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
 - `TestRawNodeRestart` — DONE. Recovered committed prefix emits only
   `committed_entries`, no HardState, `MustSync` false.
 - `TestRawNodeRestartFromSnapshot` — DONE (snapshot at index 2 + one entry).
-- `TestRawNodeStatus` — DONE for leader/role/term. etcd additionally asserts on
-  `status.Progress[1]` and `tracker.Config`; **that part is N/A** — `RaftStatus`
-  does not expose the progress map or a `quorum.JointConfig`, which are
-  membership-boundary types.
+- `TestRawNodeStatus` — DONE for leader/role/term; the progress-map and config
+  half is now **unblocked** (A-path): `RaftNode::full_status` (etcd `Status`)
+  exposes a per-follower `ProgressStatus` view (match/next/state/paused/
+  pending_snapshot/is_learner, leader included) via `progress_status` /
+  `progress_of` / `with_progress` (etcd `WithProgress`), and the current
+  configuration as a `ConfState` (voters/outgoing/learners/learners_next/
+  auto_leave). Exercised in `status_ext_wbtest.mbt`; the RawNode-level assertions
+  (`status.Progress[1]`, `tracker.Config`) are portable on top and left to the
+  RawNode workstream.
 - `TestRawNodeCommitPaginationAfterRestart` — **DONE** (now that RawNode carries a
   real per-Ready byte budget). See the "Byte-level pagination" section.
 - `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — **DONE** (A-path added the

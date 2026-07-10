@@ -232,6 +232,12 @@ pub enum EntryType {
   ConfChange
 } derive(Eq)
 
+pub(all) struct FullStatus {
+  basic : RaftStatus
+  progress : Array[ProgressStatus]
+  config : ConfState
+}
+
 pub(all) struct HardState {
   term : UInt64
   vote : String?
@@ -457,6 +463,16 @@ pub enum ProgressState {
   Snapshot
 } derive(Eq)
 
+pub(all) struct ProgressStatus {
+  id : String
+  match_index : UInt64
+  next_index : UInt64
+  state : ProgressState
+  paused : Bool
+  pending_snapshot : UInt64
+  is_learner : Bool
+} derive(Eq)
+
 pub struct RaftLog {
   storage : MemoryStorage
   unstable : Unstable
@@ -542,12 +558,15 @@ pub fn RaftNode::conf_state(Self) -> ConfState
 pub fn RaftNode::election_deadline(Self) -> Int
 pub fn RaftNode::enable_check_quorum(Self) -> Unit
 pub fn RaftNode::enable_read_only_safe(Self) -> Unit
+pub fn RaftNode::full_status(Self) -> FullStatus
 pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
 pub fn RaftNode::leader(Self) -> String?
 pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, pre_vote? : Bool) -> Self
 pub fn RaftNode::node(Self) -> Node
+pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
+pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]
 pub fn RaftNode::propose(Self, Bytes) -> Array[Message]
 pub fn RaftNode::propose_conf(Self, ConfChange) -> Array[Message]
 pub fn RaftNode::propose_conf_v2(Self, ConfChangeV2) -> Array[Message]
@@ -568,6 +587,7 @@ pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[Message]
 pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
 pub fn RaftNode::uncommitted_size(Self) -> UInt64
+pub fn RaftNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
 
 pub(all) struct RaftStatus {
   id : String

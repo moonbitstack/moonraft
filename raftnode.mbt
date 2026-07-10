@@ -685,6 +685,111 @@ pub fn RaftNode::conf_state(self : RaftNode) -> ConfState {
 }
 
 ///|
+/// A read-only view of one follower's replication progress, surfaced for status
+/// and monitoring (etcd's `tracker.Progress` as exposed through `Status` and
+/// `WithProgress`). It is a copied value, so reading it never disturbs the
+/// running protocol.
+pub(all) struct ProgressStatus {
+  id : String
+  match_index : UInt64
+  next_index : UInt64
+  state : ProgressState
+  paused : Bool
+  pending_snapshot : UInt64
+  is_learner : Bool
+} derive(Eq)
+
+///|
+fn progress_status_of(id : String, p : Progress) -> ProgressStatus {
+  {
+    id,
+    match_index: p.match_index,
+    next_index: p.next_index,
+    state: p.state,
+    paused: p.is_paused(),
+    pending_snapshot: p.pending_snapshot,
+    is_learner: p.is_learner,
+  }
+}
+
+///|
+/// The full status of the server (etcd's `Status`): the basic status, a snapshot
+/// of every tracked follower's replication progress — including the leader's own
+/// entry, fully caught up — and the current configuration as a `ConfState`.
+pub(all) struct FullStatus {
+  basic : RaftStatus
+  progress : Array[ProgressStatus]
+  config : ConfState
+}
+
+///|
+/// A snapshot of every tracked follower's progress. On a leader this includes
+/// the leader's own entry (caught up to its last index); a non-leader tracks no
+/// progress and returns an empty view.
+pub fn RaftNode::progress_status(self : RaftNode) -> Array[ProgressStatus] {
+  let out : Array[ProgressStatus] = []
+  if self.core.role() == Leader {
+    out.push({
+      id: self.id,
+      match_index: self.core.last_log_index(),
+      next_index: self.core.last_log_index() + 1,
+      state: Replicate,
+      paused: false,
+      pending_snapshot: 0,
+      is_learner: false,
+    })
+  }
+  for id, p in self.progress {
+    out.push(progress_status_of(id, p))
+  }
+  out
+}
+
+///|
+/// One member's progress view, or `None` if it is not tracked. A leader also
+/// answers for itself (etcd tracks the leader in its own progress map).
+pub fn RaftNode::progress_of(self : RaftNode, id : String) -> ProgressStatus? {
+  if id == self.id && self.core.role() == Leader {
+    return Some({
+      id,
+      match_index: self.core.last_log_index(),
+      next_index: self.core.last_log_index() + 1,
+      state: Replicate,
+      paused: false,
+      pending_snapshot: 0,
+      is_learner: false,
+    })
+  }
+  match self.progress.get(id) {
+    Some(p) => Some(progress_status_of(id, p))
+    None => None
+  }
+}
+
+///|
+/// Visit every tracked follower's progress (etcd's `WithProgress`). The visitor
+/// must not retain the `Progress` beyond the call; it is handed a copied view.
+pub fn RaftNode::with_progress(
+  self : RaftNode,
+  visit : (String, ProgressStatus) -> Unit,
+) -> Unit {
+  for entry in self.progress_status() {
+    visit(entry.id, entry)
+  }
+}
+
+///|
+/// The full status of this server (etcd's `Status`): basic status + per-follower
+/// progress + the current configuration.
+pub fn RaftNode::full_status(self : RaftNode) -> FullStatus {
+  {
+    basic: self.status(),
+    progress: self.progress_status(),
+    config: self.conf_state(),
+  }
+}
+
+///|
 /// Rebuild the live configuration from a snapshot's `ConfState` — the voters,
 /// the outgoing half (so the cluster resumes mid-joint if the snapshot was taken
 /// then), and the learners — then reconcile peers/progress. This is what stops a
