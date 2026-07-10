@@ -107,11 +107,15 @@ fn RaftNode::next_rand(self : RaftNode) -> UInt64 {
 }
 
 ///|
-/// Reset both timers and pick a fresh randomized election timeout.
+/// Reset both timers and pick a fresh randomized election timeout in
+/// [election_timeout, 2*election_timeout). The spread is taken from the *high*
+/// bits of the LCG: an LCG's low bits are notoriously non-random (the lowest
+/// cycles with period 2), so `next_rand() % et` on the raw value never reaches
+/// some residues — using the top bits gives the uniform spread §5.2 needs.
 fn RaftNode::reset_timeout(self : RaftNode) -> Unit {
   self.election_elapsed = 0
   self.heartbeat_elapsed = 0
-  let spread = (self.next_rand() % self.election_timeout.to_uint64()).to_int()
+  let spread = ((self.next_rand() >> 33) % self.election_timeout.to_uint64()).to_int()
   self.randomized_election_timeout = self.election_timeout + spread
 }
 
@@ -304,10 +308,31 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
     self.progress[p] = Progress::new(last + 1)
   }
   let _ = self.core.append(self.core.current_term(), b"")
-  self.heartbeat_elapsed = 0
-  self.election_elapsed = 0
+  // Like etcd's reset() on every state change, re-randomize the election
+  // timeout and clear the timers.
+  self.reset_timeout()
   // In a single-node cluster the no-op commits at once, which also arms reads.
   self.maybe_commit() |> ignore
+}
+
+///|
+/// Transition to follower in `term`, re-randomizing the election timeout. Every
+/// state change routes through the timer reset (Raft §5.2), which is what makes
+/// the per-node timeout fresh on each transition and keeps split votes rare.
+pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
+  self.core.become_follower(term)
+  self.leader_id = None
+  self.in_pre_campaign = false
+  self.reset_timeout()
+}
+
+///|
+/// Transition to candidate (advancing the term and voting for self), also
+/// re-randomizing the election timeout.
+pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
+  self.core.become_candidate()
+  self.leader_id = None
+  self.reset_timeout()
 }
 
 ///|

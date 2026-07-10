@@ -75,11 +75,17 @@ Raft-paper property tests, ported onto `RaftNode`/`Node` in `paper_wbtest.mbt`
 - `TestLeaderOnlyCommitsLogFromCurrentTerm` — DONE (Figure 8, 3 cases).
 - `TestLeaderSyncFollowerLog` — DONE (Figure 7, 6 cases; exercises the two-sided
   conflict backoff and full log overwrite).
-- Pending (8): `TestRejectStaleTermMessage` (covered instead by
-  `b1_stale_term_wbtest.mbt`), `TestCandidateStartNewElection`,
-  `TestLeaderBcastBeat`, `TestFollower/CandidateElectionTimeoutRandomized`,
-  `TestFollowers/CandidatesElectionTimeoutNonconflict`,
-  `TestLeaderCommitPrecedingEntries`.
+- `TestCandidateStartNewElection`, `TestLeaderBcastBeat`,
+  `TestLeaderCommitPrecedingEntries` — DONE (`raft_core_port_wbtest.mbt`).
+- `TestFollower/CandidateElectionTimeoutRandomized`,
+  `TestFollowers/CandidatesElectionTimeoutNonconflict` — DONE
+  (`randomized_timeout_wbtest.mbt`). This required an implementation fix, not an
+  interval-downgrade: every state transition now re-randomizes the election
+  timeout (etcd's `reset()` — added to `become_leader`/`become_follower`/
+  `become_candidate`), and the timeout spread is now drawn from the LCG's *high*
+  bits — its low bits are non-random, so `% et` on the raw value never reached
+  some values. Only `TestRejectStaleTermMessage` remains, covered by
+  `b1_stale_term_wbtest.mbt` (24/26).
 
 ### findConflictByTerm (two-sided) — implemented
 `Node::find_conflict_by_term` + `conflict_term` on `AppendEntriesReply` +
