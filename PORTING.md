@@ -437,6 +437,15 @@ error variants are wired into non-test code in `storage_bridge.mbt`
   commit index (etcd's `ApplySnapshot` leaves HardState untouched); the old
   behaviour diverged.
 
+## Network-orchestration safety — DONE (core)
+Ported the safety essence of etcd's `TestDuelingCandidates` /
+`TestLeaderElectionOverwriteNewerLogs` over the deterministic cluster simulator
+in `network_safety_wbtest.mbt`: a minority partition cannot elect a leader
+(Election Safety under a split); a healed partition reconverges to one leader
+and commits everywhere; an isolated leader is demoted by check-quorum and its
+stale log never overwrites the majority's after rejoin (asserted via
+`one_leader_per_term` / `committed_agrees` / `logs_consistent`).
+
 ## rafttest/{network,node}_test.go — TODO (0/5, +1 bench N/A)
 Deterministic network harness; overlaps our `sim.mbt`.
 
