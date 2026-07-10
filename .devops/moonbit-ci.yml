@@ -1,0 +1,54 @@
+version: 2
+name: moonbit-ci
+description: MoonBit check/test/info/fmt gate on GitLink
+global:
+  concurrent: 1
+trigger:
+  webhook: gitlink@1.0.0
+  event:
+    - ref: push
+      ruleset:
+        - param-ref: branch
+          operator: EQ
+          value: '"master"'
+      ruleset-operator: AND
+workflow:
+  - ref: start
+    name: 开始
+    task: start
+  - ref: git_clone_0
+    name: git clone
+    task: git_clone@1.2.9
+    input:
+      remote_url: '"https://gitlink.org.cn/heke1228/raft-moonbit.git"'
+      ref: '"refs/heads/master"'
+      commit_id: '""'
+      depth: 1
+    needs:
+      - start
+  - ref: moonbit_gate
+    name: moon check/test/info/fmt
+    image: docker.jianmuhub.com/library/ubuntu:22.04
+    env:
+      DIR: git_clone_0.git_path
+    script:
+      - set -eux
+      - apt-get update
+      - apt-get install -y curl git ca-certificates
+      - export MOONBIT_INSTALL_VERSION="0.10.3+16975d007"
+      - curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+      - export PATH="$HOME/.moon/bin:$PATH"
+      - cd "$DIR"
+      - moon version --all
+      - moon update
+      - moon check --target all
+      - moon test --target all
+      - moon fmt && git diff --exit-code
+      - moon info && git diff --exit-code
+    needs:
+      - git_clone_0
+  - ref: end
+    name: 结束
+    task: end
+    needs:
+      - moonbit_gate
