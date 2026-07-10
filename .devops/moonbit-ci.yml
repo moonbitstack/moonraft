@@ -1,6 +1,6 @@
 version: 2
 name: moonbit-ci
-description: MoonBit check/test/info/fmt gate on GitLink
+description: MoonBit check/build/test gate on GitLink
 global:
   concurrent: 1
 trigger:
@@ -27,22 +27,27 @@ workflow:
     needs:
       - start
   - ref: moonbit_gate
-    name: moon check/test/info/fmt
+    name: moon check/build/test
     image: docker.jianmuhub.com/library/ubuntu:22.04
     env:
       DIR: git_clone_0.git_path
     script:
       - set -eux
       - apt-get update
-      - apt-get install -y curl git ca-certificates
+      # build-essential provides the C toolchain the `native` backend links against.
+      - apt-get install -y --no-install-recommends curl git ca-certificates build-essential
       - export MOONBIT_INSTALL_VERSION="0.10.3+16975d007"
       - curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
       - export PATH="$HOME/.moon/bin:$PATH"
       - cd "$DIR"
+      # The clone runs as a different uid than the shell, so git refuses to read it.
+      - git config --global --add safe.directory "$DIR"
       - moon version --all
       - moon update
       - moon check --target all
+      - moon build --target all
       - moon test --target all
+      - moon run cmd/example
       - moon fmt && git diff --exit-code
       - moon info && git diff --exit-code
     needs:

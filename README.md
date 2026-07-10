@@ -45,8 +45,32 @@ An ES-module import needs `http(s)`; opening `index.html` as a `file://` URL wil
 ## Install
 
 ```
-moon add heke1228/raft-moonbit
+moon add Lfan-ke/raft-moonbit
 ```
+
+The package lives on [mooncakes.io](https://mooncakes.io) under the GitHub account `Lfan-ke`; the GitLink repository `heke1228/raft-moonbit` is the same author and the same history.
+
+## Run the example
+
+A five-node cluster elects a leader, replicates a command, loses that leader and re-elects — printing the safety invariants at each step:
+
+```
+git clone https://github.com/Lfan-ke/raft-moonbit && cd raft-moonbit
+moon run cmd/example
+```
+
+```
+cluster of 5 nodes, seed 1
+elected leader: b
+committed 'set x = 1' on a majority
+crashed the leader
+new leader: c
+one leader per term : true
+committed prefixes agree : true
+safety invariants hold : true
+```
+
+The run is deterministic: the same seed always produces this transcript. Source: [`cmd/example/main.mbt`](cmd/example/main.mbt).
 
 ## Example
 
