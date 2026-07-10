@@ -340,11 +340,11 @@ fn enc_msg(m : Message) -> Array[Int] {
       out.push(u2i(a.term))
       out.push(u2i(a.commit))
     }
-    HeartbeatResp(t) => {
+    HeartbeatResp(r) => {
       out.push(8)
       out.push(from)
       out.push(to)
-      out.push(u2i(t))
+      out.push(u2i(r.term))
     }
     TimeoutNow(t) => {
       out.push(9)
@@ -428,8 +428,18 @@ fn dec_msg(buf : Array[Int]) -> Message? {
           conflict_term: buf[7].to_uint64(),
         }),
       )
-    7 => Some(Heartbeat({ term, leader_id: from, commit: buf[4].to_uint64() }))
-    8 => Some(HeartbeatResp(term))
+    // The codec carries only scalars, and the demo never issues a linearizable
+    // read, so the ReadIndex context a heartbeat would echo is always empty.
+    7 =>
+      Some(
+        Heartbeat({
+          term,
+          leader_id: from,
+          commit: buf[4].to_uint64(),
+          context: b"",
+        }),
+      )
+    8 => Some(HeartbeatResp({ term, context: b"" }))
     9 => Some(TimeoutNow(term))
     _ => None
   }
