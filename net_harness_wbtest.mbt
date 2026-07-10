@@ -57,6 +57,16 @@ fn Net::cut(self : Net, a : String, b : String) -> Unit {
 }
 
 ///|
+/// Sever `id` from every other node.
+fn Net::isolate(self : Net, id : String) -> Unit {
+  for other in self.nodes.keys() {
+    if other != id {
+      self.cut(id, other)
+    }
+  }
+}
+
+///|
 /// Heal all partitions and stop dropping any message kind (etcd's recover resets
 /// both the cut set and the ignore set).
 fn Net::recover(self : Net) -> Unit {
@@ -121,6 +131,26 @@ fn Net::propose(self : Net, id : String, data : Bytes) -> Unit {
 /// which clears follower flow-control pauses — etcd's MsgBeat).
 fn Net::beat(self : Net, id : String) -> Unit {
   self.deliver(self.nodes[id].tick())
+}
+
+///|
+/// Inject an externally-originated message directly at its recipient (etcd's
+/// network delivers the head of `send` unfiltered, then filters the replies), so
+/// a request can reach a node across a partition. The resulting traffic is
+/// filtered normally.
+fn Net::inject(self : Net, m : Message) -> Unit {
+  match self.nodes.get(m.to) {
+    Some(n) => self.deliver(n.step(m))
+    None => ()
+  }
+}
+
+///|
+/// Request that leadership move to `target`, with the request delivered to node
+/// `to` (etcd's MsgTransferLeader carries the transferee in From). Injected
+/// directly so it reaches the leader even across a partition.
+fn Net::transfer(self : Net, target : String, to : String) -> Unit {
+  self.inject(Message::new(target, to, TransferLeader(target)))
 }
 
 ///|

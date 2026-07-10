@@ -682,6 +682,7 @@ pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[Message]
 pub fn RaftNode::transfer_leadership(Self, String) -> Array[Message]
 pub fn RaftNode::uncommitted_size(Self) -> UInt64
+pub fn RaftNode::voter_nodes(Self) -> Array[String]
 pub fn RaftNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
 
 pub(all) struct RaftStatus {

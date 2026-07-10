@@ -126,6 +126,11 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
     _ => {
       self.core.become_follower(msg.term())
       self.in_pre_campaign = false
+      // Stepping down abandons any in-flight leadership transfer (etcd's reset →
+      // abortLeaderTransfer runs on every transition), so a stale transferee can
+      // never linger and block proposals should we lead again.
+      self.lead_transferee = None
+      self.pending_conf_index = 0
       self.leader_id = match msg.payload {
         Append(a) => Some(a.leader_id)
         Heartbeat(a) => Some(a.leader_id)
@@ -560,6 +565,8 @@ fn RaftNode::handle_append_resp(
   }
   if reply.term > self.core.current_term() {
     self.core.become_follower(reply.term)
+    self.lead_transferee = None
+    self.pending_conf_index = 0
     return []
   }
   match self.progress.get(from) {
@@ -711,6 +718,8 @@ fn RaftNode::handle_snapshot_resp(
   }
   if reply.term > self.core.current_term() {
     self.core.become_follower(reply.term)
+    self.lead_transferee = None
+    self.pending_conf_index = 0
     return []
   }
   match self.progress.get(from) {
