@@ -664,8 +664,11 @@ error variants are wired into non-test code in `storage_bridge.mbt`
 - `TestStorageLastIndex` — DONE (2 cases).
 - `TestStorageFirstIndex` — DONE (2 cases, incl. post-`compact`).
 - `TestStorageCompact` — DONE (4 cases; `Compacted` at/below sentinel).
-- `TestStorageCreateSnapshot` — DONE (2 cases; ConfState omitted — this port's
-  `Snapshot` carries no ConfState, only index/term/data are asserted).
+- `TestStorageCreateSnapshot` — DONE (2 cases, incl. ConfState). Fixed a bug: the
+  port's `create_snapshot` used to build the snapshot with an empty ConfState,
+  dropping the membership; it now takes a `conf_state?` param (etcd's `cs`) and
+  records/retains it. The test supplies `ConfState{voters:[1,2,3]}` and asserts it
+  round-trips (see GAP_logstore.md).
 - `TestStorageAppend` — DONE (all 7 cases; exact post-append `ents` layout).
 - `TestStorageApplySnapshot` — DONE (3 cases; normal / `SnapOutOfDate` /
   bootstrap-with-index-0). Semantic fix: `apply_snapshot` no longer bumps the

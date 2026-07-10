@@ -273,6 +273,55 @@ pub fn RawNode::transfer_leader(self : RawNode, target : String) -> Unit {
 }
 
 ///|
+/// Voluntarily forget the current leader so this node can start an election
+/// without waiting out the election timeout (etcd's `ForgetLeader`).
+pub fn RawNode::forget_leader(self : RawNode) -> Unit {
+  self.raft.forget_leader()
+}
+
+///|
+/// Report that a message to `id` could not be delivered (etcd's
+/// `ReportUnreachable`): the leader stops streaming to that follower until it
+/// responds again.
+pub fn RawNode::report_unreachable(self : RawNode, id : String) -> Unit {
+  self.raft.report_unreachable(id)
+}
+
+///|
+/// Report the outcome of a snapshot sent to `id` (etcd's `ReportSnapshot`):
+/// `reject` true means the follower could not apply it, so the leader retries.
+pub fn RawNode::report_snapshot(
+  self : RawNode,
+  id : String,
+  reject : Bool,
+) -> Unit {
+  self.raft.report_snapshot(id, reject)
+}
+
+///|
+/// This server's basic status (etcd's `BasicStatus`): id, term, vote, commit,
+/// leader and role, without the per-follower progress map.
+pub fn RawNode::basic_status(self : RawNode) -> RaftStatus {
+  self.raft.status()
+}
+
+///|
+/// This server's full status (etcd's `Status`): basic status plus the
+/// per-follower progress view and the current configuration.
+pub fn RawNode::full_status(self : RawNode) -> FullStatus {
+  self.raft.full_status()
+}
+
+///|
+/// Visit each follower's progress (etcd's `WithProgress`).
+pub fn RawNode::with_progress(
+  self : RawNode,
+  visit : (String, ProgressStatus) -> Unit,
+) -> Unit {
+  self.raft.with_progress(visit)
+}
+
+///|
 /// The entries appended but not yet persisted by the application (etcd's
 /// `nextUnstableEnts`): the unstable tail not already being written.
 fn RawNode::next_unstable(self : RawNode) -> Array[Entry] {
@@ -367,10 +416,10 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     None => ()
   }
   // Mark the reported entries and committed entries as being written / applied,
-  // so the next Ready does not re-offer them.
-  if rd.entries.length() > 0 {
-    self.log.accept_unstable()
-  }
+  // so the next Ready does not re-offer them. `accept_unstable` is called
+  // unconditionally, as in etcd's `acceptReady` (a no-op when the unstable tail is
+  // empty or already in progress).
+  self.log.accept_unstable()
   let c = rd.committed_entries.length()
   if c > 0 {
     self.log.accept_applying(

@@ -301,6 +301,7 @@ pub fn MemoryStorage::create_snapshot(
   self : MemoryStorage,
   index : UInt64,
   data : Bytes,
+  conf_state? : ConfState? = None,
 ) -> Snapshot raise StorageError {
   if index <= self.snap.last_index {
     raise SnapOutOfDate
@@ -310,11 +311,18 @@ pub fn MemoryStorage::create_snapshot(
   }
   let off = self.offset()
   let term = self.ents[(index - off).to_int()].term
+  // etcd's CreateSnapshot(i, cs, data): a supplied ConfState is recorded;
+  // otherwise the snapshot keeps the membership already on record, rather than
+  // silently dropping it (which would lose the cluster config on restore).
+  let cs = match conf_state {
+    Some(c) => c
+    None => self.snap.conf_state
+  }
   let snap : Snapshot = {
     last_index: index,
     last_term: term,
     data,
-    conf_state: ConfState::empty(),
+    conf_state: cs,
   }
   self.snap = snap
   snap
