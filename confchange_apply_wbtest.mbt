@@ -73,6 +73,30 @@ test "B2: leader that removes itself steps down" {
 }
 
 ///|
+/// The removal step-down fires only when the leader has actually left the
+/// configuration or been demoted to a learner (etcd raft.go:1991 `switchToConfig`,
+/// `(!ok || r.isLearner)`). A `step_down_on_removal` leader that applies a change
+/// leaving it a voter is neither, so it keeps leading. This exercises the
+/// demotion arm of that test: the leader is present, so membership does not
+/// short-circuit the guard, and the learner check is evaluated and found false.
+test "B2: a step-down-on-removal leader that stays a voter keeps leading" {
+  let r = RaftNode::new(
+    "1",
+    ["2", "3"],
+    pre_vote=false,
+    step_down_on_removal=true,
+  )
+  r.node().become_candidate()
+  r.become_leader()
+  r.propose_conf(ConfChange::add("4")) |> ignore
+  r.step(ack_from("2", 2, r.term())) |> ignore
+  r.step(ack_from("3", 2, r.term())) |> ignore
+  assert_true(r.is_leader())
+  assert_true(r.config.contains("1"))
+  assert_true(r.config.contains("4"))
+}
+
+///|
 /// Removing a member shrinks the quorum, which lets a previously blocked entry
 /// commit (etcd TestCommitAfterRemoveNode). Here node 3 is down; a proposal
 /// cannot commit under the 3-node quorum with only node 2, but once node 3 is
