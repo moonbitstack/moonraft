@@ -77,7 +77,8 @@ test "ReadOnlySafe: an ack for the latest context confirms earlier reads too" {
 ///|
 test "ReadOnlyLeaseBased: a read is confirmed at once under a valid lease" {
   let r = leader_with_committed_noop() // node 2's ack marked it active
-  // Default (lease) mode: no heartbeat round-trip is needed.
+  r.set_read_only_option(LeaseBased)
+  // Lease mode: no heartbeat round-trip is needed.
   let msgs = r.request_read_index(b"lease-read")
   assert_eq(msgs.length(), 0)
   let rs = r.take_read_states()

@@ -235,7 +235,8 @@ test "forget_leader lets a leased follower grant a pre-vote again" {
 /// forget_leader_read_only_lease_based.txt: under lease-based reads, forget-leader
 /// is ignored — dropping the leader would undermine the lease reads depend on.
 test "forget_leader is ignored under lease-based reads" {
-  let n = follower_of_leader_1("2", ["1", "3"]) // default: lease-based (not safe)
+  let n = follower_of_leader_1("2", ["1", "3"])
+  n.set_read_only_option(LeaseBased) // lease-based reads: forget-leader is ignored
   n.forget_leader()
   assert_true(n.leader() is Some(_)) // leader retained
   match n.leader() {

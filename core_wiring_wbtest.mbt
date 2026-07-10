@@ -23,6 +23,9 @@ fn replicate_three_big(budget : UInt64) -> Int {
     ["2"],
     pre_vote=false,
     max_inflight=100,
+    // etcd requires max_inflight_bytes >= max_msg_bytes; keep the per-message
+    // byte cap at one 250-byte entry so the in-flight byte budget is what binds.
+    max_msg_bytes=250,
     max_inflight_bytes=budget,
   )
   r.node().become_candidate()

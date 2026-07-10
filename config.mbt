@@ -96,7 +96,8 @@ pub fn Config::new(
   max_inflight? : Int = 256,
   max_inflight_bytes? : UInt64 = 0,
   check_quorum? : Bool = false,
-  pre_vote? : Bool = true,
+  // etcd's Config.PreVote is opt-in; its zero value is false.
+  pre_vote? : Bool = false,
   read_only_option? : ReadOnlyOption = Safe,
   step_down_on_removal? : Bool = false,
   disable_proposal_forwarding? : Bool = false,
@@ -167,14 +168,12 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
     max_uncommitted_size=config.max_uncommitted_size,
     max_inflight=config.max_inflight,
     max_inflight_bytes=config.max_inflight_bytes,
+    check_quorum=config.check_quorum,
     pre_vote=config.pre_vote,
     step_down_on_removal=config.step_down_on_removal,
     disable_conf_change_validation=config.disable_conf_change_validation,
     read_only_option=config.read_only_option,
   )
-  if config.check_quorum {
-    r.enable_check_quorum()
-  }
   if config.disable_proposal_forwarding {
     r.disable_proposal_forwarding()
   }

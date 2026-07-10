@@ -105,13 +105,42 @@ pub fn RaftNode::new(
   max_uncommitted_size? : UInt64 = 0,
   max_inflight? : Int = 256,
   max_inflight_bytes? : UInt64 = 0,
-  pre_vote? : Bool = true,
+  check_quorum? : Bool = false,
+  // etcd's Config.PreVote is opt-in (zero value false); default off to match.
+  pre_vote? : Bool = false,
   step_down_on_removal? : Bool = false,
   disable_conf_change_validation? : Bool = false,
-  read_only_option? : ReadOnlyOption = LeaseBased,
+  // etcd's zero value is ReadOnlySafe ("default and suggested"); a LeaseBased
+  // default without check-quorum is a configuration etcd's validate() rejects.
+  read_only_option? : ReadOnlyOption = Safe,
   logger? : &Logger = NopLogger::{  },
   tracer? : &Tracer = NopTracer::{  },
 ) -> RaftNode {
+  // Reject an unusable configuration at construction, as etcd's newRaft panics on
+  // an invalid Config.validate() (raft.go:440). This convenience constructor
+  // shares the exact checks with the explicit Config path.
+  Config::new(
+    id,
+    peers,
+    election_tick=election_timeout,
+    heartbeat_tick=heartbeat_timeout,
+    max_msg_bytes~,
+    max_inflight~,
+    max_inflight_bytes~,
+    check_quorum~,
+    read_only_option~,
+  ).validate() catch {
+    EmptyId => abort("invalid raft config: empty id")
+    HeartbeatTickNotPositive =>
+      abort("invalid raft config: heartbeat tick <= 0")
+    ElectionTickNotGreater =>
+      abort("invalid raft config: election tick <= heartbeat tick")
+    MaxInflightNotPositive => abort("invalid raft config: max inflight <= 0")
+    MaxInflightBytesTooSmall =>
+      abort("invalid raft config: max inflight bytes < max message size")
+    LeaseBasedNeedsCheckQuorum =>
+      abort("invalid raft config: ReadOnlyLeaseBased requires CheckQuorum")
+  }
   let all = [id]
   for p in peers {
     all.push(p)
@@ -124,7 +153,7 @@ pub fn RaftNode::new(
     progress: {},
     votes: {},
     pre_vote,
-    check_quorum: false,
+    check_quorum,
     in_pre_campaign: false,
     leader_id: None,
     election_elapsed: 0,

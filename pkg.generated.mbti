@@ -652,7 +652,7 @@ pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
 pub fn RaftNode::leader(Self) -> String?
-pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, pre_vote? : Bool, step_down_on_removal? : Bool, disable_conf_change_validation? : Bool, read_only_option? : ReadOnlyOption, logger? : &Logger, tracer? : &Tracer) -> Self
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, step_down_on_removal? : Bool, disable_conf_change_validation? : Bool, read_only_option? : ReadOnlyOption, logger? : &Logger, tracer? : &Tracer) -> Self
 pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
 pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]

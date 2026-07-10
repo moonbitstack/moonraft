@@ -22,6 +22,7 @@
 /// lost forever, after it the read is served once the no-op commits.
 test "D-readindex-queue: read before first in-term commit is queued, not dropped" {
   let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  r.set_read_only_option(LeaseBased) // this case exercises the lease read path
   r.node().become_candidate() // term 1
   r.become_leader() // appends no-op @1; commit still 0 (no acks yet)
   // The no-op is not yet committed in the current term.
@@ -44,6 +45,7 @@ test "D-readindex-queue: read before first in-term commit is queued, not dropped
 /// reads.
 test "D-readindex-queue: read after in-term commit is served at once" {
   let r = RaftNode::new("1", ["2", "3"], pre_vote=false)
+  r.set_read_only_option(LeaseBased) // this case exercises the lease read path
   r.node().become_candidate()
   r.become_leader()
   r.step(ack_from("2", 1, r.term())) |> ignore // commit the no-op first
