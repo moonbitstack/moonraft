@@ -360,7 +360,14 @@ fn RaftNode::handle_append_resp(
         match p.state {
           Probe => p.become_replicate()
           Replicate => p.free_le(reply.match_index)
-          Snapshot => ()
+          // A snapshotting follower whose ack reconnects it to the leader's log
+          // (its match is at or past the snapshot baseline) resumes streaming,
+          // aborting the pending snapshot (etcd's StateSnapshot recovery).
+          Snapshot =>
+            if p.match_index >= self.core.snapshot_index {
+              p.become_probe()
+              p.become_replicate()
+            }
         }
         let out : Array[Message] = []
         // A leadership-transfer target that has now caught up to the leader's

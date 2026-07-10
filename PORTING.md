@@ -197,7 +197,17 @@ pure liveness (marks active for check-quorum/lease) and resumes replication —
 sending the entries a behind follower lacks, or a content-free probe when its
 in-flight window is full. An empty AppendEntries is now labelled `Probe`.
 
-## raft_snap_test.go — TODO (0/5)
+## raft_snap_test.go — DONE (3/5)
+Added Snapshot-state recovery: a successful `AppendResp` at/past the snapshot
+baseline aborts the pending snapshot and resumes streaming; `bcast_append` now
+skips a paused (snapshot-pending or window-full) follower. Ported in
+`raft_snap_wbtest.mbt`:
+- `TestSnapshotAbort` — DONE.
+- `TestPendingSnapshotPauseReplication` — DONE.
+- `TestSendingSnapshotSetPendingSnapshot` — DONE (pending index tracked as
+  `next_index - 1`).
+- Pending (2): `TestSnapshotFailure` / `TestSnapshotSucceed` need `MsgSnapStatus`
+  (ReportSnapshot), which this model does not send.
 
 ## B3 — check-quorum leader stickiness — DONE (core)
 With check-quorum on, a server still in contact with a leader (`leader_id` set,

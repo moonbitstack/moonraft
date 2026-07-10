@@ -411,10 +411,10 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
 fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
   let out : Array[Message] = []
   for peer in self.peers {
-    // Throttle a streaming follower whose in-flight window is full; a probing
-    // or snapshotting follower is handled by send_to as before.
+    // Skip a throttled follower: a streaming one whose in-flight window is full,
+    // or one still digesting a snapshot. A prober is sent its one probe.
     let p = self.progress[peer]
-    if p.state == Replicate && p.inflights.full() {
+    if p.is_paused() {
       continue
     }
     out.push(self.send_to(peer))
