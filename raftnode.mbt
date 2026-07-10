@@ -1178,11 +1178,16 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.peers.push(id)
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
-        self.progress[id] = Progress::new(
+        let p = Progress::new(
           self.core.last_log_index() + 1,
           max_inflight=self.max_inflight,
           max_inflight_bytes=self.max_inflight_bytes,
         )
+        // etcd's initProgress marks a newcomer recently active, so a check-quorum
+        // leader that adds a voter is not immediately stepped down by the very
+        // next quorum check for a member it has not yet had a chance to hear from.
+        p.recent_active = true
+        self.progress[id] = p
       }
       // Keep each progress's learner flag in step with the configuration.
       match self.progress.get(id) {
