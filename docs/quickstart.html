@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quickstart · raft-moonbit</title>
+    <meta
+      name="description"
+      content="Install raft-moonbit, run a five-node cluster, replicate a command, and read back the committed log — a copy-paste quickstart that matches the tested example transcript exactly."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="wrap row">
+      <a class="brand" href="./"><span class="prompt">~/</span>raft-moonbit<span class="caret">▊</span></a>
+      <nav class="links">
+        <a href="./">Home</a><a href="quickstart.html">Quickstart</a>
+        <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
+      </nav>
+      <span class="spacer"></span>
+      <button class="iconbtn" data-theme-toggle></button>
+      <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
+    </div></header>
+
+    <main class="wrap qs">
+      <section class="hero" style="padding: 56px 0 20px">
+        <p class="eyebrow">Quickstart</p>
+        <h1 class="display" style="font-size: clamp(28px, 4.6vw, 46px)">
+          From zero to committed<br />in four commands
+        </h1>
+        <p class="lede" style="font-size: 16px">
+          Every command and every line of output on this page is copied from the
+          tested example. The run is deterministic — the same seed always prints
+          the same transcript.
+        </p>
+      </section>
+
+      <ol class="steps">
+        <li>
+          <div class="stepno">01</div>
+          <div class="stepbody">
+            <h2 class="sec" style="font-size: 20px">Add the package</h2>
+            <p class="sub" style="margin-bottom: 14px">
+              It lives on
+              <a href="https://mooncakes.io">mooncakes.io</a> under
+              <code>Lfan-ke</code>; the GitLink repo
+              <code>heke1228/raft-moonbit</code> is the same history.
+            </p>
+            <pre class="code"><span class="c"># in your MoonBit project</span>
+moon add Lfan-ke/raft-moonbit</pre>
+          </div>
+        </li>
+
+        <li>
+          <div class="stepno">02</div>
+          <div class="stepbody">
+            <h2 class="sec" style="font-size: 20px">Run the worked example</h2>
+            <p class="sub" style="margin-bottom: 14px">
+              Clone the repo and run the bundled five-node scenario: it elects a
+              leader, replicates a command, crashes the leader, and re-elects —
+              printing the safety invariants at each step.
+            </p>
+            <pre class="code">git clone https://github.com/Lfan-ke/raft-moonbit &amp;&amp; cd raft-moonbit
+moon run cmd/example</pre>
+            <p class="tag" style="margin: 14px 0 6px">Output — verbatim</p>
+            <pre class="code out">cluster of 5 nodes, seed 1
+elected leader: b
+committed 'set x = 1' on a majority
+crashed the leader
+new leader: c
+one leader per term : true
+committed prefixes agree : true
+safety invariants hold : true</pre>
+          </div>
+        </li>
+
+        <li>
+          <div class="stepno">03</div>
+          <div class="stepbody">
+            <h2 class="sec" style="font-size: 20px">Drive a cluster yourself</h2>
+            <p class="sub" style="margin-bottom: 14px">
+              The <a href="api.html#t-Cluster">Cluster</a> simulator is the
+              batteries-included path: build it, elect, propose, and assert the
+              guarantees hold through a fault.
+            </p>
+            <pre class="code"><span class="c">// Drive a five-node cluster through the deterministic simulator.</span>
+<span class="k">let</span> cluster = @raft.Cluster::new([<span class="s">"a"</span>, <span class="s">"b"</span>, <span class="s">"c"</span>, <span class="s">"d"</span>, <span class="s">"e"</span>], seed=1)
+<span class="k">let</span> leader = cluster.run_until_leader(200)          <span class="c">// elect a leader</span>
+<span class="k">let</span> _ = cluster.propose(b<span class="s">"set x = 1"</span>)               <span class="c">// replicate a command</span>
+<span class="k">let</span> _ = cluster.run_until_committed(2, 200)         <span class="c">// wait for commit</span>
+
+<span class="c">// Inject a fault and watch the cluster keep its safety guarantees.</span>
+cluster.crash(leader.unwrap())
+<span class="k">let</span> _ = cluster.run_until_leader(400)               <span class="c">// a new leader takes over</span>
+assert_true(cluster.one_leader_per_term())
+assert_true(cluster.committed_agrees())</pre>
+          </div>
+        </li>
+
+        <li>
+          <div class="stepno">04</div>
+          <div class="stepbody">
+            <h2 class="sec" style="font-size: 20px">Or talk the protocol directly</h2>
+            <p class="sub" style="margin-bottom: 14px">
+              For a real transport, drive a
+              <a href="api.html#t-RaftNode">RaftNode</a> through the
+              <a href="api.html#t-RawNode">RawNode</a> Ready/Advance loop — take a
+              <code>Ready</code>, persist its entries, send its messages, apply
+              its committed entries, then <code>advance</code>.
+            </p>
+            <pre class="code"><span class="k">let</span> raw = @raft.RaftNode::new(<span class="s">"n1"</span>, []).raw()
+raw.campaign()                       <span class="c">// stand for election</span>
+<span class="k">while</span> raw.has_ready() {
+  <span class="k">let</span> rd = raw.ready()
+  <span class="c">// persist rd.entries, send rd.messages,</span>
+  <span class="c">// apply rd.committed_entries to your state machine …</span>
+  raw.advance(rd)
+}</pre>
+          </div>
+        </li>
+      </ol>
+
+      <section class="band">
+        <p class="kicker">Local</p>
+        <h2 class="sec">Run the browser demo locally</h2>
+        <p class="sub">
+          The interactive demo builds from the same consensus core. Compile to
+          WebAssembly, drop the artifact next to the page, and serve
+          <code>docs/</code> over http — an ES-module / <code>fetch</code> of
+          <code>.wasm</code> needs <code>http(s)</code>, not <code>file://</code>.
+        </p>
+        <pre class="code">moon build --target wasm --release
+cp _build/wasm/release/build/raft-moonbit.wasm docs/raft-moonbit.wasm
+python3 -m http.server 8099 --directory docs   <span class="c"># open http://localhost:8099/demo.html</span></pre>
+        <div class="cta">
+          <a class="btn primary" href="demo.html">▶ See it running</a>
+          <a class="btn" href="api.html">Full API</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site"><div class="wrap row">
+      <span>Raft consensus in <b>MoonBit</b> · Apache-2.0</span>
+      <span class="mono">© 2026 Leo Cheng · <a href="https://github.com/Lfan-ke/raft-moonbit">GitHub</a></span>
+    </div></footer>
+
+    <style>
+      .qs .steps {
+        list-style: none;
+        counter-reset: none;
+        padding: 0;
+        margin: 20px 0 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .qs .steps > li {
+        display: grid;
+        grid-template-columns: 64px 1fr;
+        gap: 18px;
+        padding: 22px 0;
+        border-top: 1px solid var(--border);
+      }
+      .stepno {
+        font-family: var(--mono);
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--replicate);
+      }
+      .stepbody {
+        min-width: 0;
+      }
+      .out {
+        color: var(--ink-2);
+        background: var(--surface-2);
+      }
+      @media (max-width: 640px) {
+        .qs .steps > li {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+      }
+    </style>
+  </body>
+</html>

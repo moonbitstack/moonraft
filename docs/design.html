@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Design notes · raft-moonbit</title>
+    <meta
+      name="description"
+      content="What a MoonBit port of etcd's raft found that Go left to convention: two latent safety bugs surfaced by exhaustive matching and algebraic data types, and how the type system erased whole classes of them."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="wrap row">
+      <a class="brand" href="./"><span class="prompt">~/</span>raft-moonbit<span class="caret">▊</span></a>
+      <nav class="links">
+        <a href="./">Home</a><a href="quickstart.html">Quickstart</a>
+        <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
+      </nav>
+      <span class="spacer"></span>
+      <button class="iconbtn" data-theme-toggle></button>
+      <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
+    </div></header>
+
+    <main class="wrap">
+      <section class="hero" style="padding: 56px 0 22px">
+        <p class="eyebrow">Design notes</p>
+        <h1 class="display" style="font-size: clamp(28px, 5vw, 52px)">
+          The port that<br />audited the original
+        </h1>
+        <p class="lede">
+          Rewriting etcd's raft in MoonBit was not transcription. Where Go uses a
+          struct field and a convention, MoonBit uses a sum type and an
+          exhaustive match — and the compiler refuses to let a case go unhandled.
+          Three times, filling in a case the Go code left implicit turned up a
+          real latent bug. Two of them were safety violations.
+        </p>
+        <p class="note good" style="margin-top: 8px">
+          Method: <b>we fixed the implementation, never the assertion.</b> Every
+          bug below is pinned by a ported etcd test that fails before the fix and
+          passes after.
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Bug 1 · Election &amp; State-Machine Safety</p>
+        <h2 class="sec">
+          <span class="chip" style="border-color: var(--bad); margin-right: 8px"
+            >B1</span
+          >Two leaders in one term
+        </h2>
+        <p class="sub">
+          Raft's whole promise is that a committed entry is permanent. That rests
+          on <b>Election Safety</b>: at most one leader per term. The reference
+          <code>step</code> path, ported faithfully, had a gap — it never dropped
+          a <em>response</em> stamped with a term below the receiver's own.
+        </p>
+        <div class="grid c2" style="margin-bottom: 20px">
+          <div class="card">
+            <div class="tag">The failure</div>
+            <p>
+              A <code>VoteResp</code> from an old term, reordered late by the
+              network, was counted into the current tally — enough to manufacture
+              a false majority and elect a <b>second</b> leader in a term that
+              already had one. A stale <code>AppendResp</code> could likewise
+              inflate a follower's progress and <b>over-commit</b>. Both break the
+              guarantee the log rests on.
+            </p>
+          </div>
+          <div class="card">
+            <div class="tag">The regression test</div>
+            <p>
+              <code>b1_stale_term_wbtest.mbt</code> replays the reordered stale
+              response. Before the fix it observes <code>is_leader()</code> true
+              on a second node and a commit index of <code>3</code> where
+              <code>0</code> is correct; after the fix, both hold.
+            </p>
+          </div>
+        </div>
+        <p class="sub" style="margin-bottom: 10px">
+          The fix makes "how does this message's term compare to mine?" a value
+          you must destructure — so "it's older" cannot be silently skipped:
+        </p>
+        <pre class="code"><span class="k">priv enum</span> TermRel {
+  Stale      <span class="c">// msg.term &lt; ours — ignore requests, DROP responses</span>
+  Aligned    <span class="c">// msg.term == ours</span>
+  Ahead      <span class="c">// msg.term &gt; ours — step down first</span>
+}
+
+<span class="k">fn</span> step(self : RaftNode, m : Message) -> Array[Message] {
+  <span class="k">match</span> self.term_rel(m) {
+    Stale   => <span class="k">match</span> m.payload {
+                 <span class="c">// a response from a dead term proves nothing</span>
+                 VoteResp(_) | AppendResp(_) | HeartbeatResp(_) => <span class="k">return</span> []
+                 _ => <span class="c">/* reply with our term so the sender updates */</span>
+               }
+    Ahead   => self.become_follower(m.term())
+    Aligned => ()
+  }
+  <span class="c">// … only messages that passed the classifier reach the handlers</span>
+}</pre>
+        <p class="sub" style="margin-top: 14px">
+          In Go the term comparison is a chain of <code>if</code>s; forgetting
+          the response case compiles cleanly and ships. In MoonBit the
+          <code>match</code> on <code>TermRel</code> and the nested
+          <code>match</code> on <code>Payload</code> are both exhaustive: leave
+          the stale-response case out and it does not build. The bug becomes
+          unrepresentable.
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Bug 2 · Storage contract</p>
+        <h2 class="sec">
+          <span class="chip" style="border-color: var(--warn); margin-right: 8px"
+            >S2</span
+          >Compacted or just unavailable?
+        </h2>
+        <p class="sub">
+          When a leader asks storage for an entry the follower needs, the answer
+          decides the next move: if the index was <b>compacted away</b>, send a
+          snapshot; if it is simply <b>past the end</b>, wait. The old storage
+          returned the same empty answer for both — a <code>None</code> that
+          conflated two states needing opposite responses.
+        </p>
+        <div class="grid c2">
+          <div class="card">
+            <div class="tag">Before — one None for two worlds</div>
+            <pre class="code" style="font-size: 12.5px"><span class="k">fn</span> term(i : UInt64) -> UInt64? {
+  <span class="c">// compacted? out of range? caller</span>
+  <span class="c">// cannot tell — and guesses wrong</span>
+  ...
+}</pre>
+          </div>
+          <div class="card">
+            <div class="tag">After — the states are distinct by type</div>
+            <pre class="code" style="font-size: 12.5px"><span class="k">suberror</span> StorageError {
+  Compacted
+  Unavailable
+  SnapOutOfDate
+  SnapshotTemporarilyUnavailable
+}</pre>
+          </div>
+        </div>
+        <p class="sub" style="margin-top: 16px">
+          The read path now raises the precise variant; <code>storage_bridge.mbt</code>
+          catches it and either ships a snapshot or backs off — no guessing.
+          <code>TestStorageTerm</code>, <code>TestStorageEntries</code> and
+          <code>TestStorageCompact</code> assert the distinction that the boolean
+          answer used to erase. (A third fix, <b>S1</b>, corrected
+          <code>apply_snapshot</code> wrongly advancing the HardState commit index
+          — etcd leaves it untouched.)
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">The through-line</p>
+        <h2 class="sec">Types that erase whole classes of bug</h2>
+        <p class="sub">
+          Both fixes share a shape: a place where Go collapses several distinct
+          situations into one under-specified value — a bare term integer, a
+          <code>None</code> — and MoonBit forces them apart into a sum type the
+          compiler makes you handle. The bug is not caught at test time; it is
+          made impossible to write.
+        </p>
+        <div class="grid c3">
+          <div class="card">
+            <div class="rule-accent"></div>
+            <h3>Messages are one enum</h3>
+            <p>
+              Every request is paired with its response in a single
+              <code>Payload</code>. A transport moves them without knowing what
+              any means; a handler cannot receive a shape the type forbids.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--leader)"></div>
+            <h3>Roles are a closed set</h3>
+            <p>
+              <code>Follower / Candidate / Leader</code> — every transition is a
+              match over three cases. A new state can't be bolted on without the
+              compiler pointing at every site that must account for it.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--candidate)"></div>
+            <h3>Errors carry their reason</h3>
+            <p>
+              <code>StorageError</code> replaced a boolean that discarded exactly
+              the information the caller needed. The recovery decision reads off
+              the variant.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Provenance</p>
+        <h2 class="sec">What is derived, what is new</h2>
+        <p class="sub">
+          This is a faithful port of
+          <a href="https://github.com/etcd-io/raft">etcd-io/raft</a> (Apache-2.0):
+          the protocol core, the storage model, and the test suite are carried
+          over — the tests especially, because a port you can't check against the
+          original is just a rewrite. What the MoonBit version adds is the
+          algebraic data model above, a deterministic simulation harness with
+          built-in safety-invariant checks, and the WebAssembly demo where each
+          node runs in its own Web Worker.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="demo.html">▶ Watch the invariants hold</a>
+          <a class="btn" href="https://github.com/Lfan-ke/raft-moonbit/blob/master/PORTING.md"
+            >Full porting log ↗</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer class="site"><div class="wrap row">
+      <span>Raft consensus in <b>MoonBit</b> · a port of etcd-io/raft · Apache-2.0</span>
+      <span class="mono">© 2026 Leo Cheng · <a href="https://github.com/Lfan-ke/raft-moonbit">GitHub</a></span>
+    </div></footer>
+  </body>
+</html>

@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live demo · raft-moonbit</title>
+    <meta
+      name="description"
+      content="Five Raft nodes, each a real WebAssembly instance in its own Web Worker, reaching consensus live in your browser. Partition the network, crash the leader, drop packets — and watch the safety invariants hold."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+    <script src="assets/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="wrap row">
+        <a class="brand" href="./"
+          ><span class="prompt">~/</span>raft-moonbit<span class="caret"
+            >▊</span
+          ></a
+        >
+        <nav class="links">
+          <a href="./">Home</a>
+          <a href="quickstart.html">Quickstart</a>
+          <a href="api.html">API</a>
+          <a href="demo.html">Demo</a>
+          <a href="design.html">Design</a>
+        </nav>
+        <span class="spacer"></span>
+        <button class="iconbtn" data-theme-toggle></button>
+        <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="demo-head">
+        <div>
+          <p class="eyebrow" style="margin-bottom: 10px">Live · real WASM · real threads</p>
+          <h1 class="display" style="font-size: clamp(26px, 4vw, 40px)">
+            Five nodes, five workers, one log
+          </h1>
+          <p class="lede" style="font-size: 16px; margin-top: 14px">
+            Each node below is a separate WebAssembly instance running in its own
+            Web Worker, ticking on its own timer. Nothing here is scripted: the
+            leader is whichever node's election clock fires first, and the
+            message order is whatever the threads produce. Break things and watch
+            Raft hold the line.
+          </p>
+        </div>
+      </div>
+
+      <div class="controls card">
+        <div class="cgroup">
+          <span class="clabel">Log</span>
+          <button class="btn sm primary" id="btn-propose">＋ Propose</button>
+          <button class="btn sm" id="btn-reset">↻ Restart cluster</button>
+        </div>
+        <div class="cgroup">
+          <span class="clabel">Network</span>
+          <button class="btn sm" id="btn-split">⋔ Split 2 | 3</button>
+          <button class="btn sm" id="btn-isolate">⊘ Isolate leader</button>
+          <button class="btn sm" id="btn-heal">⤳ Heal</button>
+        </div>
+        <div class="cgroup">
+          <span class="clabel">Failure</span>
+          <button class="btn sm" id="btn-crash">✕ Crash leader</button>
+          <button class="btn sm" id="btn-restart">⏻ Restart node</button>
+        </div>
+        <div class="cgroup">
+          <span class="clabel">Speed</span>
+          <button class="btn sm" data-speed="slow">slow</button>
+          <button class="btn sm on" data-speed="normal">normal</button>
+          <button class="btn sm" data-speed="fast">fast</button>
+        </div>
+        <div class="cgroup slider">
+          <span class="clabel">Packet loss <b id="drop-v">0%</b></span>
+          <input id="drop" type="range" min="0" max="700" value="0" />
+        </div>
+        <div class="cgroup slider">
+          <span class="clabel">Delay <b id="delay-v">none</b></span>
+          <input id="delay" type="range" min="0" max="6" value="0" />
+        </div>
+      </div>
+
+      <div class="demo-grid">
+        <div class="card ring-panel">
+          <svg
+            id="ring"
+            viewBox="0 0 600 520"
+            role="img"
+            aria-label="Raft cluster ring showing node roles and messages in flight"
+          ></svg>
+          <div class="legend">
+            <span class="chip leader"><span class="dot"></span>Leader</span>
+            <span class="chip follower"><span class="dot"></span>Follower</span>
+            <span class="chip candidate"><span class="dot"></span>Candidate</span>
+            <span class="chip" style="border-color: var(--ink-3)"
+              ><span class="dot" style="background: var(--ink-3)"></span>Crashed</span
+            >
+          </div>
+          <div class="wirelegend">
+            <span><i class="sw vote"></i>Vote</span>
+            <span><i class="sw append"></i>Append / entries</span>
+            <span><i class="sw beat"></i>Heartbeat</span>
+            <span><i class="sw appendResp"></i>Response</span>
+          </div>
+        </div>
+
+        <div class="side">
+          <div class="card">
+            <div class="tag">Safety invariants · checked every frame</div>
+            <div class="invs">
+              <div class="inv ok" id="inv-election">
+                <span class="k">Election Safety</span>
+                <span class="v">holds</span>
+                <span class="d">≤ one leader per term</span>
+              </div>
+              <div class="inv ok" id="inv-sm">
+                <span class="k">State-Machine Safety</span>
+                <span class="v">holds</span>
+                <span class="d">committed prefixes agree</span>
+              </div>
+            </div>
+            <div class="leaderline">
+              leader(s): <b id="leaderNow">—</b>
+            </div>
+          </div>
+
+          <div class="card statgrid">
+            <div class="stat"><b id="stat-net">connected</b><span>network</span></div>
+            <div class="stat"><b id="stat-elections">0</b><span>elections</span></div>
+            <div class="stat"><b id="stat-inflight">0</b><span>in flight</span></div>
+            <div class="stat"><b id="stat-sent">0</b><span>msgs sent</span></div>
+            <div class="stat"><b id="stat-dropped">0</b><span>dropped</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-grid2">
+        <div class="card">
+          <div class="tag">Replicated log · term colour per entry, filled = committed</div>
+          <div id="logs" class="logs"></div>
+        </div>
+        <div class="card">
+          <div class="tag">Event log</div>
+          <pre id="events" class="events"></pre>
+        </div>
+      </div>
+
+      <div class="note" style="margin: 22px 0 40px">
+        <b>Honest boundary.</b> The nodes are truly concurrent and their message
+        interleaving is non-deterministic — but they share one machine and one
+        browser, and the "network" is <code>postMessage</code> between threads,
+        not TCP between hosts. This is not a distributed deployment; it is a
+        faithful concurrency model of one. A crashed node loses its in-memory
+        state and catches up from the leader on restart.
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap row">
+        <span>Raft consensus in <b>MoonBit</b> · Apache-2.0</span>
+        <span class="mono"
+          >© 2026 Leo Cheng ·
+          <a href="https://github.com/Lfan-ke/raft-moonbit">GitHub</a></span
+        >
+      </div>
+    </footer>
+
+    <script type="module" src="assets/demo-main.js"></script>
+
+    <style>
+      .demo-head {
+        padding: 30px 0 20px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px 26px;
+        align-items: center;
+        padding: 16px 20px;
+      }
+      .cgroup {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .clabel {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--ink-3);
+        margin-right: 2px;
+      }
+      .clabel b {
+        color: var(--ink);
+      }
+      .btn.sm {
+        padding: 7px 11px;
+        font-size: 12.5px;
+      }
+      .btn.sm.on {
+        border-color: var(--replicate);
+        color: var(--ink);
+      }
+      .cgroup.slider {
+        flex: 1;
+        min-width: 180px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .cgroup.slider input {
+        width: 100%;
+        accent-color: var(--replicate);
+      }
+
+      .demo-grid {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .ring-panel {
+        padding: 10px 10px 16px;
+      }
+      #ring {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .halo {
+        stroke: var(--leader);
+        stroke-width: 0;
+      }
+      .halo.on {
+        stroke-width: 3;
+        opacity: 0.5;
+        animation: pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          stroke-width: 8;
+          opacity: 0.18;
+        }
+      }
+      .ncirc {
+        fill: var(--surface-3);
+        stroke: var(--border-strong);
+        stroke-width: 2.5;
+      }
+      .ncirc.leader {
+        stroke: var(--leader);
+        fill: color-mix(in oklab, var(--leader) 16%, var(--surface));
+      }
+      .ncirc.follower {
+        stroke: var(--follower);
+      }
+      .ncirc.candidate {
+        stroke: var(--candidate);
+        fill: color-mix(in oklab, var(--candidate) 14%, var(--surface));
+      }
+      .ncirc.down {
+        stroke: var(--ink-3);
+        stroke-dasharray: 4 4;
+      }
+      .nid {
+        fill: var(--ink);
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 16px;
+        text-anchor: middle;
+      }
+      .nrole {
+        fill: var(--ink-3);
+        font-family: var(--mono);
+        font-size: 9.5px;
+        text-anchor: middle;
+      }
+      .wire {
+        stroke-width: 1.5;
+        opacity: 0.5;
+      }
+      .wire.vote,
+      .wire.voteResp {
+        stroke: var(--candidate);
+      }
+      .wire.append {
+        stroke: var(--replicate);
+      }
+      .wire.beat {
+        stroke: var(--replicate);
+        opacity: 0.28;
+      }
+      .wire.appendResp {
+        stroke: var(--follower);
+        opacity: 0.35;
+      }
+      .wire.transfer {
+        stroke: var(--leader);
+      }
+      .pkt {
+        stroke: var(--surface);
+        stroke-width: 1.5;
+      }
+      .pkt.vote,
+      .pkt.voteResp {
+        fill: var(--candidate);
+      }
+      .pkt.append,
+      .pkt.beat {
+        fill: var(--replicate);
+      }
+      .pkt.appendResp {
+        fill: var(--follower);
+      }
+      .pkt.transfer {
+        fill: var(--leader);
+      }
+
+      .side {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--ink-3);
+        margin-bottom: 12px;
+      }
+      .invs {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .inv {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 2px 10px;
+        padding: 11px 13px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+      }
+      .inv .k {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .inv .v {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        text-align: right;
+      }
+      .inv .d {
+        grid-column: 1 / -1;
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .inv.ok {
+        border-color: color-mix(in oklab, var(--good) 45%, var(--border));
+      }
+      .inv.ok .v {
+        color: var(--good);
+      }
+      .inv.bad {
+        border-color: var(--bad);
+        background: color-mix(in oklab, var(--bad) 10%, var(--surface));
+      }
+      .inv.bad .v {
+        color: var(--bad);
+      }
+      .leaderline {
+        margin-top: 14px;
+        font-size: 13px;
+        color: var(--ink-2);
+        font-family: var(--mono);
+      }
+      .leaderline b {
+        color: var(--leader);
+      }
+
+      .statgrid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .stat {
+        display: flex;
+        flex-direction: column;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+      }
+      .stat b {
+        font-family: var(--mono);
+        font-size: 18px;
+        color: var(--ink);
+      }
+      .stat span {
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+
+      .wirelegend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .wirelegend span {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .sw {
+        width: 14px;
+        height: 3px;
+        border-radius: 2px;
+        display: inline-block;
+      }
+      .sw.vote {
+        background: var(--candidate);
+      }
+      .sw.append {
+        background: var(--replicate);
+      }
+      .sw.beat {
+        background: var(--replicate);
+        opacity: 0.4;
+      }
+      .sw.appendResp {
+        background: var(--follower);
+      }
+      .legend {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 4px;
+      }
+
+      .demo-grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .logs {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .logrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .logrow.dn {
+        opacity: 0.4;
+      }
+      .lname {
+        width: 26px;
+        color: var(--ink-2);
+        font-weight: 700;
+      }
+      .lcells {
+        display: flex;
+        gap: 3px;
+        flex: 1;
+        flex-wrap: wrap;
+      }
+      .lc {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        display: grid;
+        place-content: center;
+        font-style: normal;
+        font-size: 10px;
+        color: #0a0f16;
+        border: 1px solid transparent;
+        opacity: 0.55;
+      }
+      .lc.ok {
+        opacity: 1;
+      }
+      .lc.empty {
+        background: var(--surface-3);
+        border-color: var(--border);
+      }
+      .lc.t1 {
+        background: var(--follower);
+      }
+      .lc.t2 {
+        background: var(--replicate);
+      }
+      .lc.t3 {
+        background: var(--leader);
+      }
+      .lc.t4 {
+        background: var(--candidate);
+      }
+      .lc.t5 {
+        background: #d55181;
+      }
+      .lc.t6 {
+        background: #d95926;
+      }
+      .lmeta {
+        color: var(--ink-3);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .events {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--ink-2);
+        white-space: pre-wrap;
+        max-height: 240px;
+        overflow-y: auto;
+      }
+
+      @media (max-width: 940px) {
+        .demo-grid,
+        .demo-grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </body>
+</html>
