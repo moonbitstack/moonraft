@@ -785,3 +785,71 @@ Feature added: `limit_size`, `entry_encoding_size`, `ents_size`, `payload_size`,
   test` cannot run in this environment (missing C toolchain header `stddef.h`),
   which also fails identically on the untouched `master` baseline — an
   environment limitation, not a code regression.
+
+## Batch (port-remaining): raft_test.go PORT/PARTIAL cleanup
+
+New test files, all prefixed `port_`, adding **22** raft_test.go cases as `test`
+blocks. Grep-reproducible counts:
+
+```
+$ grep -c '^test "' port_send_append_wbtest.mbt      # 4
+$ grep -c '^test "' port_checkquorum_wbtest.mbt      # 6
+$ grep -c '^test "' port_election_wbtest.mbt         # 4
+$ grep -c '^test "' port_prevote_wbtest.mbt          # 4
+$ grep -c '^test "' port_leader_election_wbtest.mbt  # 4
+$ grep -h '^test "' port_*.mbt | wc -l               # 22
+```
+
+Census rows (GAP_core.md 118-register) moved PORT/PARTIAL -> COVERED this batch:
+
+- #7  TestLeaderElectionPreVote                 (port_leader_election)
+- #13 TestLeaderElectionOverwriteNewerLogs      (port_leader_election; was PARTIAL)
+- #14 TestLeaderElectionOverwriteNewerLogsPreVote (port_leader_election)
+- #22 TestDuelingCandidates                     (port_election)
+- #23 TestDuelingPreCandidates                  (port_election)
+- #42 TestCandidateResetTermMsgHeartbeat        (port_election)
+- #43 TestCandidateResetTermMsgApp              (port_election)
+- #48 TestLeaderStepdownWhenQuorumActive        (port_checkquorum)
+- #50 TestLeaderSupersedingWithCheckQuorum      (port_checkquorum)
+- #51 TestLeaderElectionWithCheckQuorum         (port_checkquorum)
+- #52 TestFreeStuckCandidateWithCheckQuorum     (port_checkquorum)
+- #53 TestNonPromotableVoterWithCheckQuorum     (port_checkquorum)
+- #64 TestLeaderIncreaseNext                    (port_send_append; was PARTIAL)
+- #65 TestSendAppendForProgressProbe            (port_send_append)
+- #66 TestSendAppendForProgressReplicate        (port_send_append)
+- #67 TestSendAppendForProgressSnapshot         (port_send_append; explicit table form)
+- #102 TestLeaderTransferReceiveHigherTermVote  (port_prevote)
+- #109 TestNodeWithSmallerTermCanCompleteElection (port_prevote)
+- #110 TestPreVoteWithSplitVote                 (port_prevote)
+- #111 TestPreVoteWithCheckQuorum               (port_prevote)
+
+Plus two explicit table forms of rows already COVERED elsewhere: #6
+TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
+
+### Skipped (real defect, not a test weakness)
+- #85 TestAddNodeCheckQuorum: commented out in `port_addnode_cq_wbtest.mbt`.
+  Reproduces a divergence (FINDINGS_LEDGER.md #16): `reconcile_peers`
+  (`raftnode.mbt`, off-limits to this test agent) builds a newly-added voter's
+  `Progress` with `recent_active: false`, whereas etcd's `initProgress` sets it
+  true, so a check-quorum leader steps down on the first quorum-check tick after
+  an add. Assertions preserved (commented) for restoration once the source path
+  is fixed.
+
+### Still PORT/PARTIAL after this batch (with reasons)
+- #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage: require a
+  `reject_index` field on the AppendEntries reply (a breaking cross-segment
+  Payload wire change all segments deferred to 0.4.0). Reachable-case subset only.
+- #79 TestSlowNodeRestore / #97 TestLeaderTransferAfterSnapshot: require snapshot
+  delivery through `Ready` plus a message-hook harness; this port does not flow
+  snapshots through `Ready` (rd.snapshot is always None), a 2-path property.
+- #60 TestReadOnlyDuplicateRequest: requires a message-delay/duplicate hook the
+  FIFO harness does not model.
+- #113/#114 TestPreVoteMigration*: require a node's `pre_vote` to flip mid-test
+  (mixed-version rolling restart); `RaftNode.pre_vote` is not a mutable field.
+- #1 TestProgressLeader: requires the leader to appear in its own progress map
+  plus async self-ack (2-path/AsyncStorageWrites), both source-level.
+- #39 TestRecvMsgPreVote: the synthetic equal-term pre-vote grant needs review
+  (`handle_pre_vote` grants only on strictly-higher term); left PARTIAL pending a
+  divergence determination.
+- #57 TestReadOnlyWithLearner: portable but needs a read-index injection harness;
+  not built this batch.
