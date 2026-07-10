@@ -51,6 +51,14 @@ jobs:
         run: |
           moon test --target all
 
+      # The demo's worker driver is exercised by the differential harness on the
+      # difftest branch, not by the unit tests, so it drags the total down here.
+      - name: coverage
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          moon test --enable-coverage
+          moon coverage report -f summary
+
       - name: runnable example
         run: |
           moon run cmd/example
