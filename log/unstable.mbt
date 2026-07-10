@@ -49,10 +49,7 @@ pub fn Unstable::new(offset : UInt64) -> Unstable {
 /// The first index the unstable region can speak to — one past the snapshot —
 /// or `None` when there is no snapshot.
 pub fn Unstable::maybe_first_index(self : Unstable) -> UInt64? {
-  match self.snapshot {
-    Some(s) => Some(s.last_index + 1)
-    None => None
-  }
+  self.snapshot.map(s => s.last_index + 1)
 }
 
 ///|
@@ -62,10 +59,7 @@ pub fn Unstable::maybe_last_index(self : Unstable) -> UInt64? {
   if l != 0 {
     Some(self.offset + l.to_uint64() - 1)
   } else {
-    match self.snapshot {
-      Some(s) => Some(s.last_index)
-      None => None
-    }
+    self.snapshot.map(s => s.last_index)
   }
 }
 
@@ -105,9 +99,10 @@ pub fn Unstable::next_entries(self : Unstable) -> Array[Entry] {
 ///|
 /// The snapshot to write, if one is present and not already being written.
 pub fn Unstable::next_snapshot(self : Unstable) -> Snapshot? {
-  match self.snapshot {
-    Some(_) => if self.snapshot_in_progress { None } else { self.snapshot }
-    None => None
+  if self.snapshot_in_progress {
+    None
+  } else {
+    self.snapshot
   }
 }
 
@@ -119,9 +114,8 @@ pub fn Unstable::accept_in_progress(self : Unstable) -> Unit {
   if n > 0 {
     self.offset_in_progress = self.entries[n - 1].index + 1
   }
-  match self.snapshot {
-    Some(_) => self.snapshot_in_progress = true
-    None => ()
+  if self.snapshot is Some(_) {
+    self.snapshot_in_progress = true
   }
 }
 
@@ -142,11 +136,7 @@ pub fn Unstable::stable_to(self : Unstable, id : EntryId) -> Unit {
       let num = (id.index + 1 - self.offset).to_int()
       self.entries = self.entries[num:].to_owned()
       self.offset = id.index + 1
-      self.offset_in_progress = if self.offset_in_progress > self.offset {
-        self.offset_in_progress
-      } else {
-        self.offset
-      }
+      self.offset_in_progress = u64_max(self.offset_in_progress, self.offset)
     }
   }
 }
@@ -154,13 +144,9 @@ pub fn Unstable::stable_to(self : Unstable, id : EntryId) -> Unit {
 ///|
 /// Drop the snapshot once it has been written to storage.
 pub fn Unstable::stable_snap_to(self : Unstable, i : UInt64) -> Unit {
-  match self.snapshot {
-    Some(s) =>
-      if s.last_index == i {
-        self.snapshot = None
-        self.snapshot_in_progress = false
-      }
-    None => ()
+  if self.snapshot is Some(s) && s.last_index == i {
+    self.snapshot = None
+    self.snapshot_in_progress = false
   }
 }
 
@@ -199,11 +185,7 @@ pub fn Unstable::truncate_and_append(
       merged.push(e)
     }
     self.entries = merged
-    self.offset_in_progress = if self.offset_in_progress < from_index {
-      self.offset_in_progress
-    } else {
-      from_index
-    }
+    self.offset_in_progress = u64_min(self.offset_in_progress, from_index)
   }
 }
 
