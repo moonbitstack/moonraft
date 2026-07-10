@@ -283,36 +283,6 @@ pub fn payloads_size(entries : ArrayView[Entry]) -> UInt64 {
 }
 
 ///|
-/// Whether this node's log is at least as up-to-date as the log ending at `id`
-/// (Raft §5.4.1): a higher last term wins, ties break on the longer log.
-pub fn Node::is_up_to_date(self : Node, id : EntryId) -> Bool {
-  self.candidate_log_up_to_date(id.term, id.index)
-}
-
-///|
-/// Whether the entry identified by `id` is present in this log with a matching
-/// term. An index outside the log has term 0 here, so it matches only `id.term`
-/// 0 — the same "zero term on out of bounds" behaviour etcd's `matchTerm` uses.
-pub fn Node::match_term(self : Node, id : EntryId) -> Bool {
-  self.term_at(id.index) == id.term
-}
-
-///|
-/// The index of the first entry in `entries` that conflicts with this log — the
-/// first whose `(index, term)` does not match what we hold — or 0 if there is no
-/// conflict. An entry beyond the end of the log has an unknown (zero) term and so
-/// is reported as the conflict point, which is where the new tail begins.
-/// Mirrors etcd's `raftLog.findConflict`.
-pub fn Node::find_conflict(self : Node, entries : ArrayView[Entry]) -> UInt64 {
-  for ne in entries {
-    if !self.match_term(ne.id()) {
-      return ne.index
-    }
-  }
-  0
-}
-
-///|
 /// The index of the last entry in the log, or the snapshot baseline when the
 /// log is empty (0 on a fresh node).
 pub fn Node::last_log_index(self : Node) -> UInt64 {

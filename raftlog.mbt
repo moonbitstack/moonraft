@@ -87,12 +87,6 @@ pub fn RaftLog::to_string(self : RaftLog) -> String {
 }
 
 ///|
-/// The underlying unstable tail, for drivers that persist and stabilize it.
-pub fn RaftLog::unstable_view(self : RaftLog) -> Unstable {
-  self.unstable
-}
-
-///|
 /// Seed the commit and applied cursors from a recovered node on construction.
 /// Commit only moves forward; applied and applying jump to the recovered point.
 pub fn RaftLog::seed(
@@ -153,12 +147,6 @@ pub fn RaftLog::committed(self : RaftLog) -> UInt64 {
 }
 
 ///|
-/// The applied index.
-pub fn RaftLog::applied(self : RaftLog) -> UInt64 {
-  self.applied
-}
-
-///|
 /// The first index still readable (one past the snapshot).
 pub fn RaftLog::first_index(self : RaftLog) -> UInt64 {
   match self.unstable.maybe_first_index() {
@@ -206,7 +194,9 @@ pub fn RaftLog::zero_term_on_out_of_bounds(
   self.term(i) catch {
     Compacted => 0
     Unavailable => 0
-    _ => 0
+    // etcd's zeroTermOnOutOfBounds panics on any other error; term only ever
+    // raises the two above, so this arm exists solely for exhaustiveness.
+    _ => abort("unexpected error getting term")
   }
 }
 
