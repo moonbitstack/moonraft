@@ -331,7 +331,7 @@ fn RaftNode::handle_pre_vote_resp(
     self.in_pre_campaign = false
     return []
   }
-  self.votes[from] = reply.vote_granted
+  self.record_vote(from, reply.vote_granted)
   match self.config.vote_result(self.votes) {
     VoteWon => self.start_real_campaign()
     VoteLost => {
@@ -367,6 +367,17 @@ fn RaftNode::handle_vote(
 }
 
 ///|
+/// Record a (pre-)vote from `id` (etcd's tracker `RecordVote`): the first vote a
+/// node casts in a term is kept, and a later differing response from the same
+/// node is ignored. This is what stops a duplicated or reordered vote message
+/// from flipping a vote already counted toward the tally.
+fn RaftNode::record_vote(self : RaftNode, id : String, granted : Bool) -> Unit {
+  if !self.votes.contains(id) {
+    self.votes[id] = granted
+  }
+}
+
+///|
 /// Whether we are within a check-quorum lease: check-quorum is on, we currently
 /// recognise a leader, and our election timer has not yet expired. During the
 /// lease we treat the leader as alive and reject vote solicitations.
@@ -383,7 +394,7 @@ fn RaftNode::handle_vote_resp(
   reply : RequestVoteReply,
 ) -> Array[Message] {
   guard self.core.role() == Candidate else { return [] }
-  self.votes[from] = reply.vote_granted
+  self.record_vote(from, reply.vote_granted)
   // Count with the quorum's three-valued result so a candidate that is denied
   // by a majority steps down at once instead of waiting out its timer.
   match self.config.vote_result(self.votes) {
