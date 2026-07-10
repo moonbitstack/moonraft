@@ -189,7 +189,18 @@ fn RaftNode::step_propose(
       }
       for e in entries {
         if e.is_conf_change() {
-          self.core.append_conf(self.core.current_term(), e.command) |> ignore
+          let is_leave = match ConfChangeV2::decode(e.command) {
+            Some(v2) => v2.is_leave()
+            None => false
+          }
+          if self.conf_change_refused(is_leave) {
+            // etcd replaces a refused conf change with an empty Normal entry: the
+            // log position is still consumed but no membership change is applied.
+            self.core.append(self.core.current_term(), b"") |> ignore
+          } else {
+            self.core.append_conf(self.core.current_term(), e.command) |> ignore
+            self.pending_conf_index = self.core.last_log_index()
+          }
         } else {
           self.core.append(self.core.current_term(), e.command) |> ignore
         }
