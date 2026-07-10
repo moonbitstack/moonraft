@@ -100,26 +100,22 @@ The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `
 
 ## Architecture
 
-| File | Responsibility |
+The code is organised into packages that follow the upstream `etcd-io/raft`
+layout, so a reader can audit the port package by package. The root `raft.mbt`
+is a pure facade that re-exports the public surface, so consumers write
+`@raft.X` regardless of which package a symbol lives in.
+
+| Package | Responsibility |
 | --- | --- |
-| `types.mbt` | Log `Entry`, its kind (`Normal` / `ConfChange`), constructors |
-| `state.mbt` | `Node` state and the role transitions |
-| `log.mbt` | Log operations: append, indices, term lookup, bounded slices |
-| `rpc.mbt` | RequestVote / AppendEntries types with backoff hints |
-| `election.mbt` | The RequestVote handler and the up-to-date-log rule |
-| `replication.mbt` | The AppendEntries handler: matching, truncation, commit |
-| `snapshot.mbt` / `snapshot_rpc.mbt` | Compaction, `Snapshot`, the `InstallSnapshot` RPC |
-| `hardstate.mbt` / `wal.mbt` / `storage.mbt` / `storage_engine.mbt` | HardState, the write-ahead log, the `LogStore` and `RaftStorage` engines |
-| `storage_bridge.mbt` | Persist and rebuild a node through the storage engine |
-| `membership.mbt` / `confchange.mbt` | Configurations, joint consensus, `ConfChange` and the config driver |
-| `message.mbt` / `progress.mbt` | The routed `Message` type and per-follower progress |
-| `raftnode.mbt` / `raftnode_step.mbt` | The message-driven server: timers, campaigns, `tick` / `step` |
-| `readindex.mbt` | ReadIndex, leader lease and check-quorum |
-| `status.mbt` | Observable server status |
-| `leader.mbt` / `cluster.mbt` | The synchronous election and replication driver |
-| `statemachine.mbt` / `transport.mbt` | The `StateMachine` and `Transport` traits |
-| `sim.mbt` / `sim_check.mbt` | The deterministic simulator and its safety invariants |
-| `demo_driver.mbt` | Browser bridge: a flat JSON/scalar API over `Cluster` for the `docs/` demo |
+| `quorum/` | Majority and joint-configuration vote counting |
+| `tracker/` | Per-follower `Progress` (Probe / Replicate / Snapshot) and the `Inflights` window |
+| `raftpb/` | On-the-wire data types: `Entry`, `Message`, RPCs, `HardState`, `Snapshot`, `ConfState`, entry sizing |
+| `confchange/` | Configurations, joint consensus, `ConfChange` and the config `Changer` |
+| `storage/` | `MemoryStorage`, the write-ahead log, and the `LogStore` / `RaftStorage` traits |
+| `log/` | `RaftLog`, the unstable tail, term lookup and bounded slices |
+| `core/` | The consensus engine: `RaftNode` / `Node` step and dispatch, election, replication, snapshots, ReadIndex, leader lease, check-quorum, `RawNode` / `Ready`, `Config`, and the deterministic simulator |
+| `node/` symbols | Folded into `core/` (`RawNode` and `RaftNode` are mutually dependent, which MoonBit cannot split across packages) |
+| `demo/` | The browser bridge: a flat wasm API over `Cluster` that the `docs/` site drives, one Web Worker per node |
 
 ## Roadmap
 
