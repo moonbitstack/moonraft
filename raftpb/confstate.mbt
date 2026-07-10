@@ -51,15 +51,7 @@ fn set_eq(a : Array[String], b : Array[String]) -> Bool {
   sa.sort()
   let sb = b.copy()
   sb.sort()
-  if sa.length() != sb.length() {
-    return false
-  }
-  for i in 0..<sa.length() {
-    if sa[i] != sb[i] {
-      return false
-    }
-  }
-  true
+  sa == sb
 }
 
 ///|

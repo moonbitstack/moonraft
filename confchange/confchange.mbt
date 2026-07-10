@@ -179,8 +179,7 @@ pub fn ConfChangeV2::is_leave(self : ConfChangeV2) -> Bool {
 pub fn ConfChangeV2::enters_joint(self : ConfChangeV2) -> (Bool, Bool) {
   if self.transition != Auto || self.changes.length() > 1 {
     let auto = match self.transition {
-      Auto => true
-      JointImplicit => true
+      Auto | JointImplicit => true
       JointExplicit => false
     }
     (auto, true)
@@ -250,9 +249,8 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
         "L" => Some(AddLearnerNode)
         _ => None
       }
-      match ct {
-        Some(t) => changes.push({ change_type: t, node_id: id })
-        None => ()
+      if ct is Some(t) {
+        changes.push({ change_type: t, node_id: id })
       }
     }
     cur = ""
