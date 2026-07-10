@@ -31,6 +31,35 @@ pub(all) struct ConfState {
 } derive(Eq)
 
 ///|
+fn set_eq(a : Array[String], b : Array[String]) -> Bool {
+  let sa = a.copy()
+  sa.sort()
+  let sb = b.copy()
+  sb.sort()
+  if sa.length() != sb.length() {
+    return false
+  }
+  for i in 0..<sa.length() {
+    if sa[i] != sb[i] {
+      return false
+    }
+  }
+  true
+}
+
+///|
+/// Whether two `ConfState`s describe the same configuration (etcd's
+/// `ConfState.Equivalent`): the four id lists match as *sets* (order- and
+/// nil/empty-insensitive) and the auto-leave flags agree.
+pub fn ConfState::equivalent(self : ConfState, other : ConfState) -> Bool {
+  set_eq(self.voters, other.voters) &&
+  set_eq(self.learners, other.learners) &&
+  set_eq(self.voters_outgoing, other.voters_outgoing) &&
+  set_eq(self.learners_next, other.learners_next) &&
+  self.auto_leave == other.auto_leave
+}
+
+///|
 /// The full configuration the Changer maintains: the incoming and outgoing voter
 /// halves (`outgoing` non-empty iff joint), the learners, and the learners that
 /// will become learners once a joint configuration is left (`learners_next`).

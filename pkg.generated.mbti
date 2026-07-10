@@ -207,6 +207,7 @@ pub(all) struct ConfState {
   learners_next : Array[String]
   auto_leave : Bool
 } derive(Eq)
+pub fn ConfState::equivalent(Self, Self) -> Bool
 
 pub(all) struct Entry {
   term : UInt64

@@ -555,10 +555,14 @@ threading), and our deterministic `sim.mbt` provides the named equivalent:
 The safety invariants these assert (one leader per term, committed logs agree)
 are checked continuously by `sim_check.mbt`.
 
-## raftpb/{confchange,confstate,raft}_test.go — TODO/N/A (0/3)
-- `TestLeaveJoint`, `TestConfState_Equivalent` — TODO (confstate helpers).
-- `TestProtoMemorySizes` — N/A (Go struct memory-layout assertion; no equivalent
-  in MoonBit — we do not use protobuf wire structs).
+## raftpb/{confchange,confstate,raft}_test.go — DONE/N/A (2/3)
+- `TestConfState_Equivalent` — DONE. `ConfState::equivalent` (set-equality of the
+  four id lists + auto-leave) in `changer.mbt`; all cases in
+  `confstate_wbtest.mbt`.
+- `TestLeaveJoint` — DONE (behavioural part): `ConfChangeV2::is_leave`
+  (empty batch ⇒ leave). Its `reflect`-based field-count guard is a Go
+  struct-layout assertion — N/A (no protobuf wire structs here).
+- `TestProtoMemorySizes` — N/A (Go struct memory-layout assertion).
 
 ## types_test.go — DONE (2/2)
 Feature added: `EntryId` (with `Entry::id`) and `LogSlice`
