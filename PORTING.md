@@ -512,6 +512,17 @@ EnterJoint/LeaveJoint path.
   `auto_leave_truncation_wbtest.mbt` (fails before the fix: `auto_leave` reads
   false once the LeaveJoint is merely appended). `ConfState.auto_leave` is now a
   reliable field to assert on.
+- **`ConfChangeTransition` + simple-apply path.** `ConfChangeV2` now carries a
+  `transition` (`Auto` / `JointImplicit` / `JointExplicit`, encoded in the log).
+  `enters_joint()` implements etcd's `ConfChangeV2.EnterJoint` rule: an `Auto`
+  batch changing at most one voter is applied **simply** (no joint, `Voters{1,2}`
+  with empty outgoing), matching etcd — anything else enters joint, auto-leaving
+  unless explicit. This unblocks case 2 of `TestRawNodeProposeAndConfChange`.
+  Tests in `conf_transition_wbtest.mbt` (the `enters_joint` decision table, a
+  live single-voter simple apply, an explicit-joint single change). The change is
+  effectively additive: all `ConfChangeV2` construction goes through the
+  `enter_joint`/`leave_joint`/`auto` constructors (`rawnode.mbt` only receives
+  the value), verified by `moon check --deny-warn --target all`.
 
 ## confchange package (Changer + learners_next + Restore) — DONE
 Implemented the confchange-package `Changer` (`changer.mbt`), separate from the

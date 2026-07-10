@@ -853,18 +853,27 @@ fn RaftNode::apply_conf_change_v2(self : RaftNode, v2 : ConfChangeV2) -> Unit {
   if v2.is_leave() {
     self.config.leave_joint()
   } else {
-    // Enter joint consensus: snapshot the current voters as the outgoing half
-    // *before* applying the batch, so a voter demoted here is seen to still be
-    // an outgoing voter and is staged in learners_next rather than losing its
-    // vote mid-transition. Decisions then need a majority of *both* halves until
-    // the matching leave commits (§4.3).
-    self.config.begin_joint(self.config.members.copy())
-    for c in v2.changes {
-      c.apply_to(self.config)
+    let (auto, joint) = v2.enters_joint()
+    if joint {
+      // Enter joint consensus: snapshot the current voters as the outgoing half
+      // *before* applying the batch, so a voter demoted here is seen to still be
+      // an outgoing voter and is staged in learners_next rather than losing its
+      // vote mid-transition. Decisions then need a majority of *both* halves
+      // until the matching leave commits (§4.3).
+      self.config.begin_joint(self.config.members.copy())
+      for c in v2.changes {
+        c.apply_to(self.config)
+      }
+      // Record auto-leave as *durable* config state (from this committed entry),
+      // not a transient flag, so a truncated LeaveJoint cannot lose the intent.
+      self.config.auto_leave = auto
+    } else {
+      // Applied simply (an `Auto` transition changing at most one voter): no
+      // joint transition, matching etcd's ConfChangeV2 `Auto` path.
+      for c in v2.changes {
+        c.apply_to(self.config)
+      }
     }
-    // Record auto-leave as *durable* config state (from this committed entry),
-    // not a transient flag, so a truncated LeaveJoint cannot lose the intent.
-    self.config.auto_leave = v2.auto_leave
   }
   self.reconcile_peers()
 }

@@ -29,7 +29,7 @@ test "ConfChangeV2 round-trips through its log encoding" {
   )
   match ConfChangeV2::decode(v.encode()) {
     Some(d) => {
-      assert_true(d.auto_leave)
+      assert_true(d.auto_leave())
       assert_eq(d.changes.length(), 3)
       assert_true(d.changes[0] == ConfChange::add("4"))
       assert_true(d.changes[1] == ConfChange::remove("3"))
@@ -41,7 +41,7 @@ test "ConfChangeV2 round-trips through its log encoding" {
   match ConfChangeV2::decode(ConfChangeV2::leave_joint().encode()) {
     Some(d) => {
       assert_true(d.is_leave())
-      assert_false(d.auto_leave)
+      assert_false(d.auto_leave())
     }
     None => abort("expected a ConfChangeV2")
   }

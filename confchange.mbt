@@ -110,29 +110,55 @@ fn ConfChange::tag(self : ConfChange) -> String {
 }
 
 ///|
-/// A batch configuration change (etcd's `ConfChangeV2`): several single changes
-/// applied atomically. A non-empty batch enters joint consensus C(old,new); an
-/// empty batch leaves it. `auto_leave` asks the leader to append the matching
-/// leave automatically once the entry commits (Raft §4.3, joint consensus).
-pub(all) struct ConfChangeV2 {
-  changes : Array[ConfChange]
-  auto_leave : Bool
+/// How a `ConfChangeV2` transitions the configuration (etcd's
+/// `ConfChangeTransition`): `Auto` applies a batch simply when it safely can
+/// (at most one voter changed) and otherwise enters an auto-leaving joint;
+/// `JointImplicit` always enters joint and auto-leaves; `JointExplicit` always
+/// enters joint and waits for an explicit leave.
+pub enum ConfChangeTransition {
+  Auto
+  JointImplicit
+  JointExplicit
 } derive(Eq)
 
 ///|
-/// Enter joint consensus with `changes`, optionally leaving automatically once
-/// committed.
+/// A batch configuration change (etcd's `ConfChangeV2`): several single changes
+/// applied atomically. An empty batch leaves joint consensus. Whether a non-empty
+/// batch is applied simply or via a joint transition — and whether that joint
+/// auto-leaves — is governed by `transition` (Raft §4.3, joint consensus).
+pub(all) struct ConfChangeV2 {
+  changes : Array[ConfChange]
+  transition : ConfChangeTransition
+} derive(Eq)
+
+///|
+/// Enter joint consensus with `changes`. `auto_leave` selects the implicit
+/// (auto-leaving) or explicit joint transition — the historical API.
 pub fn ConfChangeV2::enter_joint(
   changes : Array[ConfChange],
   auto_leave? : Bool = true,
 ) -> ConfChangeV2 {
-  { changes, auto_leave }
+  {
+    changes,
+    transition: if auto_leave {
+      JointImplicit
+    } else {
+      JointExplicit
+    },
+  }
+}
+
+///|
+/// A batch with the `Auto` transition: applied simply when it can be (at most one
+/// voter changed), otherwise as an auto-leaving joint change — etcd's default.
+pub fn ConfChangeV2::auto(changes : Array[ConfChange]) -> ConfChangeV2 {
+  { changes, transition: Auto }
 }
 
 ///|
 /// Leave joint consensus (an empty batch).
 pub fn ConfChangeV2::leave_joint() -> ConfChangeV2 {
-  { changes: [], auto_leave: false }
+  { changes: [], transition: Auto }
 }
 
 ///|
@@ -142,10 +168,43 @@ pub fn ConfChangeV2::is_leave(self : ConfChangeV2) -> Bool {
 }
 
 ///|
-/// Serialize as `V` + `1`/`0` (auto-leave) + `;`-separated `<tag><id>` changes.
-/// The `V` prefix distinguishes a batch from a single change on decode.
+/// Whether this batch enters a joint configuration, and if so whether that joint
+/// auto-leaves (etcd's `ConfChangeV2.EnterJoint`). `Auto` with at most one change
+/// is applied *simply* — no joint; anything else is joint, auto-leaving unless
+/// the transition is explicit.
+pub fn ConfChangeV2::enters_joint(self : ConfChangeV2) -> (Bool, Bool) {
+  if self.transition != Auto || self.changes.length() > 1 {
+    let auto = match self.transition {
+      Auto => true
+      JointImplicit => true
+      JointExplicit => false
+    }
+    (auto, true)
+  } else {
+    (false, false)
+  }
+}
+
+///|
+/// Whether this joint change auto-leaves once committed.
+pub fn ConfChangeV2::auto_leave(self : ConfChangeV2) -> Bool {
+  self.enters_joint().0
+}
+
+///|
+fn ConfChangeTransition::tag(self : ConfChangeTransition) -> String {
+  match self {
+    Auto => "a"
+    JointImplicit => "i"
+    JointExplicit => "e"
+  }
+}
+
+///|
+/// Serialize as `V` + transition tag (`a`/`i`/`e`) + `;`-separated `<tag><id>`
+/// changes. The `V` prefix distinguishes a batch from a single change on decode.
 pub fn ConfChangeV2::encode(self : ConfChangeV2) -> Bytes {
-  let mut s = "V" + (if self.auto_leave { "1" } else { "0" })
+  let mut s = "V" + self.transition.tag()
   for c in self.changes {
     s = s + ";" + c.tag() + c.node_id
   }
@@ -165,7 +224,15 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
   if !s.has_prefix("V") {
     return None
   }
-  let auto_leave = s.length() >= 2 && s[1:2].to_owned() == "1"
+  let transition = if s.length() >= 2 {
+    match s[1:2].to_owned() {
+      "i" => JointImplicit
+      "e" => JointExplicit
+      _ => Auto
+    }
+  } else {
+    Auto
+  }
   let changes : Array[ConfChange] = []
   // Split the remainder on ';', skipping the leading flag segment.
   let mut cur = ""
@@ -196,7 +263,7 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
     }
   }
   flush()
-  Some({ changes, auto_leave })
+  Some({ changes, transition })
 }
 
 ///|

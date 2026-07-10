@@ -176,6 +176,12 @@ pub fn ConfChange::decode(Bytes) -> Self?
 pub fn ConfChange::encode(Self) -> Bytes
 pub fn ConfChange::remove(String) -> Self
 
+pub enum ConfChangeTransition {
+  Auto
+  JointImplicit
+  JointExplicit
+} derive(Eq)
+
 pub enum ConfChangeType {
   AddNode
   RemoveNode
@@ -184,11 +190,14 @@ pub enum ConfChangeType {
 
 pub(all) struct ConfChangeV2 {
   changes : Array[ConfChange]
-  auto_leave : Bool
+  transition : ConfChangeTransition
 } derive(Eq)
+pub fn ConfChangeV2::auto(Array[ConfChange]) -> Self
+pub fn ConfChangeV2::auto_leave(Self) -> Bool
 pub fn ConfChangeV2::decode(Bytes) -> Self?
 pub fn ConfChangeV2::encode(Self) -> Bytes
 pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
+pub fn ConfChangeV2::enters_joint(Self) -> (Bool, Bool)
 pub fn ConfChangeV2::is_leave(Self) -> Bool
 pub fn ConfChangeV2::leave_joint() -> Self
 
