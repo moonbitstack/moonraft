@@ -281,6 +281,12 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
   if !self.config.contains(self.id) {
     return []
   }
+  // Do not campaign while a committed configuration change is still unapplied:
+  // electing a leader under a stale view of the membership could split the
+  // quorum (etcd's `hup`/`hasUnappliedConfChanges`, raft.go:983).
+  if self.has_unapplied_conf_changes() {
+    return []
+  }
   self.reset_timeout()
   if self.pre_vote {
     self.start_pre_campaign()
@@ -312,16 +318,22 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
 }
 
 ///|
-fn RaftNode::start_real_campaign(self : RaftNode) -> Array[Message] {
+fn RaftNode::start_real_campaign(
+  self : RaftNode,
+  force? : Bool = false,
+) -> Array[Message] {
   self.in_pre_campaign = false
   self.core.become_candidate()
   self.leader_id = None
   self.votes.clear()
   self.votes[self.id] = true
   let out : Array[Message] = []
+  // A leadership-transfer campaign marks its votes forced so a follower still
+  // leased to the outgoing leader grants them, letting the handover complete
+  // instead of stalling out a full election timeout (§3.10).
   let args = self.core.request_vote_args()
   for p in self.peers {
-    out.push(Message::new(self.id, p, Vote(args)))
+    out.push(Message::new(self.id, p, Vote(args), force~))
   }
   if self.config.has_majority(self.granted()) {
     self.become_leader()
@@ -741,6 +753,25 @@ fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
       ConfChangeV2::leave_joint().encode(),
     )
   }
+}
+
+///|
+/// Whether any committed-but-unapplied entry is a configuration change (etcd's
+/// `hasUnappliedConfChanges`). A server refuses to campaign while one is pending,
+/// so it does not become leader under a membership it has not yet folded in.
+fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
+  if self.core.last_applied >= self.core.commit_index {
+    return false
+  }
+  let mut i = self.core.last_applied + 1
+  while i <= self.core.commit_index {
+    match self.core.entry_at(i) {
+      Some(e) => if e.is_conf_change() { return true }
+      None => ()
+    }
+    i = i + 1
+  }
+  false
 }
 
 ///|

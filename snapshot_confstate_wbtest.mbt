@@ -90,8 +90,12 @@ test "snapshot ConfState round-trips through a leader's configuration" {
   // The stamped state matches the live configuration.
   assert_true(cs.voters.contains("1"))
   assert_true(cs.learners.contains("2"))
-  // A follower restoring that state rebuilds the same voter/learner sets.
-  let f = RaftNode::new("3", [], pre_vote=false)
+  // A follower restoring that state rebuilds the same voter/learner sets. The
+  // restoring node must itself appear in the snapshot's ConfState — etcd refuses
+  // to restore a snapshot that does not list the recipient (raft.go:1901), and a
+  // real joining node is always in the config the snapshot records. Here node "2"
+  // (the learner) restores its own membership.
+  let f = RaftNode::new("2", [], pre_vote=false)
   install_snap(f, "1", 3, 5, cs)
   assert_true(f.config.contains("1"))
   assert_true(f.config.is_learner("2"))

@@ -383,10 +383,11 @@ pub(all) struct Message {
   from : String
   to : String
   payload : Payload
+  force : Bool
 }
 pub fn Message::is_response(Self) -> Bool
 pub fn Message::kind(Self) -> String
-pub fn Message::new(String, String, Payload) -> Self
+pub fn Message::new(String, String, Payload, force? : Bool) -> Self
 pub fn Message::term(Self) -> UInt64
 
 pub struct Node {
@@ -594,6 +595,7 @@ pub struct RaftNode {
   mut conf_applied : UInt64
   mut lead_transferee : String?
   read_only : ReadOnly
+  pending_read_index : Array[(String, Bytes)]
   mut no_forward : Bool
   step_down_on_removal : Bool
   logger : &Logger
