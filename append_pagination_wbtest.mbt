@@ -61,49 +61,40 @@ test "TestAppendPagination" {
 
 ///|
 test "TestRawNodeBoundedLogGrowthWithPartitionedLeader" {
-  // A leader partitioned from its followers keeps proposing; the uncommitted log
-  // tail must stay bounded by MaxUncommittedEntriesSize, and the bytes are
-  // released once the entries make progress. (Driven at the RaftNode/RawNode
-  // seam: a 3-voter leader whose followers never ack, so commit — and thus the
-  // release — is blocked until a quorum acknowledges. See PORTING.md for why the
-  // etcd single-voter form is not reproducible here.)
+  // etcd's single-voter form: a partitioned leader keeps proposing. Its own
+  // appends commit immediately (single-voter quorum), but the uncommitted-tail
+  // quota is released only at *apply* time (RawNode Advance), so the tail is
+  // bounded by MaxUncommittedEntriesSize and further proposals are dropped until
+  // the committed entries are applied.
   let max_entries = 16
   let data = b"testdata" // 8-byte payload
   let cap = (max_entries * 8).to_uint64()
-  let r = RaftNode::new(
-    "1",
-    ["2", "3"],
-    pre_vote=false,
-    max_uncommitted_size=cap,
-  )
-  r.node().become_candidate()
-  r.become_leader()
-  r.progress["2"].become_replicate()
-  r.progress["3"].become_replicate()
-  // The election no-op carries no payload, so start the tally clean.
-  r.uncommitted_size = 0
+  let r = RaftNode::new("1", [], pre_vote=false, max_uncommitted_size=cap)
   let raw = r.raw()
-
-  // Propose a burst far larger than the cap; only `max_entries` are accepted.
+  raw.campaign()
+  // Persist and apply the leader's initial no-op, so the tally starts clean.
+  let rd0 = raw.ready()
+  raw.advance(rd0)
+  assert_eq(r.uncommitted_size(), 0)
   let before = r.node().last_log_index()
+
+  // Propose far more than the cap; only `max_entries` are appended.
   let mut i = 0
   while i < 1024 {
     raw.propose(data)
     i = i + 1
   }
-  assert_eq(r.uncommitted_size(), cap)
   assert_eq(r.node().last_log_index(), before + max_entries.to_uint64())
-
-  // The leader still surfaces the appended (but uncommitted) tail to persist.
-  let rd = raw.ready()
-  assert_eq(rd.entries.length(), max_entries)
-  raw.advance(rd)
-  // Appended, not yet committed: the tally is unchanged.
+  // The tail is bounded, and — committed but not yet applied — stays accounted.
   assert_eq(r.uncommitted_size(), cap)
 
-  // Recover: a quorum acknowledges, the tail commits and its bytes are released.
-  let last = r.node().last_log_index()
-  raw.step(ack_from("2", last, r.term()))
-  raw.step(ack_from("3", last, r.term()))
+  // Drive Ready/Advance until the committed entries are applied; only then is
+  // the quota released (apply-time, matching etcd).
+  let mut rounds = 0
+  while r.uncommitted_size() > 0 && rounds < 10 {
+    rounds = rounds + 1
+    let rd = raw.ready()
+    raw.advance(rd)
+  }
   assert_eq(r.uncommitted_size(), 0)
 }

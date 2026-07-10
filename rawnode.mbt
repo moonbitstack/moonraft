@@ -347,7 +347,10 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
   if c != 0 {
     let last = rd.committed_entries[c - 1].index
     self.log.applied_to(last, ents_size(rd.committed_entries[:]))
-    self.raft.node().mark_applied(last)
+    // Applying the committed entries releases their uncommitted-tail quota
+    // (etcd releases at apply time, not commit time); this also advances the
+    // core's applied watermark.
+    self.raft.advance_applied(last)
   }
 }
 

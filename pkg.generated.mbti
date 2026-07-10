@@ -529,6 +529,7 @@ pub struct RaftNode {
   mut auto_leave_pending : Bool
   read_only : ReadOnly
 }
+pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
 pub fn RaftNode::become_candidate(Self) -> Unit
 pub fn RaftNode::become_follower(Self, UInt64) -> Unit
 pub fn RaftNode::campaign(Self) -> Array[Message]

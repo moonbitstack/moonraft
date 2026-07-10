@@ -553,19 +553,7 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     // committed if this one is not.
     if mci > self.core.commit_index &&
       self.core.term_at(mci) == self.core.current_term() {
-      let old = self.core.commit_index
       self.core.advance_commit(mci)
-      // Newly committed entries leave the uncommitted tail; release their bytes.
-      let mut freed = 0UL
-      let mut i = old + 1
-      while i <= mci {
-        match self.core.entry_at(i) {
-          Some(e) => freed = freed + payload_size(e)
-          None => ()
-        }
-        i = i + 1
-      }
-      self.reduce_uncommitted_size(freed)
       self.apply_committed_conf()
       any = true
     } else {
@@ -610,6 +598,31 @@ pub fn RaftNode::reduce_uncommitted_size(
 /// The current size of the uncommitted log tail, in payload bytes.
 pub fn RaftNode::uncommitted_size(self : RaftNode) -> UInt64 {
   self.uncommitted_size
+}
+
+///|
+/// Advance the applied watermark to `index`, releasing the uncommitted-tail
+/// bytes of the entries now applied (etcd releases the quota at *apply* time,
+/// on `MsgStorageApplyResp`, not at commit time). Deferring the release to apply
+/// is what bounds the un-applied tail even for a single-voter leader — which
+/// commits its own appends instantly, so a commit-time release could never form
+/// a bounded backlog. The application (or the RawNode/Advance layer) calls this
+/// once it has applied committed entries.
+pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
+  if index <= self.core.last_applied {
+    return
+  }
+  let mut freed = 0UL
+  let mut i = self.core.last_applied + 1
+  while i <= index {
+    match self.core.entry_at(i) {
+      Some(e) => freed = freed + payload_size(e)
+      None => ()
+    }
+    i = i + 1
+  }
+  self.core.mark_applied(index)
+  self.reduce_uncommitted_size(freed)
 }
 
 ///|

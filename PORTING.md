@@ -152,17 +152,14 @@ two previously-N/A tests became portable at the log/rawnode seam.
   a lagging follower; every `send_to` batch is asserted `<=` the 2048-byte cap
   (or a lone entry) and at least one batch exceeds half the cap — the byte-bounded
   batching, driven directly rather than through the network harness.
-- `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — DONE (adapted topology). A
-  **3-voter** leader whose followers never ack keeps proposing; the uncommitted
-  tail stays bounded at `MaxUncommittedEntriesSize` (16 × 8 B), the Ready surfaces
-  exactly 16 entries to persist, and the bytes release once a quorum acks. etcd's
-  single-voter form is not reproducible verbatim: this port's core (A-path,
-  off-limits) releases the uncommitted quota on **commit**, not on **apply** (etcd
-  reduces in the `MsgStorageApplyResp` handler), so a single-voter leader would
-  commit-and-release each proposal immediately and never form a bounded tail. The
-  partitioned multi-voter leader — literally the test's name — reproduces every
-  assertion. (Flagged to the coordinator as a core reduce-on-commit vs
-  reduce-on-apply divergence.)
+- `TestRawNodeBoundedLogGrowthWithPartitionedLeader` — DONE (etcd single-voter
+  form). The A-path deviation B flagged is **fixed**: the uncommitted-tail quota
+  is now released at **apply** time (`RaftNode::advance_applied`, called from
+  `RawNode::advance`), matching etcd's `MsgStorageApplyResp` handler, not at
+  commit time. So a single-voter leader's own appends commit immediately but the
+  tally stays at `MaxUncommittedEntriesSize` (16 × 8 B) — bounding the tail and
+  dropping further proposals — until Ready/Advance applies them, at which point
+  the bytes release. Reproduces the etcd test verbatim.
 - `TestCommitPaginationWithAsyncStorageWrites` — N/A (acceptable kind 1: Go
   threading-execution). Needs `AsyncStorageWrites` with `MsgStorageAppend`/
   `MsgStorageApply` message-based storage; the synchronous Ready/Advance path this
