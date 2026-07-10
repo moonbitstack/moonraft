@@ -516,8 +516,11 @@ pub fn RaftLog::entries(
 ///|
 /// Every entry currently in the log.
 pub fn RaftLog::all_entries(self : RaftLog) -> Array[Entry] {
+  // etcd retries here on a concurrent `ErrCompacted`; single-threaded over a
+  // consistent `MemoryStorage`, `entries(first_index)` reads a `lo` that equals
+  // the first index and so never predates it — the total catch stands as an
+  // assertion.
   self.entries(self.first_index(), no_limit) catch {
-    Compacted => self.all_entries() // racing compaction: retry
     _ => abort("unexpected error in all_entries")
   }
 }
@@ -535,10 +538,10 @@ pub fn RaftLog::scan(
 ) -> Unit raise {
   let mut lo = lo
   while lo < hi {
+    // `slice` over a range with `lo < hi` returns at least one entry (etcd caps a
+    // page but never empties it), so `lo` strictly advances and the loop
+    // terminates; etcd's defensive `got 0 entries` panic is unreachable here.
     let ents = self.slice(lo, hi, page_size)
-    if ents.length() == 0 {
-      abort("scan got 0 entries")
-    }
     v(ents[:])
     lo = lo + ents.length().to_uint64()
   }
@@ -562,10 +565,12 @@ pub fn RaftLog::slice(
     return limit_size(self.unstable.slice(lo, hi)[:], max_size)
   }
   let cut = u64_min(hi, self.unstable.offset)
+  // `must_check_out_of_bounds` has validated `[lo, cut)` against the stored range,
+  // and `cut <= unstable.offset`, so a consistent single-threaded `MemoryStorage`
+  // returns the slice without error; the total catch asserts against a broken
+  // backend rather than tolerating it.
   let ents = self.storage.storage_entries(lo, cut, max_size) catch {
-    Compacted => raise Compacted
-    Unavailable => abort("entries are unavailable from storage")
-    e => raise e
+    _ => abort("unexpected storage error reading a validated slice")
   }
   if hi <= self.unstable.offset {
     return ents

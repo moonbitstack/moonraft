@@ -5,16 +5,15 @@
 /// the storage engine rather than the write-ahead log.
 pub fn Node::save_into(self : Node, storage : MemoryStorage) -> Unit {
   if self.snapshot_index > 0 {
-    // A fresh storage has an empty snapshot, so this never actually predates
-    // anything; the catch keeps `save_into` total in the face of the etcd
-    // `SnapOutOfDate` contract.
+    // Writing the node's snapshot into a storage that already holds a newer one
+    // (etcd's `ErrSnapOutOfDate`) leaves the more advanced storage untouched; any
+    // storage error is tolerated, keeping `save_into` total.
     storage.apply_snapshot({
       last_index: self.snapshot_index,
       last_term: self.snapshot_term,
       data: b"",
       conf_state: ConfState::empty(),
     }) catch {
-      SnapOutOfDate => ()
       _ => ()
     }
   }
@@ -33,10 +32,9 @@ pub fn Node::save_into(self : Node, storage : MemoryStorage) -> Unit {
 /// range that has been compacted out from under us, is tolerated rather than
 /// fatal, matching etcd's error contract on the read path.
 pub fn Node::load_from(self : Node, storage : &RaftStorage) -> Unit {
-  let snap = storage.storage_snapshot() catch {
-    SnapshotTemporarilyUnavailable => Snapshot::empty()
-    _ => Snapshot::empty()
-  }
+  // A snapshot the backend has not finished preparing is tolerated: recovery
+  // proceeds from the log instead.
+  let snap = storage.storage_snapshot() catch { _ => Snapshot::empty() }
   if !snap.is_empty() {
     self.install_snapshot(snap)
   }
@@ -44,9 +42,9 @@ pub fn Node::load_from(self : Node, storage : &RaftStorage) -> Unit {
   let first = storage.first_index()
   let last = storage.last_index()
   if last >= first {
+    // A range compacted out from under us mid-recovery is tolerated: the entries
+    // it would have loaded are already covered by the snapshot baseline.
     let loaded = storage.storage_entries(first, last + 1, no_limit) catch {
-      Compacted => []
-      Unavailable => []
       _ => []
     }
     for e in loaded {
