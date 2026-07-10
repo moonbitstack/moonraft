@@ -111,3 +111,24 @@ test "Changer threads MaxInflightBytes into each new progress" {
   assert_true(c.simple([("v", "1")]) is None)
   assert_eq(c.prs["1"].inflights.max_bytes, 512)
 }
+
+///|
+// Standalone Progress-level property behind etcd's TestLeaderIncreaseNext
+// (raft_test.go #64): while replicating, a send optimistically advances `next`
+// past the last sent index; while probing, a send does not advance `next` (it
+// only throttles until the probe is acked). The full #64 (with the exact
+// next=6 after a leader drives becomeLeader + Step(MsgProp)) is owned by the
+// ③ raft layer; this only pins the Progress state-machine rule and does NOT
+// claim census row #64.
+test "Progress: Replicate optimistically advances next; Probe does not" {
+  // Replicate: a send of entries up to index 5 advances next to 6.
+  let repl = Progress::new(2)
+  repl.become_replicate() // next = match+1 = 1
+  repl.sent_entries(5, true)
+  assert_eq(repl.next_index, 6)
+  // Probe: a send does not advance next; it only pauses the flow.
+  let probe = Progress::new(2) // fresh progress is in Probe, next = 2
+  probe.sent_entries(5, true)
+  assert_eq(probe.next_index, 2)
+  assert_true(probe.msg_app_flow_paused)
+}
