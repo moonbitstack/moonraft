@@ -44,6 +44,12 @@ pub struct RaftNode {
   // disables the check. `uncommitted_size` is the running tally.
   max_uncommitted_size : UInt64
   mut uncommitted_size : UInt64
+  // Per-follower replication flow-control window: at most `max_inflight`
+  // outstanding AppendEntries and, when non-zero, at most `max_inflight_bytes`
+  // outstanding payload bytes (etcd's MaxInflightMsgs / MaxInflightBytes). Both
+  // are handed to each follower's `Progress` so its `Inflights` enforces them.
+  max_inflight : Int
+  max_inflight_bytes : UInt64
   mut rng : UInt64
   // Highest log index whose configuration change has been folded into the live
   // configuration, so a committed ConfChange is applied exactly once.
@@ -54,10 +60,24 @@ pub struct RaftNode {
   mut lead_transferee : String?
   // Linearizable read-index bookkeeping (Raft §6.4).
   read_only : ReadOnly
+  // Read-index requests (origin id, opaque context) received before the leader
+  // has committed an entry in its current term. etcd holds these in
+  // `pendingReadIndexMessages` and releases them on the first in-term commit
+  // rather than dropping the read.
+  pending_read_index : Array[(String, Bytes)]
   // etcd's DisableProposalForwarding: when set, a follower drops client proposals
   // instead of forwarding them to the leader (for deployments that route writes
   // to the leader out-of-band). Off by default: a follower forwards.
   mut no_forward : Bool
+  // The highest log index that carries a not-yet-applied configuration change
+  // (etcd's `pendingConfIndex`). A leader refuses to propose a further change
+  // until its applied index passes this, so at most one change is in flight.
+  // Set conservatively to the last index on becoming leader, and reset on any
+  // other state change.
+  mut pending_conf_index : UInt64
+  // etcd's DisableConfChangeValidation: turns off the propose-time checks below
+  // (only-one-in-flight, joint-ordering). Off by default.
+  no_conf_change_validation : Bool
   // etcd's StepDownOnRemoval: when set, a leader removed from the configuration
   // (or demoted to a learner) steps down. Off by default — matching etcd, whose
   // zero-valued Config leaves a removed leader in place until the new
@@ -83,8 +103,11 @@ pub fn RaftNode::new(
   max_entries? : UInt64 = 256,
   max_msg_bytes? : UInt64 = 18446744073709551615UL,
   max_uncommitted_size? : UInt64 = 0,
+  max_inflight? : Int = 256,
+  max_inflight_bytes? : UInt64 = 0,
   pre_vote? : Bool = true,
   step_down_on_removal? : Bool = false,
+  disable_conf_change_validation? : Bool = false,
   read_only_option? : ReadOnlyOption = LeaseBased,
   logger? : &Logger = NopLogger::{  },
   tracer? : &Tracer = NopTracer::{  },
@@ -113,11 +136,16 @@ pub fn RaftNode::new(
     max_msg_bytes,
     max_uncommitted_size,
     uncommitted_size: 0,
+    max_inflight,
+    max_inflight_bytes,
     rng: seed,
     conf_applied: 0,
     lead_transferee: None,
     read_only: ReadOnly::new(),
+    pending_read_index: [],
     no_forward: false,
+    pending_conf_index: 0,
+    no_conf_change_validation: disable_conf_change_validation,
     step_down_on_removal,
     logger,
     tracer,
@@ -275,6 +303,12 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
   if !self.config.contains(self.id) {
     return []
   }
+  // Do not campaign while a committed configuration change is still unapplied:
+  // electing a leader under a stale view of the membership could split the
+  // quorum (etcd's `hup`/`hasUnappliedConfChanges`, raft.go:983).
+  if self.has_unapplied_conf_changes() {
+    return []
+  }
   self.reset_timeout()
   if self.pre_vote {
     self.start_pre_campaign()
@@ -306,16 +340,22 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
 }
 
 ///|
-fn RaftNode::start_real_campaign(self : RaftNode) -> Array[Message] {
+fn RaftNode::start_real_campaign(
+  self : RaftNode,
+  force? : Bool = false,
+) -> Array[Message] {
   self.in_pre_campaign = false
   self.core.become_candidate()
   self.leader_id = None
   self.votes.clear()
   self.votes[self.id] = true
   let out : Array[Message] = []
+  // A leadership-transfer campaign marks its votes forced so a follower still
+  // leased to the outgoing leader grants them, letting the handover complete
+  // instead of stalling out a full election timeout (§3.10).
   let args = self.core.request_vote_args()
   for p in self.peers {
-    out.push(Message::new(self.id, p, Vote(args)))
+    out.push(Message::new(self.id, p, Vote(args), force~))
   }
   if self.config.has_majority(self.granted()) {
     self.become_leader()
@@ -334,8 +374,17 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   self.lead_transferee = None
   self.progress.clear()
   let last = self.core.last_log_index()
+  // Conservatively assume any inherited tail may hold a pending conf change:
+  // block new ones until the applied index passes it (etcd sets pendingConfIndex
+  // to lastIndex here, before appending the no-op below). For a fresh leader with
+  // an empty log this is 0, so the first conf change is allowed at once.
+  self.pending_conf_index = last
   for p in self.peers {
-    self.progress[p] = Progress::new(last + 1)
+    self.progress[p] = Progress::new(
+      last + 1,
+      max_inflight=self.max_inflight,
+      max_inflight_bytes=self.max_inflight_bytes,
+    )
   }
   let _ = self.core.append(self.core.current_term(), b"")
   // Like etcd's reset() on every state change, re-randomize the election
@@ -361,6 +410,7 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
   self.core.become_follower(term)
   self.leader_id = None
   self.in_pre_campaign = false
+  self.pending_conf_index = 0
   self.reset_timeout()
   self.tracer.on_event(StateChange(self.id, Follower, term))
   self.logger.log(Info, "\{self.id} became follower at term \{term}")
@@ -372,6 +422,7 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
 pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
   self.core.become_candidate()
   self.leader_id = None
+  self.pending_conf_index = 0
   self.reset_timeout()
   self.tracer.on_event(
     StateChange(self.id, Candidate, self.core.current_term()),
@@ -412,9 +463,38 @@ pub fn RaftNode::propose_conf(
   if self.core.role() != Leader || self.lead_transferee is Some(_) {
     return []
   }
+  // A single ConfChange is never a joint leave; refuse it if one is already
+  // pending (etcd's stepLeader validation). The refused proposal is simply
+  // dropped rather than appended.
+  if self.conf_change_refused(false) {
+    return []
+  }
   let _ = self.core.append_conf(self.core.current_term(), change.encode())
+  self.pending_conf_index = self.core.last_log_index()
   self.maybe_commit() |> ignore
   self.bcast_append()
+}
+
+///|
+/// Whether a configuration change carrying `is_leave` must be refused at propose
+/// time (etcd's stepLeader checks, raft.go:1326): a change is refused while one
+/// is already pending (applied has not caught up to `pending_conf_index`), while
+/// a non-leave change is proposed in a joint config, or while a leave is proposed
+/// outside one. `DisableConfChangeValidation` turns the checks off.
+fn RaftNode::conf_change_refused(self : RaftNode, is_leave : Bool) -> Bool {
+  if self.no_conf_change_validation {
+    return false
+  }
+  // etcd compares `pendingConfIndex` against the applied index. In this port a
+  // committed conf change is folded into the configuration immediately (tracked
+  // by `conf_applied`), which is the moral equivalent of etcd applying it — so a
+  // further change is allowed once the pending one has committed, and refused
+  // while it is still an uncommitted, un-folded tail entry.
+  let already_pending = self.pending_conf_index > self.conf_applied
+  let already_joint = self.config.is_joint()
+  already_pending ||
+  (already_joint && !is_leave) ||
+  (!already_joint && is_leave)
 }
 
 ///|
@@ -429,7 +509,11 @@ pub fn RaftNode::propose_conf_v2(
   if self.core.role() != Leader || self.lead_transferee is Some(_) {
     return []
   }
+  if self.conf_change_refused(change.is_leave()) {
+    return []
+  }
   let _ = self.core.append_conf(self.core.current_term(), change.encode())
+  self.pending_conf_index = self.core.last_log_index()
   self.maybe_commit() |> ignore
   self.bcast_append()
 }
@@ -523,8 +607,18 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message {
   }
   let has = entries.length() > 0
   let last = if has { entries[entries.length() - 1].index } else { prev }
+  // Total payload bytes in this batch, for the in-flight byte budget
+  // (etcd's payloadsSize). Inert unless MaxInflightBytes is set.
+  let mut ents_size = 0UL
+  for e in entries {
+    ents_size = ents_size + payload_size(e)
+  }
   // Advance the flow controller: stream (consume a window slot) or pause a probe.
-  p.sent_entries(last, has)
+  p.sent_entries(last, has, bytes=ents_size)
+  // Record the commit index just put in flight to this follower, so a later
+  // eager commit-only send can be skipped when it would tell the follower
+  // nothing new (etcd's SentCommit / CanBumpCommit optimization).
+  p.note_commit_sent(self.core.commit_index)
   Message::new(
     self.id,
     peer,
@@ -571,6 +665,9 @@ fn RaftNode::bcast_heartbeat(
     } else {
       self.core.commit_index
     }
+    // A heartbeat carries a commit index too, so it also advances what the
+    // follower is known to have been told (etcd's sendHeartbeat SentCommit).
+    p.note_commit_sent(commit)
     out.push(
       Message::new(
         self.id,
@@ -734,7 +831,30 @@ fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
       self.core.current_term(),
       ConfChangeV2::leave_joint().encode(),
     )
+    // The auto-appended leave is itself now the pending change, so no other
+    // conf change is proposed until it applies (etcd tracks pendingConfIndex for
+    // the automatic transition too).
+    self.pending_conf_index = self.core.last_log_index()
   }
+}
+
+///|
+/// Whether any committed-but-unapplied entry is a configuration change (etcd's
+/// `hasUnappliedConfChanges`). A server refuses to campaign while one is pending,
+/// so it does not become leader under a membership it has not yet folded in.
+fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
+  if self.core.last_applied >= self.core.commit_index {
+    return false
+  }
+  let mut i = self.core.last_applied + 1
+  while i <= self.core.commit_index {
+    match self.core.entry_at(i) {
+      Some(e) => if e.is_conf_change() { return true }
+      None => ()
+    }
+    i = i + 1
+  }
+  false
 }
 
 ///|
@@ -960,7 +1080,11 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.peers.push(id)
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
-        self.progress[id] = Progress::new(self.core.last_log_index() + 1)
+        self.progress[id] = Progress::new(
+          self.core.last_log_index() + 1,
+          max_inflight=self.max_inflight,
+          max_inflight_bytes=self.max_inflight_bytes,
+        )
       }
       // Keep each progress's learner flag in step with the configuration.
       match self.progress.get(id) {

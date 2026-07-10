@@ -46,12 +46,23 @@ pub(all) struct Message {
   from : String
   to : String
   payload : Payload
+  // A leadership-transfer campaign stamps its vote solicitations `force` so a
+  // recipient still leased to the outgoing leader grants them, letting the
+  // handover complete (etcd carries `campaignTransfer` in the message context to
+  // the same effect, raft.go:1102). Off for every ordinary message; a disruptive
+  // candidate that merely timed out cannot set it.
+  force : Bool
 }
 
 ///|
-/// Build a routed message.
-pub fn Message::new(from : String, to : String, payload : Payload) -> Message {
-  { from, to, payload }
+/// Build a routed message. `force` is set only for leadership-transfer votes.
+pub fn Message::new(
+  from : String,
+  to : String,
+  payload : Payload,
+  force? : Bool = false,
+) -> Message {
+  { from, to, payload, force }
 }
 
 ///|

@@ -72,9 +72,11 @@ pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
     Ahead => {
       // A higher-term vote solicitation is refused while we are leased to a
       // leader — and crucially *without* adopting the challenger's term, so a
-      // disruptive candidate cannot force the cluster up a term (§4.2.3). Pre-
-      // vote is already handled in its own dispatch (it never bumps our term).
-      if self.in_lease() && msg.payload is Vote(_) {
+      // disruptive candidate cannot force the cluster up a term (§4.2.3). A
+      // *forced* vote (a leadership transfer, etcd's campaignTransfer) is exempt:
+      // the outgoing leader is deliberately handing off, so the lease must not
+      // block it. Pre-vote is handled in its own dispatch (it never bumps term).
+      if self.in_lease() && msg.payload is Vote(_) && !msg.force {
         return [
           Message::new(
             self.id,
@@ -187,7 +189,18 @@ fn RaftNode::step_propose(
       }
       for e in entries {
         if e.is_conf_change() {
-          self.core.append_conf(self.core.current_term(), e.command) |> ignore
+          let is_leave = match ConfChangeV2::decode(e.command) {
+            Some(v2) => v2.is_leave()
+            None => false
+          }
+          if self.conf_change_refused(is_leave) {
+            // etcd replaces a refused conf change with an empty Normal entry: the
+            // log position is still consumed but no membership change is applied.
+            self.core.append(self.core.current_term(), b"") |> ignore
+          } else {
+            self.core.append_conf(self.core.current_term(), e.command) |> ignore
+            self.pending_conf_index = self.core.last_log_index()
+          }
         } else {
           self.core.append(self.core.current_term(), e.command) |> ignore
         }
@@ -289,8 +302,14 @@ fn RaftNode::handle_timeout_now(
   if term < self.core.current_term() || self.core.role() == Leader {
     return []
   }
+  // A transfer campaign routes through the same guard as a timeout election
+  // (etcd's `hup(campaignTransfer)`): refuse while a committed conf change is
+  // unapplied.
+  if !self.config.contains(self.id) || self.has_unapplied_conf_changes() {
+    return []
+  }
   self.reset_timeout()
-  self.start_real_campaign()
+  self.start_real_campaign(force=true)
 }
 
 ///|
@@ -323,7 +342,7 @@ fn RaftNode::handle_pre_vote_resp(
     self.in_pre_campaign = false
     return []
   }
-  self.votes[from] = reply.vote_granted
+  self.record_vote(from, reply.vote_granted)
   match self.config.vote_result(self.votes) {
     VoteWon => self.start_real_campaign()
     VoteLost => {
@@ -359,6 +378,17 @@ fn RaftNode::handle_vote(
 }
 
 ///|
+/// Record a (pre-)vote from `id` (etcd's tracker `RecordVote`): the first vote a
+/// node casts in a term is kept, and a later differing response from the same
+/// node is ignored. This is what stops a duplicated or reordered vote message
+/// from flipping a vote already counted toward the tally.
+fn RaftNode::record_vote(self : RaftNode, id : String, granted : Bool) -> Unit {
+  if !self.votes.contains(id) {
+    self.votes[id] = granted
+  }
+}
+
+///|
 /// Whether we are within a check-quorum lease: check-quorum is on, we currently
 /// recognise a leader, and our election timer has not yet expired. During the
 /// lease we treat the leader as alive and reject vote solicitations.
@@ -375,7 +405,7 @@ fn RaftNode::handle_vote_resp(
   reply : RequestVoteReply,
 ) -> Array[Message] {
   guard self.core.role() == Candidate else { return [] }
-  self.votes[from] = reply.vote_granted
+  self.record_vote(from, reply.vote_granted)
   // Count with the quorum's three-valued result so a candidate that is denied
   // by a majority steps down at once instead of waiting out its timer.
   match self.config.vote_result(self.votes) {
@@ -559,14 +589,28 @@ fn RaftNode::handle_append_resp(
           )
         }
         if self.maybe_commit() {
+          // The commit index advanced into the current term, so it is now safe
+          // to answer any read-index requests that were waiting for it (etcd
+          // releases pending reads here before broadcasting).
+          for m in self.release_pending_read_index() {
+            out.push(m)
+          }
           // A new commit: tell every follower, which also carries entries to
           // any that are behind.
           for m in self.bcast_append() {
             out.push(m)
           }
-        } else if p.match_index < self.core.last_log_index() && !p.is_paused() {
-          // This follower acked (often a heartbeat) but is still behind; push
-          // it the next entries now instead of waiting for a client proposal.
+          //
+        } else if (
+            p.match_index < self.core.last_log_index() ||
+            p.can_bump_commit(self.core.commit_index)
+          ) &&
+          !p.is_paused() {
+          // No new commit from this ack, but this follower is still behind — on
+          // entries (match < last) or merely on the commit index it has been told
+          // (etcd's `CanBumpCommit`, which skips a redundant commit-only MsgApp
+          // when the follower already knows the latest in-flight commit). Push it
+          // the next append now rather than waiting for a client proposal.
           out.push(self.send_to(from))
         }
         out
@@ -599,11 +643,38 @@ fn RaftNode::handle_append_resp(
 }
 
 ///|
+
+///|
+/// Whether `id` appears in none of a `ConfState`'s membership sets (voters,
+/// learners, or the outgoing voters of a joint config). etcd checks these three;
+/// `learners_next` need not be checked because such a peer is also in
+/// `voters_outgoing` (raft.go:1888).
+fn not_in_conf_state(cs : ConfState, id : String) -> Bool {
+  !cs.voters.contains(id) &&
+  !cs.learners.contains(id) &&
+  !cs.voters_outgoing.contains(id)
+}
+
+///|
 fn RaftNode::handle_snapshot(
   self : RaftNode,
   from : String,
   args : InstallSnapshotArgs,
 ) -> Array[Message] {
+  // Defense-in-depth (etcd's `restore`, raft.go:1901): refuse a snapshot whose
+  // recorded configuration does not list us at all — installing it would drop us
+  // from every membership set and leave the progress tracker assuming we are
+  // present. This should never happen for a correct leader, so it is only a
+  // guard: the term/leader were already adopted in `step` before dispatch.
+  if !args.conf_state.is_empty() && not_in_conf_state(args.conf_state, self.id) {
+    return [
+      Message::new(
+        self.id,
+        from,
+        SnapshotResp({ term: self.core.current_term() }),
+      ),
+    ]
+  }
   let before = self.core.snapshot_index
   let reply = self.core.handle_install_snapshot(args)
   if reply.term == args.term {
