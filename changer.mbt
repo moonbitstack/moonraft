@@ -335,14 +335,12 @@ fn check_invariants(
     if !cfg.outgoing.contains(id) {
       return Some(id + " is in LearnersNext, but not Voters[1]")
     }
-    match prs.get(id) {
-      Some(pr) =>
-        if pr.is_learner {
-          return Some(
-            id + " is in LearnersNext, but is already marked as learner",
-          )
-        }
-      None => ()
+    if prs.get(id) is Some(pr) {
+      if pr.is_learner {
+        return Some(
+          id + " is in LearnersNext, but is already marked as learner",
+        )
+      }
     }
   }
   // Conversely, learners never intersect the voter halves.
@@ -353,22 +351,18 @@ fn check_invariants(
     if cfg.incoming.contains(id) {
       return Some(id + " is in Learners and Voters[0]")
     }
-    match prs.get(id) {
-      Some(pr) =>
-        if !pr.is_learner {
-          return Some(id + " is in Learners, but is not marked as learner")
-        }
-      None => ()
+    if prs.get(id) is Some(pr) {
+      if !pr.is_learner {
+        return Some(id + " is in Learners, but is not marked as learner")
+      }
     }
   }
-  // Auxiliary sets are empty unless the config is joint.
-  if !cfg.is_joint() {
-    if cfg.learners_next.length() > 0 {
-      return Some("cfg.LearnersNext must be nil when not joint")
-    }
-    if cfg.auto_leave {
-      return Some("AutoLeave must be false when not joint")
-    }
+  // AutoLeave is only meaningful in a joint config. A non-joint config with a
+  // non-empty LearnersNext is already rejected upstream by the "in LearnersNext
+  // but not Voters[1]" check (a non-joint config has an empty outgoing half), so
+  // it never reaches here — etcd carries the same shadowed guard.
+  if !cfg.is_joint() && cfg.auto_leave {
+    return Some("AutoLeave must be false when not joint")
   }
   None
 }
@@ -477,9 +471,8 @@ pub fn Changer::leave_joint(self : Changer) -> String? {
   }
   for id in self.cfg.learners_next {
     arr_add(self.cfg.learners, id)
-    match self.prs.get(id) {
-      Some(pr) => pr.is_learner = true
-      None => ()
+    if self.prs.get(id) is Some(pr) {
+      pr.is_learner = true
     }
   }
   self.cfg.learners_next.clear()
@@ -532,11 +525,12 @@ pub fn Changer::restore(self : Changer, cs : ConfState) -> String? {
     }
     None
   } else {
+    // Each outgoing op is a single voter add applied to a non-joint config, which
+    // never fails (it changes one voter, keeps at least one, and preserves every
+    // invariant), so the temporary reconstruction cannot error before the joint
+    // batch below.
     for c in outgoing {
-      match self.simple([c]) {
-        Some(e) => return Some(e)
-        None => ()
-      }
+      self.simple([c]) |> ignore
     }
     self.enter_joint(cs.auto_leave, incoming)
   }

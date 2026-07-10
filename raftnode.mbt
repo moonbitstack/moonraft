@@ -616,17 +616,18 @@ pub fn RaftNode::transfer_leadership(
   }
   self.lead_transferee = Some(target)
   self.election_elapsed = 0
-  match self.progress.get(target) {
-    None => []
-    Some(p) =>
-      if p.match_index == self.core.last_log_index() {
-        [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
-      } else {
-        match self.send_to(target) {
-          Some(m) => [m]
-          None => []
-        }
-      }
+  // A voting member on a leader always has a progress entry (reconcile_peers
+  // keeps the two in step), so index it directly.
+  let p = self.progress[target]
+  if p.match_index == self.core.last_log_index() {
+    [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
+  } else if self.send_to(target) is Some(m) {
+    [m]
+  } else {
+    // The target is behind the compacted snapshot and has not been heard from,
+    // so `send_to` withholds even the snapshot (D-snap-recentactive). Nothing is
+    // sent; the transfer waits for the target to become active.
+    []
   }
 }
 
@@ -873,9 +874,8 @@ pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
   let mut freed = 0UL
   let mut i = self.core.last_applied + 1
   while i <= index {
-    match self.core.entry_at(i) {
-      Some(e) => freed = freed + payload_size(e)
-      None => ()
+    if self.core.entry_at(i) is Some(e) {
+      freed = freed + payload_size(e)
     }
     i = i + 1
   }
@@ -898,12 +898,9 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
           match ConfChangeV2::decode(e.command) {
             Some(v2) => self.apply_conf_change_v2(v2)
             None =>
-              match ConfChange::decode(e.command) {
-                Some(cc) => {
-                  cc.apply_to(self.config)
-                  self.reconcile_peers()
-                }
-                None => ()
+              if ConfChange::decode(e.command) is Some(cc) {
+                cc.apply_to(self.config)
+                self.reconcile_peers()
               }
           }
         }
@@ -949,9 +946,10 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
   }
   let mut i = self.core.last_applied + 1
   while i <= self.core.commit_index {
-    match self.core.entry_at(i) {
-      Some(e) => if e.is_conf_change() { return true }
-      None => ()
+    if self.core.entry_at(i) is Some(e) {
+      if e.is_conf_change() {
+        return true
+      }
     }
     i = i + 1
   }
@@ -964,15 +962,14 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
 fn RaftNode::has_pending_leave(self : RaftNode) -> Bool {
   let mut i = self.core.commit_index + 1
   while i <= self.core.last_log_index() {
-    match self.core.entry_at(i) {
-      Some(e) =>
-        if e.is_conf_change() {
-          match ConfChangeV2::decode(e.command) {
-            Some(v2) => if v2.is_leave() { return true }
-            None => ()
+    if self.core.entry_at(i) is Some(e) {
+      if e.is_conf_change() {
+        if ConfChangeV2::decode(e.command) is Some(v2) {
+          if v2.is_leave() {
+            return true
           }
         }
-      None => ()
+      }
     }
     i = i + 1
   }

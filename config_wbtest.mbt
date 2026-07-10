@@ -96,6 +96,30 @@ test "Config::from_config raises on an invalid config" {
 }
 
 ///|
+/// TestDisableProposalForwarding through the config: a follower built from a
+/// Config with DisableProposalForwarding drops, rather than forwards, a client
+/// proposal (etcd node_test.go sets the flag on the Config, not on the node).
+test "Config.DisableProposalForwarding makes a follower drop proposals" {
+  let config = Config::new("3", ["1", "2"], disable_proposal_forwarding=true)
+  let r = RaftNode::from_config(config)
+  r.node().become_follower(1)
+  r.leader_id = Some("1")
+  let out = r.step(
+    Message::new("3", "3", Propose([Entry::normal(1, 0, b"testdata")])),
+  )
+  assert_eq(out.length(), 0)
+}
+
+///|
+/// etcd's Config.Applied seeds the applied watermark on restart (raft.go:484), so
+/// the core does not re-deliver already-applied entries; from_config threads it in.
+test "Config.Applied seeds the applied watermark" {
+  let config = Config::new("1", ["2", "3"], applied=5)
+  let r = RaftNode::from_config(config)
+  assert_eq(r.status().applied, 5)
+}
+
+///|
 /// Config carries the Logger and Applied knobs (etcd's Config.Logger /
 /// Config.Applied) and from_config threads them into the node.
 test "Config threads logger and applied into the node" {

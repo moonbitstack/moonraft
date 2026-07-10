@@ -312,18 +312,13 @@ pub fn ConfDriver::drive(self : ConfDriver, node : Node) -> Int {
   let mut applied = 0
   while self.applied < node.commit_index {
     let next = self.applied + 1
-    match node.entry_at(next) {
-      Some(entry) =>
-        if entry.is_conf_change() {
-          match ConfChange::decode(entry.command) {
-            Some(cc) => {
-              cc.apply_to(self.config)
-              applied = applied + 1
-            }
-            None => ()
-          }
+    if node.entry_at(next) is Some(entry) {
+      if entry.is_conf_change() {
+        if ConfChange::decode(entry.command) is Some(cc) {
+          cc.apply_to(self.config)
+          applied = applied + 1
         }
-      None => ()
+      }
     }
     self.applied = next
   }

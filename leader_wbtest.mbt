@@ -39,3 +39,16 @@ test "replication does not commit without a majority in sync" {
   assert_true(synced)
   assert_eq(a.commit_index, 0)
 }
+
+///|
+test "a follower at a higher term steps the leader down during replication" {
+  let a = Node::new("a")
+  a.become_candidate()
+  let _ = a.append(a.current_term(), b"x")
+  let b = Node::new("b")
+  b.become_follower(9)
+  let synced = bring_into_sync(a, b)
+  assert_false(synced)
+  assert_eq(a.current_term(), 9)
+  assert_true(a.role() == Follower)
+}
