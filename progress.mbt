@@ -200,7 +200,10 @@ pub fn Progress::sent_entries(
       self.msg_app_flow_paused = self.inflights.full()
     }
     Probe => if has_entries { self.msg_app_flow_paused = true }
-    Snapshot => ()
+    // etcd's SentEntries panics for any state other than Replicate/Probe; the
+    // leader never sends an append while a snapshot is pending (send_to returns
+    // the snapshot instead), so this is unreachable in the live path.
+    Snapshot => abort("sending append in unhandled state Snapshot")
   }
 }
 
