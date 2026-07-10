@@ -41,7 +41,7 @@ fn u64_max(a : UInt64, b : UInt64) -> UInt64 {
 /// bytes of committed-but-unapplied entries handed out at once, so a burst of
 /// commits cannot force an unbounded apply batch (byte-level pagination).
 pub struct RaftLog {
-  storage : MemoryStorage
+  storage : &RaftStorage
   unstable : Unstable
   mut committed : UInt64
   mut applying : UInt64
@@ -62,7 +62,7 @@ pub fn RaftLog::new(storage : MemoryStorage) -> RaftLog {
 ///|
 /// As `new`, but capping the byte size of entries returned per apply batch.
 pub fn RaftLog::new_with_size(
-  storage : MemoryStorage,
+  storage : &RaftStorage,
   max_applying_ents_size : UInt64,
 ) -> RaftLog {
   let first = storage.first_index()
@@ -516,11 +516,12 @@ pub fn RaftLog::entries(
 ///|
 /// Every entry currently in the log.
 pub fn RaftLog::all_entries(self : RaftLog) -> Array[Entry] {
-  // etcd retries here on a concurrent `ErrCompacted`; single-threaded over a
-  // consistent `MemoryStorage`, `entries(first_index)` reads a `lo` that equals
-  // the first index and so never predates it — the total catch stands as an
-  // assertion.
+  // etcd retries on a concurrent `ErrCompacted` and panics on anything else. Since
+  // `entries` -> `slice` only ever surfaces `Compacted` (every other storage error
+  // is aborted inside `slice`, as in etcd), the `_` arm mirrors etcd's equally
+  // unreachable `panic(err)` and is required only for catch exhaustiveness.
   self.entries(self.first_index(), no_limit) catch {
+    Compacted => self.all_entries()
     _ => abort("unexpected error in all_entries")
   }
 }
@@ -538,10 +539,13 @@ pub fn RaftLog::scan(
 ) -> Unit raise {
   let mut lo = lo
   while lo < hi {
-    // `slice` over a range with `lo < hi` returns at least one entry (etcd caps a
-    // page but never empties it), so `lo` strictly advances and the loop
-    // terminates; etcd's defensive `got 0 entries` panic is unreachable here.
     let ents = self.slice(lo, hi, page_size)
+    // etcd's `scan` panics if `slice` hands back an empty page, which would leave
+    // `lo` unadvanced and loop forever; a `MemoryStorage` never does, but a broken
+    // backend could, so the guard stands.
+    if ents.length() == 0 {
+      abort("scan got 0 entries")
+    }
     v(ents[:])
     lo = lo + ents.length().to_uint64()
   }
@@ -565,12 +569,14 @@ pub fn RaftLog::slice(
     return limit_size(self.unstable.slice(lo, hi)[:], max_size)
   }
   let cut = u64_min(hi, self.unstable.offset)
-  // `must_check_out_of_bounds` has validated `[lo, cut)` against the stored range,
-  // and `cut <= unstable.offset`, so a consistent single-threaded `MemoryStorage`
-  // returns the slice without error; the total catch asserts against a broken
-  // backend rather than tolerating it.
+  // etcd's `raftLog.slice` dispatches on the storage error: `ErrCompacted`
+  // propagates (a caller such as `all_entries` retries a racing compaction),
+  // `ErrUnavailable` and any other error panic. A wildcard catch would fold a
+  // compaction into an abort and defeat that retry, so the codes stay separate.
   let ents = self.storage.storage_entries(lo, cut, max_size) catch {
-    _ => abort("unexpected storage error reading a validated slice")
+    Compacted => raise Compacted
+    Unavailable => abort("entries are unavailable from storage")
+    _ => abort("unexpected error reading entries from storage")
   }
   if hi <= self.unstable.offset {
     return ents

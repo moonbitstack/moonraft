@@ -183,45 +183,90 @@ test "has_ready reports work from unsurfaced unstable entries" {
   assert_true(rn.has_ready())
 }
 
-///|
-/// A storage backend that reports a non-empty log but raises `Compacted` for the
-/// entry range — the compaction race `load_from` tolerates: the compaction point
-/// advanced past `first_index` between reading it and fetching the entries.
-struct RacingCompactionStorage {}
+// A configurable `&RaftStorage` fault injector wrapping a real `MemoryStorage`.
+// `RaftLog` reads through the `RaftStorage` trait (as etcd's `raftLog` reads
+// through the `Storage` interface), so injecting a backend that raises a chosen
+// `StorageError` on `storage_term`/`storage_entries` drives each error-dispatch
+// arm — the same storage contracts etcd's `raftLog` guards with `Panicf`.
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn initial_state(_self) {
-  HardState::initial()
+struct FailingStorage {
+  inner : MemoryStorage
+  mut term_err : StorageError?
+  mut entries_err : StorageError?
+  // -1: raise `entries_err` on every call; N>0: raise on the next N, then delegate.
+  mut entries_fails_left : Int
+  mut entries_empty : Bool
 }
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn storage_entries(
-  _self,
-  _lo,
-  _hi,
-  _max,
-) {
-  raise Compacted
+fn FailingStorage::over(entries : Array[Entry]) -> FailingStorage {
+  let inner = MemoryStorage::new()
+  inner.append(entries)
+  {
+    inner,
+    term_err: None,
+    entries_err: None,
+    entries_fails_left: 0,
+    entries_empty: false,
+  }
 }
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn storage_term(_self, _i) {
-  raise Compacted
+impl RaftStorage for FailingStorage with fn initial_state(self) {
+  self.inner.initial_state()
 }
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn first_index(_self) {
-  1
+impl RaftStorage for FailingStorage with fn first_index(self) {
+  self.inner.first_index()
 }
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn last_index(_self) {
-  3
+impl RaftStorage for FailingStorage with fn last_index(self) {
+  self.inner.last_index()
 }
 
 ///|
-impl RaftStorage for RacingCompactionStorage with fn storage_snapshot(_self) {
-  Snapshot::empty()
+impl RaftStorage for FailingStorage with fn storage_snapshot(self) {
+  self.inner.storage_snapshot()
+}
+
+///|
+impl RaftStorage for FailingStorage with fn append(self, entries) {
+  self.inner.append(entries)
+}
+
+///|
+impl RaftStorage for FailingStorage with fn storage_term(self, i) {
+  match self.term_err {
+    Some(e) => raise e
+    None => self.inner.storage_term(i)
+  }
+}
+
+///|
+impl RaftStorage for FailingStorage with fn storage_entries(self, lo, hi, max) {
+  if self.entries_empty {
+    return []
+  }
+  match self.entries_err {
+    Some(e) =>
+      if self.entries_fails_left == 0 {
+        self.inner.storage_entries(lo, hi, max)
+      } else {
+        if self.entries_fails_left > 0 {
+          self.entries_fails_left = self.entries_fails_left - 1
+        }
+        raise e
+      }
+    None => self.inner.storage_entries(lo, hi, max)
+  }
+}
+
+///|
+fn failing_log(fs : FailingStorage) -> RaftLog {
+  RaftLog::new_with_size(fs, no_limit)
 }
 
 ///|
@@ -229,7 +274,103 @@ impl RaftStorage for RacingCompactionStorage with fn storage_snapshot(_self) {
 /// raises `Compacted`, and recovery proceeds with no loaded entries rather than
 /// aborting (etcd's read path returns `ErrCompacted`, handled not fatal).
 test "load_from tolerates the entry range being compacted concurrently" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(Compacted)
+  fs.entries_fails_left = -1
   let n = Node::new("a")
-  n.load_from(RacingCompactionStorage::{  } as &RaftStorage)
+  n.load_from(fs)
   assert_eq(n.last_log_index(), 0)
+}
+
+///|
+/// etcd log.go zeroTermOnOutOfBounds `Panicf("unexpected error (%v)")`: `term`
+/// surfaced a storage error that is neither `Compacted` nor `Unavailable`.
+test "panic zero_term_on_out_of_bounds aborts on an unexpected storage error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.term_err = Some(SnapOutOfDate)
+  failing_log(fs).zero_term_on_out_of_bounds(2) |> ignore
+}
+
+///|
+/// etcd log.go lastEntryID `Panicf("unexpected error when getting the last term")`.
+test "panic last_entry_id aborts on an unexpected storage error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.term_err = Some(SnapOutOfDate)
+  failing_log(fs).last_entry_id() |> ignore
+}
+
+///|
+/// etcd log.go matchTerm returns false on any `term` error (`t, err := l.term(i);
+/// if err != nil { return false }`) — the normal-value path of the total catch.
+test "match_term is false when the term read fails" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.term_err = Some(SnapOutOfDate)
+  assert_false(failing_log(fs).match_term({ term: 1, index: 2 }))
+}
+
+///|
+/// etcd log.go slice propagates `ErrCompacted` from storage (`if err ==
+/// ErrCompacted { return nil, err }`) so a caller can retry a racing compaction.
+test "slice propagates a compacted storage error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(Compacted)
+  fs.entries_fails_left = -1
+  let raised = try {
+    failing_log(fs).slice(1, 3, no_limit) |> ignore
+    false
+  } catch {
+    Compacted => true
+    _ => false
+  }
+  assert_true(raised)
+}
+
+///|
+/// etcd log.go slice `Panicf("entries[%d:%d) is unavailable from storage")`.
+test "panic slice aborts on an unavailable storage error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(Unavailable)
+  fs.entries_fails_left = -1
+  failing_log(fs).slice(1, 3, no_limit) |> ignore
+}
+
+///|
+/// etcd log.go slice `panic(err)` for any storage error other than
+/// `ErrCompacted`/`ErrUnavailable`.
+test "panic slice aborts on an unexpected storage error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(SnapOutOfDate)
+  fs.entries_fails_left = -1
+  failing_log(fs).slice(1, 3, no_limit) |> ignore
+}
+
+///|
+/// etcd log.go allEntries retries on a racing `ErrCompacted` (`return
+/// l.allEntries()`): the storage raises `Compacted` once, then serves the log.
+test "all_entries retries a racing compaction" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(Compacted)
+  fs.entries_fails_left = 1
+  assert_eq(failing_log(fs).all_entries().length(), 3)
+}
+
+///|
+/// etcd log.go nextCommittedEnts `Panicf("unexpected error when getting unapplied
+/// entries (%v)")`: `slice` handed back an error while paging committed entries.
+test "panic next_committed_ents aborts on a slice error" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_err = Some(Compacted)
+  fs.entries_fails_left = -1
+  let l = failing_log(fs)
+  l.commit_to(3)
+  l.next_committed_ents(false) |> ignore
+}
+
+///|
+/// etcd log.go scan `Panicf("got 0 entries in [%d,%d)")`: a backend that returns an
+/// empty page for a non-empty range would loop forever, so the guard aborts.
+test "panic scan aborts on an empty page" {
+  let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
+  fs.entries_empty = true
+  failing_log(fs).scan(1, 3, no_limit, _es => ()) |> ignore
 }
