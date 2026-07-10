@@ -475,10 +475,22 @@ in `joint_wbtest.mbt` (encoding round-trip, enter→auto-leave, both-majorities
 safety). Covers the core of `TestRawNodeJointAutoLeave` and the confchange
 EnterJoint/LeaveJoint path.
 
-## confchange/{datadriven,quick,restore}_test.go — IMPL (0/3 funcs)
-The live joint/learner path is done (above). The remaining gap is the confchange
-*package* datadriven corpus, which asserts internal `learners_next` bookkeeping
-and `Restore`-from-ConfState; portable case-by-case as a follow-up.
+## confchange/testdata (internal state) — DONE (partial)
+The internal voter/learner/joint state a batch of changes produces is now
+asserted directly in `confchange_internal_wbtest.mbt`, expanding datadriven
+cases from `simple_promote_demote.txt` / `simple_safety.txt` and the joint
+enter/leave flow (v=add voter, l=demote/add learner, r=remove). This surfaced
+and fixed a real bug: `add_learner` on an existing voter now **demotes** it
+(previously a no-op), so etcd's `l<id>` on a voter works.
+- Remaining: **`learners_next`** — a voter demoted *during* a joint change is
+  kept a voter in the outgoing half and becomes a learner only on leave. Our
+  live `Membership` demotes immediately; modelling the deferred `learners_next`
+  needs the confchange-package `Changer` abstraction (separate from the live
+  apply path). Tracked as the one confchange internal-state gap.
+- **`confchange/restore_test.go` (Restore from ConfState)** — TODO: our
+  `Snapshot` does not yet carry a `ConfState`, so rebuilding a configuration from
+  a snapshot's membership is not wired; the live snapshot path restores log/state
+  but not the voter/learner sets.
 
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.

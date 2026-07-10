@@ -39,12 +39,14 @@ pub fn Membership::new(members : Array[String]) -> Membership {
 }
 
 ///|
-/// Add `id` as a learner (non-voting member), unless it is already a voter.
+/// Add `id` as a learner (non-voting member). If it is currently a voter this
+/// *demotes* it — it leaves the voter set and joins the learners (Raft §4.2.1,
+/// etcd's `l<id>` change).
 pub fn Membership::add_learner(self : Membership, id : String) -> Unit {
-  if self.members.contains(id) || self.learners.contains(id) {
-    return
+  self.members.retain(fn(m) { m != id })
+  if !self.learners.contains(id) {
+    self.learners.push(id)
   }
-  self.learners.push(id)
 }
 
 ///|
