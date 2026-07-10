@@ -1,8 +1,13 @@
 // raft-moonbit: Raft consensus, core package.
 
+import {
+  "Lfan-ke/raft-moonbit/quorum",
+}
+
 // Browser demo build (`moon build --target wasm`): each node runs in its own Web
 // Worker over its own instance, so the exports are the flat per-node API and the
 // linear memory the strings are read out of.
+
 options(
   link: {
     "wasm": {

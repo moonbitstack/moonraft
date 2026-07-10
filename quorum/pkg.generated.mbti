@@ -1,0 +1,23 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lfan-ke/raft-moonbit/quorum"
+
+// Values
+pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
+
+pub fn describe(Array[String], Map[String, UInt64]) -> String
+
+pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
+
+// Errors
+
+// Types and methods
+pub(all) enum VoteState {
+  VoteWon
+  VoteLost
+  VotePending
+} derive(Eq)
+
+// Type aliases
+
+// Traits
+

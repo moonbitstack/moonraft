@@ -113,8 +113,11 @@ test "removing a staged-demotion voter clears the pending learner" {
 test "vote_result needs both halves to win a joint election" {
   let m = Membership::new(["a", "b", "c"])
   m.enter_joint(["c", "d", "e"])
-  assert_true(m.vote_result({ "c": true, "d": true, "e": true }) == VotePending)
   assert_true(
-    m.vote_result({ "a": true, "b": true, "c": true, "d": true }) == VoteWon,
+    m.vote_result({ "c": true, "d": true, "e": true }) == @quorum.VotePending,
+  )
+  assert_true(
+    m.vote_result({ "a": true, "b": true, "c": true, "d": true }) ==
+    @quorum.VoteWon,
   )
 }

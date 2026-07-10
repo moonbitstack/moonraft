@@ -19,7 +19,7 @@
 ///|
 /// The outcome of counting votes against a configuration: still pending (no
 /// majority either way), won (a majority granted), or lost (a majority denied).
-pub enum VoteState {
+pub(all) enum VoteState {
   VoteWon
   VoteLost
   VotePending
@@ -220,25 +220,4 @@ pub fn vote_result(
   } else {
     VotePending
   }
-}
-
-///|
-/// The committed index this configuration agrees on, given the acked indices,
-/// accounting for the joint transition when one is in progress.
-pub fn Membership::committed_index(
-  self : Membership,
-  acked : Map[String, UInt64],
-) -> UInt64 {
-  let out = if self.joint { self.outgoing } else { [] }
-  committed_index(self.members, out, acked)
-}
-
-///|
-/// The vote outcome for this configuration, accounting for a joint transition.
-pub fn Membership::vote_result(
-  self : Membership,
-  votes : Map[String, Bool],
-) -> VoteState {
-  let out = if self.joint { self.outgoing } else { [] }
-  vote_result(self.members, out, votes)
 }

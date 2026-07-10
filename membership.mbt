@@ -235,3 +235,24 @@ pub fn Membership::voters(self : Membership) -> Array[String] {
   }
   out
 }
+
+///|
+/// The committed index this configuration agrees on, given the acked indices,
+/// accounting for the joint transition when one is in progress.
+pub fn Membership::committed_index(
+  self : Membership,
+  acked : Map[String, UInt64],
+) -> UInt64 {
+  let out = if self.joint { self.outgoing } else { [] }
+  @quorum.committed_index(self.members, out, acked)
+}
+
+///|
+/// The vote outcome for this configuration, accounting for a joint transition.
+pub fn Membership::vote_result(
+  self : Membership,
+  votes : Map[String, Bool],
+) -> @quorum.VoteState {
+  let out = if self.joint { self.outgoing } else { [] }
+  @quorum.vote_result(self.members, out, votes)
+}

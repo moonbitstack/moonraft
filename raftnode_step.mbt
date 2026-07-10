@@ -356,14 +356,14 @@ fn RaftNode::handle_pre_vote_resp(
   }
   self.record_vote(from, reply.vote_granted)
   match self.config.vote_result(self.votes) {
-    VoteWon => self.start_real_campaign()
-    VoteLost => {
+    @quorum.VoteWon => self.start_real_campaign()
+    @quorum.VoteLost => {
       // A majority declined the pre-vote: step back to follower rather than
       // linger in the PreCandidate state (the cluster already has a leader).
       self.become_follower(self.core.current_term())
       []
     }
-    VotePending => []
+    @quorum.VotePending => []
   }
 }
 
@@ -423,15 +423,15 @@ fn RaftNode::handle_vote_resp(
   // Count with the quorum's three-valued result so a candidate that is denied
   // by a majority steps down at once instead of waiting out its timer.
   match self.config.vote_result(self.votes) {
-    VoteWon => {
+    @quorum.VoteWon => {
       self.become_leader()
       self.bcast_append()
     }
-    VoteLost => {
+    @quorum.VoteLost => {
       self.core.become_follower(self.core.current_term())
       []
     }
-    VotePending => []
+    @quorum.VotePending => []
   }
 }
 

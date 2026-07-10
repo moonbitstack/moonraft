@@ -1,14 +1,14 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Lfan-ke/raft-moonbit"
 
-// Values
-pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
+import {
+  "Lfan-ke/raft-moonbit/quorum",
+}
 
+// Values
 pub fn demo_report_lines(DemoReport) -> Array[String]
 
 pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> DemoReport
-
-pub fn describe(Array[String], Map[String, UInt64]) -> String
 
 pub fn describe_conf_state(ConfState) -> String
 
@@ -41,8 +41,6 @@ pub fn replicate(Node, Array[Node]) -> UInt64
 pub fn run_election(Node, Array[Node]) -> Bool
 
 pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
-
-pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
 
 pub fn wnode_campaign() -> Unit
 
@@ -382,7 +380,7 @@ pub fn Membership::nodes(Self) -> Array[String]
 pub fn Membership::quorum(Self) -> Int
 pub fn Membership::remove(Self, String) -> Unit
 pub fn Membership::size(Self) -> Int
-pub fn Membership::vote_result(Self, Map[String, Bool]) -> VoteState
+pub fn Membership::vote_result(Self, Map[String, Bool]) -> @quorum.VoteState
 pub fn Membership::voters(Self) -> Array[String]
 
 pub struct MemoryStorage {
@@ -842,12 +840,6 @@ pub fn Unstable::slice(Self, UInt64, UInt64) -> Array[Entry]
 pub fn Unstable::stable_snap_to(Self, UInt64) -> Unit
 pub fn Unstable::stable_to(Self, EntryId) -> Unit
 pub fn Unstable::truncate_and_append(Self, Array[Entry]) -> Unit
-
-pub enum VoteState {
-  VoteWon
-  VoteLost
-  VotePending
-} derive(Eq)
 
 pub enum WalRecord {
   WalHardState(HardState)

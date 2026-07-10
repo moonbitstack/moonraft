@@ -239,9 +239,9 @@ test "Progress renders the Replicate state" {
 ///|
 /// MajorityConfig.Describe on an empty quorum, and its wide-index padding.
 test "describe: empty quorum and wide index" {
-  assert_eq(describe([], {}), "<empty majority quorum>")
+  assert_eq(@quorum.describe([], {}), "<empty majority quorum>")
   // An index wider than the 5-column field is printed in full (pad5 pass-through).
-  let out = describe(["1"], { "1": 123456UL })
+  let out = @quorum.describe(["1"], { "1": 123456UL })
   assert_true(out.contains("123456"))
 }
 
