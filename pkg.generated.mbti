@@ -306,6 +306,15 @@ pub(all) struct InstallSnapshotReply {
   term : UInt64
 } derive(Eq)
 
+pub enum LogLevel {
+  Debug
+  Info
+  Warning
+  Error
+  Fatal
+  Panic
+} derive(Eq)
+
 pub(all) struct LogSlice {
   term : UInt64
   prev : EntryId
@@ -417,6 +426,12 @@ pub fn Node::role(Self) -> Role
 pub fn Node::save_into(Self, MemoryStorage) -> Unit
 pub fn Node::save_to(Self, &WalStore) -> Unit
 pub fn Node::term_at(Self, UInt64) -> UInt64
+
+pub struct NopLogger {
+}
+
+pub struct NopTracer {
+}
 
 pub enum Payload {
   PreVote(RequestVoteArgs)
@@ -564,6 +579,9 @@ pub struct RaftNode {
   mut lead_transferee : String?
   read_only : ReadOnly
   mut no_forward : Bool
+  step_down_on_removal : Bool
+  logger : &Logger
+  tracer : &Tracer
 }
 pub fn RaftNode::advance_applied(Self, UInt64) -> Unit
 pub fn RaftNode::become_candidate(Self) -> Unit
@@ -581,7 +599,7 @@ pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
 pub fn RaftNode::leader(Self) -> String?
-pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, pre_vote? : Bool) -> Self
+pub fn RaftNode::new(String, Array[String], seed? : UInt64, election_timeout? : Int, heartbeat_timeout? : Int, max_entries? : UInt64, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, pre_vote? : Bool, step_down_on_removal? : Bool, read_only_option? : ReadOnlyOption, logger? : &Logger, tracer? : &Tracer) -> Self
 pub fn RaftNode::node(Self) -> Node
 pub fn RaftNode::progress_of(Self, String) -> ProgressStatus?
 pub fn RaftNode::progress_status(Self) -> Array[ProgressStatus]
@@ -594,12 +612,14 @@ pub fn RaftNode::raw_async(Self) -> RawNode
 pub fn RaftNode::raw_async_sized(Self, UInt64) -> RawNode
 pub fn RaftNode::raw_with_max_committed_size(Self, UInt64) -> RawNode
 pub fn RaftNode::read_index(Self) -> UInt64?
+pub fn RaftNode::read_only_option(Self) -> ReadOnlyOption
 pub fn RaftNode::reduce_uncommitted_size(Self, UInt64) -> Unit
 pub fn RaftNode::report_snapshot(Self, String, Bool) -> Unit
 pub fn RaftNode::report_unreachable(Self, String) -> Unit
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[Message]
 pub fn RaftNode::request_transfer_leader(Self, String) -> Array[Message]
 pub fn RaftNode::role(Self) -> Role
+pub fn RaftNode::set_read_only_option(Self, ReadOnlyOption) -> Unit
 pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
 pub fn RaftNode::step(Self, Message) -> Array[Message]
@@ -660,6 +680,11 @@ pub(all) struct ReadIndexResp {
 } derive(Eq)
 
 type ReadOnly
+
+pub enum ReadOnlyOption {
+  Safe
+  LeaseBased
+} derive(Eq)
 
 pub(all) struct ReadState {
   index : UInt64
@@ -734,6 +759,16 @@ pub(all) struct StorageApplyResp {
   entries : Array[Entry]
 }
 
+pub enum TraceEvent {
+  InitState(String)
+  StateChange(String, Role, UInt64)
+  Commit(String, UInt64)
+  Replicate(String, Array[Entry])
+  SendMessage(Message)
+  ReceiveMessage(Message)
+  ConfChange(String, ConfState)
+}
+
 pub struct Unstable {
   mut snapshot : Snapshot?
   mut entries : Array[Entry]
@@ -774,6 +809,10 @@ pub trait LogStore {
   fn restore(Self) -> Persisted?
 }
 
+pub trait Logger {
+  fn log(Self, LogLevel, String) -> Unit
+}
+
 pub trait RaftStorage {
   fn initial_state(Self) -> HardState
   fn storage_entries(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise StorageError
@@ -785,6 +824,10 @@ pub trait RaftStorage {
 
 pub trait StateMachine {
   fn apply(Self, Bytes) -> Unit
+}
+
+pub trait Tracer {
+  fn on_event(Self, TraceEvent) -> Unit
 }
 
 pub trait Transport {

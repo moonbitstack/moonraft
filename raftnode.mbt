@@ -58,6 +58,15 @@ pub struct RaftNode {
   // instead of forwarding them to the leader (for deployments that route writes
   // to the leader out-of-band). Off by default: a follower forwards.
   mut no_forward : Bool
+  // etcd's StepDownOnRemoval: when set, a leader removed from the configuration
+  // (or demoted to a learner) steps down. Off by default — matching etcd, whose
+  // zero-valued Config leaves a removed leader in place until the new
+  // configuration elects a replacement (etcd's `switchToConfig`).
+  step_down_on_removal : Bool
+  // Diagnostics sink (etcd's `Config.Logger`); a no-op by default.
+  logger : &Logger
+  // State-transition tracer (etcd's `Config.TraceLogger`); a no-op by default.
+  tracer : &Tracer
 }
 
 ///|
@@ -75,6 +84,10 @@ pub fn RaftNode::new(
   max_msg_bytes? : UInt64 = 18446744073709551615UL,
   max_uncommitted_size? : UInt64 = 0,
   pre_vote? : Bool = true,
+  step_down_on_removal? : Bool = false,
+  read_only_option? : ReadOnlyOption = LeaseBased,
+  logger? : &Logger = NopLogger::{  },
+  tracer? : &Tracer = NopTracer::{  },
 ) -> RaftNode {
   let all = [id]
   for p in peers {
@@ -105,7 +118,12 @@ pub fn RaftNode::new(
     lead_transferee: None,
     read_only: ReadOnly::new(),
     no_forward: false,
+    step_down_on_removal,
+    logger,
+    tracer,
   }
+  node.read_only.safe = read_only_option is Safe
+  node.tracer.on_event(InitState(id))
   node.reset_timeout()
   node
 }
@@ -328,6 +346,11 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   // A leader inheriting a committed auto-leave joint config (whose LeaveJoint
   // was never committed, e.g. truncated on the term change) appends the leave.
   self.maybe_append_auto_leave()
+  self.tracer.on_event(StateChange(self.id, Leader, self.core.current_term()))
+  self.logger.log(
+    Info,
+    "\{self.id} became leader at term \{self.core.current_term()}",
+  )
 }
 
 ///|
@@ -339,6 +362,8 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
   self.leader_id = None
   self.in_pre_campaign = false
   self.reset_timeout()
+  self.tracer.on_event(StateChange(self.id, Follower, term))
+  self.logger.log(Info, "\{self.id} became follower at term \{term}")
 }
 
 ///|
@@ -348,6 +373,13 @@ pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
   self.core.become_candidate()
   self.leader_id = None
   self.reset_timeout()
+  self.tracer.on_event(
+    StateChange(self.id, Candidate, self.core.current_term()),
+  )
+  self.logger.log(
+    Info,
+    "\{self.id} became candidate at term \{self.core.current_term()}",
+  )
 }
 
 ///|
@@ -581,6 +613,7 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     if mci > self.core.commit_index &&
       self.core.term_at(mci) == self.core.current_term() {
       self.core.advance_commit(mci)
+      self.tracer.on_event(Commit(self.id, mci))
       self.apply_committed_conf()
       any = true
     } else {
@@ -940,7 +973,17 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
     Some(t) => if !self.config.contains(t) { self.lead_transferee = None }
     None => ()
   }
-  if self.core.role() == Leader && !self.config.contains(self.id) {
+  // etcd's `switchToConfig`: a leader that is removed (or demoted to a learner)
+  // steps down only when `StepDownOnRemoval` is set. By default it stays leader
+  // over a configuration it is no longer part of, until the survivors elect a
+  // replacement — matching etcd, whose zero-valued Config does not step down.
+  if self.core.role() == Leader &&
+    self.step_down_on_removal &&
+    (!self.config.contains(self.id) || self.config.is_learner(self.id)) {
+    self.logger.log(
+      Info,
+      "\{self.id} stepping down: removed from configuration",
+    )
     self.step_down()
   }
 }

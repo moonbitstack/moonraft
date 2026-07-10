@@ -56,6 +56,7 @@ fn RaftNode::term_rel(self : RaftNode, msg : Message) -> TermRel {
 /// exactly what let a late `VoteResp` be miscounted into a false majority
 /// (double leader) or a late `AppendResp` inflate a follower's progress.
 pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
+  self.tracer.on_event(ReceiveMessage(msg))
   // Local, routable messages (etcd's Term-0 messages) bypass the term check: a
   // client request carries no term, so it is neither stale nor ahead. The read-
   // index *reply* does carry a term and is dispatched normally below.
