@@ -1,7 +1,6 @@
-// Transitional local aliases: while the consensus core still lives in the root
-// package, these bring the already-extracted sub-package types into unqualified
-// scope so the un-moved sources compile unchanged. Removed once every source
-// file has migrated to its sub-package and the root becomes a pure facade.
+// Local aliases bringing the imported sub-package types and free functions into
+// unqualified scope, so the core sources read against bare names (the prelude
+// pattern of `moonbitlang/core`).
 
 ///|
 using @tracker {type Progress, type ProgressState}

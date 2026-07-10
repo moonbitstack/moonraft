@@ -1,6 +1,5 @@
-// Transitional local aliases visible to the root package's white-box tests only
-// (types the migrated tests still name unqualified). Removed with the rest of
-// the transitional scaffolding once every test has moved to its sub-package.
+// Local aliases visible to the core package white-box tests only: sub-package
+// names the tests reach for that the non-test sources do not.
 
 ///|
 using @tracker {type Inflights}
