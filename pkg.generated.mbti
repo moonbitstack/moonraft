@@ -32,9 +32,21 @@ pub fn demo_tick() -> Unit
 
 pub fn demo_transfer(String) -> Bool
 
+pub fn describe_entry(Entry, ((Bytes) -> String)?) -> String
+
+pub fn entry_encoding_size(Entry) -> UInt64
+
+pub fn ents_size(ArrayView[Entry]) -> UInt64
+
 pub fn hard_state_equal(HardState, HardState) -> Bool
 
+pub fn limit_size(ArrayView[Entry], UInt64) -> Array[Entry]
+
 pub fn must_sync(HardState, HardState, Int) -> Bool
+
+pub let no_limit : UInt64
+
+pub fn payload_size(Entry) -> UInt64
 
 pub fn replicate(Node, Array[Node]) -> UInt64
 
@@ -45,6 +57,12 @@ pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
 pub fn vote_result(Array[String], Array[String], Map[String, Bool]) -> VoteState
 
 // Errors
+pub suberror StorageError {
+  Compacted
+  Unavailable
+  SnapOutOfDate
+  SnapshotTemporarilyUnavailable
+} derive(Eq)
 
 // Types and methods
 pub(all) struct AppendEntriesArgs {
@@ -137,8 +155,14 @@ pub(all) struct Entry {
   command : Bytes
 } derive(Eq)
 pub fn Entry::conf(UInt64, UInt64, Bytes) -> Self
+pub fn Entry::id(Self) -> EntryId
 pub fn Entry::is_conf_change(Self) -> Bool
 pub fn Entry::normal(UInt64, UInt64, Bytes) -> Self
+
+pub(all) struct EntryId {
+  term : UInt64
+  index : UInt64
+} derive(Eq)
 
 pub enum EntryType {
   Normal
@@ -197,6 +221,15 @@ pub(all) struct InstallSnapshotReply {
   term : UInt64
 } derive(Eq)
 
+pub(all) struct LogSlice {
+  term : UInt64
+  prev : EntryId
+  entries : Array[Entry]
+}
+pub fn LogSlice::last_entry_id(Self) -> EntryId
+pub fn LogSlice::last_index(Self) -> UInt64
+pub fn LogSlice::valid(Self) -> Bool
+
 pub(all) struct Membership {
   members : Array[String]
   outgoing : Array[String]
@@ -223,14 +256,19 @@ pub fn Membership::voters(Self) -> Array[String]
 pub struct MemoryStorage {
   mut hard : HardState
   mut snap : Snapshot
-  ents : Array[Entry]
+  mut ents : Array[Entry]
+  mut snapshot_pending : Bool
 }
 pub fn MemoryStorage::append(Self, Array[Entry]) -> Unit
-pub fn MemoryStorage::apply_snapshot(Self, Snapshot) -> Unit
-pub fn MemoryStorage::compact(Self, UInt64) -> Bool
-pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes) -> Snapshot?
+pub fn MemoryStorage::apply_snapshot(Self, Snapshot) -> Unit raise StorageError
+pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
+pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes) -> Snapshot raise StorageError
+pub fn MemoryStorage::from_ents(Array[Entry]) -> Self
 pub fn MemoryStorage::new() -> Self
+pub fn MemoryStorage::raw_ents(Self) -> Array[Entry]
 pub fn MemoryStorage::set_hard_state(Self, HardState) -> Unit
+pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
+pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[Entry]
 
 pub(all) struct Message {
   from : String
@@ -266,17 +304,20 @@ pub fn Node::current_term(Self) -> UInt64
 pub fn Node::entries_after(Self, UInt64) -> Array[Entry]
 pub fn Node::entries_after_limited(Self, UInt64, UInt64) -> Array[Entry]
 pub fn Node::entry_at(Self, UInt64) -> Entry?
+pub fn Node::find_conflict(Self, ArrayView[Entry]) -> UInt64
 pub fn Node::find_conflict_by_term(Self, UInt64, UInt64) -> (UInt64, UInt64)
 pub fn Node::handle_append_entries(Self, AppendEntriesArgs) -> AppendEntriesReply
 pub fn Node::handle_install_snapshot(Self, InstallSnapshotArgs) -> InstallSnapshotReply
 pub fn Node::handle_request_vote(Self, RequestVoteArgs) -> RequestVoteReply
 pub fn Node::hard_state(Self) -> HardState
 pub fn Node::install_snapshot(Self, Snapshot) -> Unit
+pub fn Node::is_up_to_date(Self, EntryId) -> Bool
 pub fn Node::last_log_index(Self) -> UInt64
 pub fn Node::last_log_term(Self) -> UInt64
 pub fn Node::load_from(Self, &RaftStorage) -> Unit
 pub fn Node::log_len(Self) -> Int
 pub fn Node::mark_applied(Self, UInt64) -> Unit
+pub fn Node::match_term(Self, EntryId) -> Bool
 pub fn Node::new(String) -> Self
 pub fn Node::persisted(Self) -> Persisted
 pub fn Node::propose_conf_change(Self, UInt64, ConfChange) -> Entry
@@ -302,6 +343,7 @@ pub enum Payload {
   SnapshotResp(InstallSnapshotReply)
   TimeoutNow(UInt64)
 }
+pub fn Payload::is_local(Self) -> Bool
 
 pub(all) struct Persisted {
   term : UInt64
@@ -486,12 +528,12 @@ pub trait LogStore {
 }
 
 pub trait RaftStorage {
+  fn initial_state(Self) -> HardState
+  fn storage_entries(Self, UInt64, UInt64, UInt64) -> Array[Entry] raise StorageError
+  fn storage_term(Self, UInt64) -> UInt64 raise StorageError
   fn first_index(Self) -> UInt64
   fn last_index(Self) -> UInt64
-  fn storage_term(Self, UInt64) -> UInt64?
-  fn slice(Self, UInt64, UInt64) -> Array[Entry]
-  fn storage_snapshot(Self) -> Snapshot
-  fn storage_hard_state(Self) -> HardState
+  fn storage_snapshot(Self) -> Snapshot raise StorageError
 }
 
 pub trait StateMachine {

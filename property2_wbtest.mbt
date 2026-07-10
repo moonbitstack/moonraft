@@ -97,12 +97,20 @@ test "storage append after compaction extends the log" {
     Entry::normal(2, 3, b"c"),
     Entry::normal(2, 4, b"d"),
   ])
-  assert_true(s.compact(2))
+  s.compact(2)
   s.append([Entry::normal(3, 5, b"e")])
   assert_eq(s.first_index(), 3)
   assert_eq(s.last_index(), 5)
-  assert_true(s.storage_term(5) == Some(3))
-  assert_true(s.storage_term(1) == None)
+  assert_eq(s.storage_term(5), 3)
+  // Index 1 was compacted away, so its term is no longer available.
+  let compacted = try {
+    s.storage_term(1) |> ignore
+    false
+  } catch {
+    Compacted => true
+    _ => false
+  }
+  assert_true(compacted)
 }
 
 ///|

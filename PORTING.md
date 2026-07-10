@@ -89,13 +89,61 @@ mechanism (that test itself is pending a full 2-node harness). Our own
 `append_hint_wbtest.mbt` was corrected from the old one-step-backoff values to
 the etcd findConflictByTerm values.
 
-## log_test.go — TODO (0/21)
-Maps to `log.mbt` / `replication.mbt` (`term_at`, `entries_after`, `store_entries`,
-`find_conflict_by_term`, commit/stable bookkeeping).
+## log_test.go — DONE (7/21 ported, 14 N/A: no raftLog/unstable/apply-pacing)
+Ported in `log_port_wbtest.mbt`. This port has no separate `raftLog`/`unstable`
+split and no Ready/Advance apply-pacing pipeline; the log lives directly on the
+`Node`. Tests are run against the Node's log API.
+- `TestFindConflict` — DONE (all 10 cases). Added `Node::find_conflict` +
+  `Node::match_term` (`log.mbt`).
+- `TestFindConflictByTerm` — DONE (all 21 cases, both the index-1 and the
+  compacted-baseline blocks). Runs against the existing `find_conflict_by_term`;
+  each case also asserts the returned term equals `term_at(index)`, matching
+  etcd's `zeroTermOnOutOfBounds(l.term(index))`.
+- `TestIsUpToDate` — DONE (all 9 cases). Added `Node::is_up_to_date` wrapping the
+  existing `candidate_log_up_to_date`.
+- `TestLogMaybeAppend` — DONE (13/15 cases) against `handle_append_entries`. The
+  two remaining etcd cases — a probe strictly below the commit index, and a
+  conflict with an already-committed entry — **diverge, not weakened**: this port
+  carries newer etcd's "accept the already-committed prefix outright" rule
+  (`replication.mbt`), so it returns success with `match_index = commit` instead
+  of panicking. Documented rather than asserted, since matching the older
+  panic-contract would require changing out-of-boundary `replication.mbt` to an
+  arguably-worse behaviour.
+- `TestTerm` — DONE (values, 5 cases) via `term_at`. The `ErrCompacted`/
+  `ErrUnavailable` distinction is a Storage-layer concern (covered by
+  `TestStorageTerm`); `Node.term_at` is the "zero term on out of bounds" view.
+- `TestMatchTerm` — DONE (equivalent, via `match_term`; the etcd original lives
+  inside `TestCompactionSideEffects`).
+- `TestCommitTo` — DONE (monotonic-advance half, via `advance_commit`). The
+  commit-past-lastIndex panic case is N/A: `advance_commit` is defensive and
+  ignores it rather than panicking (a caller-error guard, not a consensus path).
+- N/A (no analogue in this port; each depends on `raftLog`+`unstable`+the
+  Ready/Advance apply-pacing subsystem that the port deliberately does not have):
+  `TestAppend` (asserts `unstable.offset`), `TestCompactionSideEffects`,
+  `TestHasNextCommittedEnts`, `TestNextCommittedEnts`, `TestAcceptApplying`,
+  `TestAppliedTo`, `TestNextUnstableEnts`, `TestStableTo`, `TestStableToWithSnap`,
+  `TestCompaction`, `TestLogRestore`, `TestIsOutOfBounds`,
+  `TestTermWithUnstableSnapshot`, `TestSlice`/`TestScan` (size-limited slicing —
+  the size-cap semantics are instead covered at the Storage layer by
+  `TestStorageEntries`/`TestLimitSize`).
 
-## log_unstable_test.go — IMPL (0/9)
-Depends on the `unstable` log split (stable vs in-memory tail) which our model
-does not separate yet. Tracked under the Ready/Advance storage work.
+## log_unstable_test.go — N/A (0/9 direct; equivalents ported)
+This port has no `unstable` structure: the Node keeps a single contiguous log
+anchored at the snapshot baseline, and there is no Ready/in-progress persistence
+pipeline (`offsetInProgress`, `snapshotInProgress`, `acceptInProgress`,
+`nextEntries`, `nextSnapshot`, `stableTo`, `restore`). The index/term/truncate
+semantics that DO have a counterpart are reproduced in `unstable_port_wbtest.mbt`:
+- `maybeLastIndex` ≈ `last_log_index` — DONE (entries / snapshot-only / empty).
+- `maybeTerm` ≈ `term_at` — DONE (term from entry, from snapshot baseline, and
+  zero outside range).
+- `truncateAndAppend` ≈ `store_entries` — DONE (append-to-end, replace, and
+  truncate-then-append shapes).
+- N/A: `TestUnstableMaybeFirstIndex`, `TestUnstableNextEntries`,
+  `TestUnstableNextSnapshot`, `TestUnstableAcceptInProgress`,
+  `TestUnstableStableTo`, `TestUnstableRestore` — all bookkeeping for the
+  stable-vs-in-progress hand-off to a Ready struct, which this port does not
+  model. The "offset without a snapshot" shapes are also not representable: the
+  port's log is always contiguous from its snapshot baseline.
 
 ## tracker/progress_test.go — DONE (5/8)
 Ported in `progress_port_wbtest.mbt`:
@@ -325,8 +373,27 @@ the datadriven corpus can be expanded case-by-case.
 ## interaction_test.go — IMPL (0/1, datadriven)
 Needs RawNode + Ready. Large datadriven corpus.
 
-## storage_test.go — TODO (0/8)
-Maps to `storage.mbt` + error ADT (`ErrCompacted`/`ErrUnavailable`/`ErrSnapOutOfDate`).
+## storage_test.go — DONE (8/8)
+Feature added: `storage_engine.mbt` rewritten to etcd's `Storage` contract with a
+`StorageError` suberror ADT (`Compacted` / `Unavailable` / `SnapOutOfDate` /
+`SnapshotTemporarilyUnavailable`) and `-> T raise StorageError` signatures; the
+error variants are wired into non-test code in `storage_bridge.mbt`
+(`save_into` catches `SnapOutOfDate`; `load_from` catches
+`SnapshotTemporarilyUnavailable` and `Compacted`/`Unavailable`). Ported in
+`storage_port_wbtest.mbt`, every table case:
+- `TestStorageTerm` — DONE (5 cases; `Compacted` vs `Unavailable` now distinct).
+- `TestStorageEntries` — DONE (11 cases incl. all size-cap thresholds via
+  `entry_encoding_size`/`limit_size`).
+- `TestStorageLastIndex` — DONE (2 cases).
+- `TestStorageFirstIndex` — DONE (2 cases, incl. post-`compact`).
+- `TestStorageCompact` — DONE (4 cases; `Compacted` at/below sentinel).
+- `TestStorageCreateSnapshot` — DONE (2 cases; ConfState omitted — this port's
+  `Snapshot` carries no ConfState, only index/term/data are asserted).
+- `TestStorageAppend` — DONE (all 7 cases; exact post-append `ents` layout).
+- `TestStorageApplySnapshot` — DONE (3 cases; normal / `SnapOutOfDate` /
+  bootstrap-with-index-0). Semantic fix: `apply_snapshot` no longer bumps the
+  commit index (etcd's `ApplySnapshot` leaves HardState untouched); the old
+  behaviour diverged.
 
 ## rafttest/{network,node}_test.go — TODO (0/5, +1 bench N/A)
 Deterministic network harness; overlaps our `sim.mbt`.
@@ -336,18 +403,49 @@ Deterministic network harness; overlaps our `sim.mbt`.
 - `TestProtoMemorySizes` — N/A (Go struct memory-layout assertion; no equivalent
   in MoonBit — we do not use protobuf wire structs).
 
-## types_test.go — TODO (0/2)
-- `TestEntryID`, `TestLogSlice` — TODO (map to `Entry`/log-slice helpers).
+## types_test.go — DONE (2/2)
+Feature added: `EntryId` (with `Entry::id`) and `LogSlice`
+(`valid`/`last_entry_id`/`last_index`) in `log.mbt`. Ported in
+`types_port_wbtest.mbt`:
+- `TestEntryID` — DONE (equality checks + all 3 `pbEntryID` cases).
+- `TestLogSlice` — DONE (all 20 cases: dummy, prev-only, single, multi,
+  first-entry-inconsistent, inconsistent-entries).
 
-## util_test.go — TODO/N/A (0/5)
-- `TestLimitSize`, `TestIsLocalMsg`, `TestIsResponseMsg` — TODO.
-- `TestDescribeEntry`, `TestPayloadSizeOfEmptyEntry` — mostly diagnostics; TODO.
+## util_test.go — DONE (5/5)
+Feature added: `limit_size`, `entry_encoding_size`, `ents_size`, `payload_size`,
+`describe_entry` (with Go-`%q`-style quoting) and `Payload::is_local` in
+`log.mbt`. Ported in `util_port_wbtest.mbt`:
+- `TestLimitSize` — DONE (all 6 cases + the "≥1 entry, else within budget"
+  property). Sizes come from `entry_encoding_size` (a varint-based proto.Size
+  analogue), used consistently for both the budget and the check, exactly as the
+  Go test uses `proto.Size`.
+- `TestPayloadSizeOfEmptyEntry` — DONE.
+- `TestDescribeEntry` — DONE (both the default `%q` renderer, incl. the embedded
+  NUL → `\x00`, and a custom uppercase formatter).
+- `TestIsResponseMsg` — DONE (equivalent). Re-expressed over this port's typed
+  `Payload` via `Message::is_response`, covering all 9 Payload kinds.
+- `TestIsLocalMsg` — DONE (equivalent). This port has no flat `MessageType` enum
+  and no node-local messages (etcd's MsgHup/MsgBeat/MsgSnapStatus/MsgCheckQuorum/
+  MsgStorage* are direct method calls here, not `Payload`s), so `Payload::is_local`
+  is false by construction; the test asserts this for every Payload kind.
 
 ## node_bench_test.go, rafttest/node_bench_test.go — N/A (benchmarks)
 
 ---
 
 ## Bug fixes found by ported tests
+- **S1 (Storage snapshot semantics).** `MemoryStorage::apply_snapshot` used to
+  advance the HardState commit index to the snapshot index; etcd's
+  `ApplySnapshot` leaves HardState untouched (commit is managed separately).
+  Fixed while aligning the Storage contract; `TestStorageApplySnapshot` and the
+  storage round-trip tests pin the corrected behaviour.
+- **S2 (compacted vs unavailable indistinguishable).** The old storage returned
+  `None`/`false` for both "index compacted away" and "index past the end", so a
+  caller could not tell whether to send a snapshot or wait. Replaced with the
+  `StorageError` ADT (`Compacted`/`Unavailable`/`SnapOutOfDate`/
+  `SnapshotTemporarilyUnavailable`) raised on the read path and caught in
+  `storage_bridge.mbt`; `TestStorageTerm`/`TestStorageEntries`/`TestStorageCompact`
+  assert the distinction.
 - **B1 (Election Safety / State-Machine Safety).** `step` never dropped a
   response stamped with a term below ours, so a reordered stale `VoteResp` could
   be counted into a false majority (two leaders in one term) and a stale
