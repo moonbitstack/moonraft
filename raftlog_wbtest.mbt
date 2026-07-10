@@ -719,7 +719,7 @@ test "TestScan" {
   }
 
   // The callback error is propagated (used to break the scan early).
-  let iters = Ref::new(0)
+  let iters : Ref[Int] = { val: 0 }
   let broke = try {
     l.scan(offset + 1, half, 0, _es => {
       iters.val = iters.val + 1
