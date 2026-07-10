@@ -27,18 +27,19 @@ test "TestCommitPagination" {
   rn.propose(blob)
   rn.propose(blob)
   rn.propose(blob)
-  // First the three proposals have to be appended (persisted).
+  // First Ready: all three proposals to persist, and — since the caller persists
+  // before applying — the first paginated commit batch to apply, together. The
+  // 2048-byte cap fits two ~1009-byte entries, so the batch is 2 of 3.
   let rd1 = rn.ready()
   assert_eq(rd1.entries.length(), 3)
+  assert_eq(rd1.committed_entries.length(), 2)
+  rn.store(rd1)
   rn.advance(rd1)
-  // The three proposals commit in two batches: 2 then 1, because 3 * ~1009 bytes
-  // exceeds the 2048-byte cap but 2 do not.
+  // Second Ready: the last commit batch (1), no more to persist.
   let rd2 = rn.ready()
-  assert_eq(rd2.committed_entries.length(), 2)
+  assert_eq(rd2.committed_entries.length(), 1)
+  rn.store(rd2)
   rn.advance(rd2)
-  let rd3 = rn.ready()
-  assert_eq(rd3.committed_entries.length(), 1)
-  rn.advance(rd3)
 }
 
 ///|
@@ -73,6 +74,7 @@ test "TestRawNodeCommitPaginationAfterRestart" {
       applied.push(e.index)
     }
     highest = rd.committed_entries[rd.committed_entries.length() - 1].index
+    raw.store(rd)
     raw.advance(rd)
   }
   // Exactly indices 1..11 applied, in order.

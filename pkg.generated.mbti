@@ -728,6 +728,7 @@ pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, Message) -> Unit
 pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
 pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
+pub fn RawNode::store(Self, Ready) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
 pub fn RawNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
