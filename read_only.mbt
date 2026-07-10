@@ -55,111 +55,128 @@ pub fn RaftNode::read_only_option(self : RaftNode) -> ReadOnlyOption {
 /// follower that forwarded a `ReadIndex`, so the confirmed index routes back to
 /// the right requester.
 priv struct ReadReq {
+  // The caller's opaque context, echoed back with the confirmed index so the
+  // originator can match the answer to its request.
   context : Bytes
   index : UInt64
   from : String
 }
 
 ///|
-/// The read-index bookkeeping a leader keeps for linearizable reads. In the
-/// `ReadOnlySafe` mode a read is only served once a quorum of followers has
-/// acknowledged a heartbeat stamped with the read's context, proving the leader
-/// still leads *right now*; in `ReadOnlyLeaseBased` mode the leader trusts its
-/// election lease instead. Requests are confirmed in FIFO order: a quorum on one
-/// context confirms every earlier read too.
+/// The read-index bookkeeping a leader keeps for linearizable reads (etcd's
+/// `readOnly`, current design). In `ReadOnlySafe` mode confirmation is by an
+/// internal *position* counter, not the caller's context: each heartbeat carries
+/// the position `confirmed + len(unconfirmed)`, so a single quorum acknowledgement
+/// releases every currently-unconfirmed read at once. This is what etcd switched
+/// to (see its "use an internally defined context" note) and avoids the collision
+/// where two reads sharing a context would clobber each other's ack state. In
+/// `ReadOnlyLeaseBased` mode the leader trusts its election lease instead.
 struct ReadOnly {
   mut safe : Bool
-  pending : Array[ReadReq]
-  acks : Map[String, Map[String, Bool]]
+  // Each voter → the highest read-confirmation position it has acknowledged.
+  acks : Map[String, UInt64]
+  // Reads awaiting quorum confirmation, in request order.
+  unconfirmed : Array[ReadReq]
+  // How many reads have already been confirmed and drained from the front.
+  mut confirmed : UInt64
   ready : Array[ReadState]
 }
 
 ///|
 /// A fresh, lease-based read tracker (matching etcd's default).
 fn ReadOnly::new() -> ReadOnly {
-  { safe: false, pending: [], acks: {}, ready: [] }
+  { safe: false, acks: {}, unconfirmed: [], confirmed: 0, ready: [] }
 }
 
 ///|
-fn ctx_key(context : Bytes) -> String {
-  context.to_unchecked_string()
+/// The 8-byte little-endian read-confirmation position to stamp into a heartbeat
+/// (etcd's `heartbeatCtx`), so a quorum ack confirms every currently-unconfirmed
+/// read at once. Empty when there is nothing to confirm.
+fn ReadOnly::heartbeat_ctx(self : ReadOnly) -> Bytes {
+  if self.unconfirmed.length() == 0 {
+    return b""
+  }
+  encode_u64_le(self.confirmed + self.unconfirmed.length().to_uint64())
 }
 
 ///|
-/// Record a new read request (originated by `from`) and count the leader's own
-/// implicit acknowledgement.
+/// Record a read request originated by `from` (etcd's `addRequest`): just append
+/// — confirmation is positional, so no per-read ack set is kept.
 fn ReadOnly::add_request(
   self : ReadOnly,
   index : UInt64,
   context : Bytes,
   from : String,
-  leader_id : String,
 ) -> Unit {
-  self.pending.push({ context, index, from })
-  let acked : Map[String, Bool] = {}
-  acked[leader_id] = true
-  self.acks[ctx_key(context)] = acked
+  self.unconfirmed.push({ context, index, from })
 }
 
 ///|
-/// Record that `id` acknowledged the heartbeat carrying `context`. Once a quorum
-/// of the configuration has acknowledged it, every read up to and including that
-/// context is confirmed and returned in order; the caller routes each confirmed
-/// read to its originator.
-fn ReadOnly::recv_ack(
+/// Record that voter `id` acknowledged a heartbeat carrying position `ctx`
+/// (etcd's `recvAck`): keep the highest position each voter has confirmed.
+fn ReadOnly::recv_ack(self : ReadOnly, id : String, ctx : Bytes) -> Unit {
+  if ctx.length() != 0 {
+    let pos = decode_u64_le(ctx)
+    let cur = match self.acks.get(id) {
+      Some(v) => v
+      None => 0
+    }
+    if pos > cur {
+      self.acks[id] = pos
+    }
+  }
+}
+
+///|
+/// Confirm as many reads as the quorum has now acknowledged (etcd's
+/// `maybeAdvance`): the quorum-committed position over the per-voter acks
+/// releases that many reads from the front of `unconfirmed`, in order.
+fn ReadOnly::maybe_advance(
   self : ReadOnly,
-  id : String,
-  context : Bytes,
   config : Membership,
 ) -> Array[ReadReq] {
-  let key = ctx_key(context)
-  match self.acks.get(key) {
-    None => []
-    Some(acked) => {
-      acked[id] = true
-      let ackers : Array[String] = []
-      for k, _ in acked {
-        ackers.push(k)
-      }
-      if config.has_majority(ackers) {
-        self.advance(context)
-      } else {
-        []
-      }
-    }
-  }
-}
-
-///|
-/// Confirm every pending read up to and including the one carrying `context`,
-/// returning them in order and forgetting their ack sets.
-fn ReadOnly::advance(self : ReadOnly, context : Bytes) -> Array[ReadReq] {
-  let key = ctx_key(context)
-  let mut cut = -1
-  for i, req in self.pending {
-    if ctx_key(req.context) == key {
-      cut = i
-      break
-    }
-  }
-  if cut < 0 {
+  let new_confirmed = config.committed_index(self.acks)
+  if new_confirmed <= self.confirmed {
     return []
   }
-  let confirmed : Array[ReadReq] = []
+  let n = (new_confirmed - self.confirmed).to_int()
+  let released : Array[ReadReq] = []
   let rest : Array[ReadReq] = []
-  for i, req in self.pending {
-    if i <= cut {
-      confirmed.push(req)
-      self.acks.remove(ctx_key(req.context))
+  for i, req in self.unconfirmed {
+    if i < n {
+      released.push(req)
     } else {
       rest.push(req)
     }
   }
-  self.pending.clear()
+  self.unconfirmed.clear()
   for req in rest {
-    self.pending.push(req)
+    self.unconfirmed.push(req)
   }
-  confirmed
+  self.confirmed = new_confirmed
+  released
+}
+
+///|
+/// Encode a 64-bit value as 8 little-endian bytes (etcd uses
+/// `binary.LittleEndian` for the read-confirmation position).
+fn encode_u64_le(v : UInt64) -> Bytes {
+  let arr : Array[Byte] = []
+  for i in 0..<8 {
+    arr.push(((v >> (i * 8)) & 0xff).to_byte())
+  }
+  Bytes::from_array(arr)
+}
+
+///|
+/// Decode 8 little-endian bytes back to a 64-bit value.
+fn decode_u64_le(b : Bytes) -> UInt64 {
+  let mut v = 0UL
+  let n = if b.length() < 8 { b.length() } else { 8 }
+  for i in 0..<n {
+    v = v | (b[i].to_uint64() << (i * 8))
+  }
+  v
 }
 
 ///|
@@ -224,8 +241,11 @@ fn RaftNode::lead_read_index(
     return []
   }
   if self.read_only.safe {
-    self.read_only.add_request(self.core.commit_index, context, from, self.id)
-    self.bcast_heartbeat(context~)
+    self.read_only.add_request(self.core.commit_index, context, from)
+    // The leader implicitly acknowledges the new position itself (etcd's
+    // recvAck(r.id, heartbeatCtx)), then broadcasts a heartbeat stamped with it.
+    self.read_only.recv_ack(self.id, self.read_only.heartbeat_ctx())
+    self.bcast_heartbeat()
   } else if self.quorum_active() {
     self.deliver_read({ from, index: self.core.commit_index, context })
   } else {

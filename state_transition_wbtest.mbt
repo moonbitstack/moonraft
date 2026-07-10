@@ -53,3 +53,17 @@ test "PreCandidate is reported through SoftState" {
   r.become_candidate()
   assert_true(r.soft_state().state == Candidate)
 }
+
+///|
+/// PreCandidate is now the genuine core state during pre-vote (etcd's
+/// becomePreCandidate), not a flag derived at the reporting boundary — the core
+/// Node itself reports it. Before the wiring the core stayed Follower.
+test "PreCandidate is the real core state during pre-vote" {
+  let r = RaftNode::new("1", ["2", "3"], pre_vote=true)
+  r.campaign() |> ignore
+  assert_true(r.node().role() == PreCandidate)
+  // The pre-candidate has forgotten its leader (etcd's becomePreCandidate lead=None)
+  // and, like a candidate, drops a client proposal rather than forwarding it.
+  assert_true(r.leader() is None)
+  assert_eq(r.propose(b"x").length(), 0)
+}

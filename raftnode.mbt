@@ -232,16 +232,12 @@ pub fn RaftNode::id(self : RaftNode) -> String {
 }
 
 ///|
-/// The current role, as reported to callers (etcd's `SoftState.RaftState`).
-/// During the pre-vote probe the underlying core is still internally a follower
-/// (it has not adopted the hypothetical term), but the observable state is
-/// `PreCandidate` — a first-class Raft state, not a hidden flag.
+/// The current role (etcd's `SoftState.RaftState`). During the pre-vote probe
+/// the core genuinely occupies the `PreCandidate` state — a first-class Raft
+/// state, not a derived flag — having changed role without adopting the
+/// hypothetical term.
 pub fn RaftNode::role(self : RaftNode) -> Role {
-  if self.in_pre_campaign {
-    PreCandidate
-  } else {
-    self.core.role()
-  }
+  self.core.role()
 }
 
 ///|
@@ -379,6 +375,11 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
 
 ///|
 fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
+  // Genuinely enter the PreCandidate state (etcd's becomePreCandidate) — the
+  // core changes role without adopting the hypothetical term. `in_pre_campaign`
+  // stays as the pre-vote bookkeeping flag, kept in step with the role.
+  self.core.become_pre_candidate()
+  self.leader_id = None
   self.in_pre_campaign = true
   self.votes.clear()
   self.votes[self.id] = true
@@ -432,6 +433,9 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   self.core.become_leader()
   self.leader_id = Some(self.id)
   self.lead_transferee = None
+  // etcd's reset() zeroes the uncommitted-tail accumulator on every transition;
+  // the no-op appended below is empty (payload 0), so it stays 0 for a new leader.
+  self.uncommitted_size = 0
   self.progress.clear()
   let last = self.core.last_log_index()
   // Conservatively assume any inherited tail may hold a pending conf change:
@@ -471,6 +475,7 @@ pub fn RaftNode::become_follower(self : RaftNode, term : UInt64) -> Unit {
   self.leader_id = None
   self.in_pre_campaign = false
   self.pending_conf_index = 0
+  self.uncommitted_size = 0
   self.lead_transferee = None
   self.reset_timeout()
   self.tracer.on_event(StateChange(self.id, Follower, term))
@@ -485,6 +490,7 @@ pub fn RaftNode::become_candidate(self : RaftNode) -> Unit {
   self.leader_id = None
   self.in_pre_campaign = false
   self.pending_conf_index = 0
+  self.uncommitted_size = 0
   self.lead_transferee = None
   self.reset_timeout()
   self.tracer.on_event(
@@ -523,19 +529,13 @@ pub fn RaftNode::propose_conf(
   self : RaftNode,
   change : ConfChange,
 ) -> Array[Message] {
-  if self.core.role() != Leader || self.lead_transferee is Some(_) {
-    return []
-  }
-  // A single ConfChange is never a joint leave; refuse it if one is already
-  // pending (etcd's stepLeader validation). The refused proposal is simply
-  // dropped rather than appended.
-  if self.conf_change_refused(false) {
-    return []
-  }
-  let _ = self.core.append_conf(self.core.current_term(), change.encode())
-  self.pending_conf_index = self.core.last_log_index()
-  self.maybe_commit() |> ignore
-  self.bcast_append()
+  // Route through the same MsgProp path a client proposal takes, so a conf change
+  // is counted against the uncommitted-log quota (etcd's appendEntry always
+  // calls increaseUncommittedSize), validated against `pending_conf_index`, and
+  // — on a follower — forwarded to the leader rather than silently dropped.
+  self.step_propose(self.id, [
+    Entry::conf(self.core.current_term(), 0, change.encode()),
+  ])
 }
 
 ///|
@@ -569,16 +569,9 @@ pub fn RaftNode::propose_conf_v2(
   self : RaftNode,
   change : ConfChangeV2,
 ) -> Array[Message] {
-  if self.core.role() != Leader || self.lead_transferee is Some(_) {
-    return []
-  }
-  if self.conf_change_refused(change.is_leave()) {
-    return []
-  }
-  let _ = self.core.append_conf(self.core.current_term(), change.encode())
-  self.pending_conf_index = self.core.last_log_index()
-  self.maybe_commit() |> ignore
-  self.bcast_append()
+  self.step_propose(self.id, [
+    Entry::conf(self.core.current_term(), 0, change.encode()),
+  ])
 }
 
 ///|
@@ -760,11 +753,11 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
 ///|
 /// Send a heartbeat to every follower. The `commit` carried is capped at what
 /// the follower is known to hold, so it never learns of a commit index past its
-/// own log (Raft §5.3).
-fn RaftNode::bcast_heartbeat(
-  self : RaftNode,
-  context? : Bytes = b"",
-) -> Array[Message] {
+/// own log (Raft §5.3). Every heartbeat carries the read-confirmation position
+/// (etcd's `bcastHeartbeat` → `heartbeatCtx`); it is empty when no read is
+/// pending, and a follower echoes it back so a quorum confirms pending reads.
+fn RaftNode::bcast_heartbeat(self : RaftNode) -> Array[Message] {
+  let context = self.read_only.heartbeat_ctx()
   let out : Array[Message] = []
   for peer in self.peers {
     let p = self.progress[peer]

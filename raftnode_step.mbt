@@ -131,6 +131,7 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
       // never linger and block proposals should we lead again.
       self.lead_transferee = None
       self.pending_conf_index = 0
+      self.uncommitted_size = 0
       self.leader_id = match msg.payload {
         Append(a) => Some(a.leader_id)
         Heartbeat(a) => Some(a.leader_id)
@@ -355,7 +356,9 @@ fn RaftNode::handle_pre_vote_resp(
   match self.config.vote_result(self.votes) {
     VoteWon => self.start_real_campaign()
     VoteLost => {
-      self.in_pre_campaign = false
+      // A majority declined the pre-vote: step back to follower rather than
+      // linger in the PreCandidate state (the cluster already has a leader).
+      self.become_follower(self.core.current_term())
       []
     }
     VotePending => []
@@ -498,7 +501,8 @@ fn RaftNode::handle_heartbeat_resp(
   // delivered to its originator — recorded locally, or answered to the follower
   // that forwarded it with a ReadIndexResp.
   if reply.context.length() > 0 {
-    for req in self.read_only.recv_ack(from, reply.context, self.config) {
+    self.read_only.recv_ack(from, reply.context)
+    for req in self.read_only.maybe_advance(self.config) {
       for m in self.deliver_read(req) {
         out.push(m)
       }
@@ -567,12 +571,9 @@ fn RaftNode::handle_append_resp(
   if self.core.role() != Leader {
     return []
   }
-  if reply.term > self.core.current_term() {
-    self.core.become_follower(reply.term)
-    self.lead_transferee = None
-    self.pending_conf_index = 0
-    return []
-  }
+  // No higher-term guard here: `step` classifies the term first and
+  // `adopt_higher_term` steps a leader down before dispatch, so this handler
+  // only ever runs at the aligned term (a stale reply is dropped in `on_stale`).
   match self.progress.get(from) {
     None => []
     Some(p) => {
@@ -720,12 +721,9 @@ fn RaftNode::handle_snapshot_resp(
   if self.core.role() != Leader {
     return []
   }
-  if reply.term > self.core.current_term() {
-    self.core.become_follower(reply.term)
-    self.lead_transferee = None
-    self.pending_conf_index = 0
-    return []
-  }
+  // As in handle_append_resp: `step` has already stepped a leader down on a
+  // higher term before dispatch, so no higher-term guard is needed here.
+  let _ = reply
   match self.progress.get(from) {
     None => []
     Some(p) => {

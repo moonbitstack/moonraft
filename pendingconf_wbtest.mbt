@@ -27,9 +27,12 @@ test "pendingConfIndex: a second conf change is refused while the first is uncom
   r.propose_conf(ConfChange::add("4")) |> ignore
   let after_first = r.node().last_log_index()
   assert_eq(after_first, after_noop + 1)
-  // Second change before the first commits: refused, nothing appended.
+  // Second change before the first commits: refused. etcd replaces a refused
+  // conf change with an empty entry (so a log slot is consumed) but applies no
+  // membership change.
   r.propose_conf(ConfChange::add("5")) |> ignore
-  assert_eq(r.node().last_log_index(), after_first)
+  assert_eq(r.node().last_log_index(), after_first + 1)
+  assert_false(r.config.contains("5"))
 }
 
 ///|
