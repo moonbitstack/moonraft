@@ -1,0 +1,35 @@
+raft-moonbit
+Copyright 2026 Leo Cheng
+
+This product includes software derived from the etcd Raft library
+(https://github.com/etcd-io/raft), Copyright 2015 The etcd Authors,
+licensed under the Apache License, Version 2.0.
+
+The following parts of this product are derived from etcd-io/raft and
+translated from Go to MoonBit:
+
+  * The Raft protocol core: leader election, log replication, log matching
+    and commit rules, the per-follower Progress state machine, snapshotting
+    and log compaction, joint-consensus membership change, read-index and
+    leader-lease linearizable reads, and leadership transfer.
+  * The storage engine model (an etcd-style in-memory storage with
+    index/term/slice reads, conflict-truncating append, compaction and
+    snapshotting) and the HardState persistence model.
+  * The test suite, ported from the Go tests of etcd-io/raft, including the
+    Raft paper conformance tests.
+
+Modifications and additions made in this product:
+
+  * Reimplemented in the MoonBit language, with the data model expressed
+    through algebraic data types and exhaustive pattern matching rather than
+    Go structs and switch statements.
+  * Added a deterministic simulation harness with a single-seed discrete-time
+    network able to drop, delay, reorder and partition messages and to crash
+    and restart nodes, together with built-in safety-invariant checks
+    (election safety, an agreeing committed prefix, and log matching).
+  * Added a browser demo that compiles the consensus core to WebAssembly and
+    runs each node in its own Web Worker.
+
+You may obtain a copy of the Apache License, Version 2.0 at
+
+    http://www.apache.org/licenses/LICENSE-2.0

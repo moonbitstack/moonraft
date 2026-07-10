@@ -2,7 +2,7 @@
 
 Raft consensus algorithm implemented in MoonBit.
 
-Raft keeps a cluster of nodes agreeing on the order of a command log even when some nodes crash or the network drops, delays and reorders messages. It is the foundation of the replicated state machines used by systems such as etcd, TiKV and Consul. This is an independent MoonBit implementation whose engineering structure references the Go [etcd-io/raft](https://github.com/etcd-io/raft).
+Raft keeps a cluster of nodes agreeing on the order of a command log even when some nodes crash or the network drops, delays and reorders messages. It is the foundation of the replicated state machines used by systems such as etcd, TiKV and Consul. This library is a MoonBit port of the Go [etcd-io/raft](https://github.com/etcd-io/raft) (Apache-2.0), carrying over its protocol core, storage model and test suite; see [NOTICE](NOTICE) for what is derived and what is new.
 
 It ships two ways to run the protocol on top of one consensus core:
 
@@ -104,8 +104,8 @@ The lower-level `Node` and `RaftNode` APIs are used directly in the tests; see `
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Acknowledgement
 
-The engineering structure references the Go implementation [etcd-io/raft](https://github.com/etcd-io/raft) (Apache-2.0). This is an independent MoonBit implementation; the types, interfaces and tests are original.
+This library is a MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft), Copyright 2015 The etcd Authors, licensed under Apache-2.0. The protocol core, the storage model and the test suite are derived from it. What this port adds is the MoonBit data model — algebraic data types and exhaustive matching in place of Go structs and switch statements — a deterministic simulation harness with built-in safety-invariant checks, and a WebAssembly browser demo that runs each node in its own Web Worker. [NOTICE](NOTICE) records the split.
