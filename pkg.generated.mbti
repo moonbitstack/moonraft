@@ -109,6 +109,7 @@ pub struct Changer {
   max_inflight : Int
 }
 pub fn Changer::advance_index(Self) -> Unit
+pub fn Changer::conf_state(Self) -> ConfState
 pub fn Changer::describe(Self) -> String
 pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
 pub fn Changer::leave_joint(Self) -> String?
