@@ -83,6 +83,14 @@ pub struct RaftNode {
   // zero-valued Config leaves a removed leader in place until the new
   // configuration elects a replacement (etcd's `switchToConfig`).
   step_down_on_removal : Bool
+  // Final appends owed to servers this leader is about to reconcile out of its
+  // peer set: a committed removal drops a peer eagerly on apply, so before its
+  // progress is discarded the leader stages the append carrying that commit here
+  // and flushes it on the next broadcast, so the departing server learns of its
+  // own removal instead of stalling on the pre-removal commit index. etcd keeps
+  // the progress until the application applies the change, which has the same
+  // effect.
+  pending_farewell : Array[Message]
   // Diagnostics sink (etcd's `Config.Logger`); a no-op by default.
   logger : &Logger
   // State-transition tracer (etcd's `Config.TraceLogger`); a no-op by default.
@@ -176,6 +184,7 @@ pub fn RaftNode::new(
     pending_conf_index: 0,
     no_conf_change_validation: disable_conf_change_validation,
     step_down_on_removal,
+    pending_farewell: [],
     logger,
     tracer,
   }
@@ -748,6 +757,12 @@ fn RaftNode::bcast_append(self : RaftNode) -> Array[Message] {
       None => ()
     }
   }
+  // Flush any final appends owed to servers just reconciled out of the peer set
+  // (a committed removal), so the departing server hears the removing commit.
+  for m in self.pending_farewell {
+    out.push(m)
+  }
+  self.pending_farewell.clear()
   out
 }
 
@@ -1170,6 +1185,15 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
     }
   }
   for peer in stale {
+    // A leader tells a departing server about the commit that removes it before
+    // discarding its progress, so it does not stall on the pre-removal commit
+    // index. Withheld only when `send_to` itself withholds (an inactive peer
+    // behind the snapshot), matching etcd, which would not ship it a snapshot.
+    if self.core.role() == Leader {
+      if self.send_to(peer) is Some(m) {
+        self.pending_farewell.push(m)
+      }
+    }
     self.progress.remove(peer)
   }
   for id in desired {
