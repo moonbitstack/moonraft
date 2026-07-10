@@ -207,7 +207,9 @@ func roleName(s string) string {
 	switch s {
 	case "StateFollower":
 		return "Follower"
-	case "StateCandidate", "StatePreCandidate":
+	case "StatePreCandidate":
+		return "PreCandidate"
+	case "StateCandidate":
 		return "Candidate"
 	case "StateLeader":
 		return "Leader"

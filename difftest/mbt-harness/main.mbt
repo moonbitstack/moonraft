@@ -176,6 +176,7 @@ fn opt(s : String?) -> String {
 fn role_name(r : @raft.Role) -> String {
   match r {
     Follower => "Follower"
+    PreCandidate => "PreCandidate"
     Candidate => "Candidate"
     Leader => "Leader"
   }

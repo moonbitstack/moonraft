@@ -23,6 +23,41 @@ confirmation heartbeat round**.
 This is a regression alarm, not a one-off: `run.sh` rebuilds both sides and
 re-diffs on demand, and the etcd side is pinned to an exact commit.
 
+## 0. Re-run on latest master `b10b66f` (three-way table)
+
+The suite was rebased from base `aa501b3` onto **`b10b66f` (551 tests)** and
+re-run. Both harnesses recompiled against the new library (the `Role` ADT gained
+`PreCandidate`; both harnesses now emit `PreCandidate` faithfully instead of
+folding it into `Candidate`). The harness sets `pre_vote` / `read_only_option`
+explicitly, so the master default flips (`pre_vote true→false`,
+`read_only LeaseBased→Safe`) do not move the baseline.
+
+| Finding | On `aa501b3` | On `b10b66f` | Verdict |
+|---------|--------------|--------------|---------|
+| 11_transfer — `lead_transferee` not cleared on step-down (my #5) | DIVERGE | **MATCH** | **FIXED** (master #15). Cannot reproduce. |
+| 12_stale_msg — `pending_conf_index` tracking (my #6) | DIVERGE | **MATCH** | **FIXED**. Cannot reproduce. |
+| 02_prevote — pre-vote role | DIVERGE (Cand vs Foll) | DIVERGE (`PreCandidate` vs `Follower`) | **STILL HOLDS** — the `PreCandidate` *variant* was added, but `campaign()`'s pre-vote path still leaves `role = Follower`; the variant is not entered here. Now a real behavioral gap, not just representation. |
+| 05 — `uncommitted` not reset on truncation | DIVERGE | DIVERGE | **STILL HOLDS** |
+| 06 — 256-entry MsgApp cap (control #3) | DIVERGE | DIVERGE | **STILL HOLDS** (300 vs 256) |
+| 07/09 — conf entry not counted in `uncommitted`; conf-append shape | DIVERGE | DIVERGE | **STILL HOLDS** |
+| 08 — removed voter never learns removal | DIVERGE | DIVERGE | **STILL HOLDS** |
+| 10 — `ReadIndex` emits no outbound at the read step | DIVERGE | DIVERGE | **STILL HOLDS** (see correction below) |
+| 03 — heartbeat-resp surfacing order | DIVERGE | DIVERGE | traversal/timing, unchanged |
+
+**Correction on the `ReadIndex` finding.** My earlier phrasing — "no leadership-
+confirmation heartbeat under `ReadOnlySafe`" — is imprecise. The `lead_read_index`
+→ `bcast_heartbeat` path exists. The *observable* fact the trace shows is narrower
+and still real: calling `read_index` on the leader produces **no outbound messages
+in the resulting `Ready`** (step 6: etcd emits 2 confirmation `Heartbeat`s in-step,
+raft-moonbit emits 0); a later `tick` produces only ordinary heartbeats, never the
+same confirmation round. The maintainer traced the root cause to a deeper bug in
+`read_only.mbt`: the ack map is keyed by **user context** and `add_request`
+**overwrites instead of merges**, so two reads sharing a context erase each
+other's acks. etcd long ago switched to an internal 8-byte position context
+(`heartbeatCtx()`) with batched release; raft-moonbit copied the pre-refactor
+design. Being pointed to the right file is the value here — the exact wording was
+not.
+
 ## 1. Schema (shared by both harnesses)
 
 One JSON object ("frame") is emitted per DSL command. Keys are in a fixed order,
@@ -117,8 +152,11 @@ ASCII on both sides so `uncommitted` byte-accounting is comparable.
 | 09_learner | 5 | msg[2].index / entries | 1 / 1 | 2 / 0 | **REAL (candidate)** — same conf-change-replication difference as 07. |
 | 10_readindex | 6 | msgs | 2 × `Heartbeat` (1→2, 1→3) | **0** | **REAL** — under `ReadOnlySafe`, etcd broadcasts a confirmation heartbeat before answering a `ReadIndex`; raft-moonbit emits nothing. |
 | 10_readindex | 7 | msgs | 2 × `HeartbeatResp` | **0** | **REAL** — corollary: no confirmation round-trip at all. See §5 note — this affects read linearizability. |
-| 11_transfer | 7 | n1.lead_transferee | "" | "2" | **REAL** — after leadership transfers to node 2 and node 1 steps down, etcd clears `leadTransferee`; raft-moonbit leaves it set to "2" on the now-follower. |
-| 12_stale_msg | 7–9 | n2.pending_conf_index | 0 | 1 | **REAL (candidate)** — `pending_conf_index` is initialized/tracked differently across the term races; raft-moonbit holds 1 where etcd holds 0. |
+| 11_transfer | 7 | n1.lead_transferee | "" | "2" | **REAL — FIXED on `b10b66f`** (master #15); on the old base raft-moonbit left `leadTransferee` set on the now-follower. Now MATCH. |
+| 12_stale_msg | 7–9 | n2.pending_conf_index | 0 | 1 | **REAL — FIXED on `b10b66f`**; now MATCH. |
+
+*(The table above is measured on base `aa501b3`; rows 11 and 12 are MATCH on
+`b10b66f` — see §0.)*
 
 ## 5. Positive controls (harness self-check)
 
@@ -213,11 +251,11 @@ biggest coverage hole.
 
 ## 9. Coverage (KPI)
 
-Measured on this worktree (`moon test --enable-coverage; moon coverage report -f
-summary`), base commit `aa501b3`:
+Measured on `moon test --enable-coverage; moon coverage report -f summary`, base
+commit **`b10b66f`** (551 tests):
 
-- **Total: 2574 / 3978 lines.**
-- **`worker_driver.mbt: 0 / 322`** — the wasm demo driver, entirely uncovered;
+- **Total: 2605 / 3994 lines.**
+- **`worker_driver.mbt: 0 / 323`** — the wasm demo driver, entirely uncovered;
   it is exactly what the (not-yet-built) wazero harness would exercise. Excluding
   it: 2574 / 3656.
 - Other low-coverage files worth main-line attention:
