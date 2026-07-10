@@ -44,6 +44,19 @@ pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
   match self.term_rel(msg) {
     Stale => self.on_stale(msg)
     Ahead => {
+      // A higher-term vote solicitation is refused while we are leased to a
+      // leader — and crucially *without* adopting the challenger's term, so a
+      // disruptive candidate cannot force the cluster up a term (§4.2.3). Pre-
+      // vote is already handled in its own dispatch (it never bumps our term).
+      if self.in_lease() && msg.payload is Vote(_) {
+        return [
+          Message::new(
+            self.id,
+            msg.from,
+            VoteResp({ term: self.core.current_term(), vote_granted: false }),
+          ),
+        ]
+      }
       self.adopt_higher_term(msg)
       self.dispatch(msg)
     }
@@ -127,7 +140,11 @@ fn RaftNode::handle_pre_vote(
   from : String,
   args : RequestVoteArgs,
 ) -> Array[Message] {
-  let granted = args.term > self.core.current_term() &&
+  // B3: while we still have contact with a leader (check-quorum lease), refuse
+  // to encourage a challenger, so a partitioned node that keeps timing out
+  // cannot force needless elections and inflate the term (§4.2.3 disruption).
+  let granted = !self.in_lease() &&
+    args.term > self.core.current_term() &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
   let term = if granted { args.term } else { self.core.current_term() }
   [Message::new(self.id, from, PreVoteResp({ term, vote_granted: granted }))]
@@ -164,12 +181,32 @@ fn RaftNode::handle_vote(
   from : String,
   args : RequestVoteArgs,
 ) -> Array[Message] {
+  // B3: reject a real vote too while leased to a leader (§4.2.3).
+  if self.in_lease() {
+    return [
+      Message::new(
+        self.id,
+        from,
+        VoteResp({ term: self.core.current_term(), vote_granted: false }),
+      ),
+    ]
+  }
   let reply = self.core.handle_request_vote(args)
   if reply.vote_granted {
     self.election_elapsed = 0
     self.leader_id = None
   }
   [Message::new(self.id, from, VoteResp(reply))]
+}
+
+///|
+/// Whether we are within a check-quorum lease: check-quorum is on, we currently
+/// recognise a leader, and our election timer has not yet expired. During the
+/// lease we treat the leader as alive and reject vote solicitations.
+fn RaftNode::in_lease(self : RaftNode) -> Bool {
+  self.check_quorum &&
+  self.leader_id is Some(_) &&
+  self.election_elapsed < self.election_timeout
 }
 
 ///|

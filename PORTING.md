@@ -125,9 +125,19 @@ Ported in `progress_port_wbtest.mbt`:
 
 ## raft_snap_test.go — TODO (0/5)
 
+## B3 — check-quorum leader stickiness — DONE (core)
+With check-quorum on, a server still in contact with a leader (`leader_id` set,
+election timer not expired) now rejects both vote and pre-vote solicitations, and
+a higher-term vote is refused *without* adopting the challenger's term — so a
+partitioned node cannot disrupt a stable leader or ratchet the term (§4.2.3).
+Implemented as `in_lease` + a guard in `step`'s Ahead branch and in the vote
+handlers. Tests in `checkquorum_wbtest.mbt` (reject vote, reject pre-vote, grant
+again once the lease lapses). Covers the core of etcd
+`TestLeaderSupersedingWithCheckQuorum` / `TestDisruptiveFollower`.
+
 ## raft_test.go — IMPL/TODO (0/118)
-The core file. Many need features being implemented: learners, ReadOnlySafe,
-leadTransferee state machine, confchange application. Ported incrementally.
+The core file. Remaining ones need: ReadOnlySafe, leadTransferee state machine,
+RawNode/Ready (owned by another workstream). Ported incrementally.
 
 ## node_test.go — IMPL (0/22)
 Needs the `Node`/`Ready`/`Advance` async API (RawNode layer).
