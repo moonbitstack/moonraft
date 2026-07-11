@@ -35,7 +35,12 @@ pub fn RaftNode::soft_state(self : RaftNode) -> SoftState {
 /// the application has persisted, its `unstable` tail holds what has not.
 pub struct RawNode {
   raft : RaftNode
-  log : RaftLog
+  // Mirror of the core node's durable state, kept current by `sync_log`. Rebuilt
+  // when the core installs a snapshot (see `reflect_snapshot`), so it is mutable.
+  mut log : RaftLog
+  // The per-Ready committed-entry byte budget, retained so the log can be rebuilt
+  // with the same pagination after a snapshot install.
+  max_committed : UInt64
   msgs : Array[Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
@@ -44,6 +49,11 @@ pub struct RawNode {
   // entries to local storage threads as directives rather than expecting the
   // caller to persist/apply them inline before `advance`.
   mut async_storage : Bool
+  // The snapshot baseline already reflected into `log`. When the core node's
+  // `snapshot_index` advances past this (a follower installed a leader-sent
+  // snapshot), `sync_log` rebuilds `log` on the new baseline and hands the
+  // snapshot to the unstable tail so it flows out through the next `Ready`.
+  mut reflected_snap : UInt64
 }
 
 ///|
@@ -85,11 +95,13 @@ pub fn RawNode::new_sized(
   {
     raft,
     log,
+    max_committed: max_committed_size,
     msgs: [],
     read_states: [],
     prev_soft: raft.soft_state(),
     prev_hard: node.hard_state(),
     async_storage: false,
+    reflected_snap: node.snapshot_index,
   }
 }
 
@@ -143,6 +155,19 @@ pub fn RawNode::is_async(self : RawNode) -> Bool {
 /// reports. Committed entries never change, so the scan starts just past them.
 fn RawNode::sync_log(self : RawNode) -> Unit {
   let node = self.raft.node()
+  // A snapshot the core installed since the last sync (a follower digesting a
+  // leader-sent snapshot) has discarded the core's log below its baseline. Rebuild
+  // the mirror on that baseline and hand the snapshot to the unstable tail, so it
+  // surfaces once through `Ready.snapshot` — etcd's `raftLog.restore`, which the
+  // consumer persists and then acknowledges via `stable_snap_to`.
+  if node.snapshot_index > self.reflected_snap {
+    self.reflect_snapshot({
+      last_index: node.snapshot_index,
+      last_term: node.snapshot_term,
+      data: b"",
+      conf_state: self.raft.conf_state(),
+    })
+  }
   let node_last = node.last_log_index()
   let mut i = self.log.committed() + 1
   let known_last = self.log.last_index()
@@ -172,6 +197,21 @@ fn RawNode::sync_log(self : RawNode) -> Unit {
 }
 
 ///|
+/// Rebuild the log mirror on a freshly installed snapshot baseline and place the
+/// snapshot in the unstable tail (etcd's `raftLog.restore`). Storage is reseeded
+/// to the baseline alone; any entries the core holds past it are folded back in by
+/// the caller (`sync_log`). The snapshot then flows out through one `Ready` and is
+/// cleared from the tail once the consumer persists it (`store` / `stable_snap_to`).
+fn RawNode::reflect_snapshot(self : RawNode, snap : Snapshot) -> Unit {
+  let storage = MemoryStorage::new()
+  storage.seed_snapshot(snap)
+  let log = RaftLog::new_with_size(storage, self.max_committed)
+  log.restore(snap)
+  self.log = log
+  self.reflected_snap = snap.last_index
+}
+
+///|
 /// View this server through the Ready/Advance contract. The two are the same
 /// server; the `RawNode` only batches the core's output into the cycle a real
 /// deployment drives.
@@ -183,6 +223,15 @@ pub fn RaftNode::raw(self : RaftNode) -> RawNode {
 /// The underlying core server, for reading protocol state in tests and drivers.
 pub fn RawNode::node(self : RawNode) -> RaftNode {
   self.raft
+}
+
+///|
+/// The snapshot available to be applied but not yet handed to a `Ready`, if any
+/// (etcd's `raftLog.nextUnstableSnapshot`). Reconciles with the core first, so a
+/// snapshot the core installed since the last poll is reflected into the mirror.
+pub fn RawNode::next_unstable_snapshot(self : RawNode) -> Snapshot? {
+  self.sync_log()
+  self.log.next_unstable_snapshot()
 }
 
 ///|
@@ -359,6 +408,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
   let node = self.raft.node()
   let entries = self.next_unstable()
   let committed = self.next_committed()
+  let snapshot = self.log.next_unstable_snapshot()
   let soft = self.raft.soft_state()
   let hard = node.hard_state()
   let hard_changed = hard != self.prev_hard
@@ -369,7 +419,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     // thread. The response attests the current last (index, term) — not the last
     // of `entries` — so that a response arriving after a term change is dropped
     // (see StorageAppendResp / newStorageAppendResp).
-    if entries.length() > 0 || hard_changed {
+    if entries.length() > 0 || hard_changed || snapshot is Some(_) {
       let resp : StorageAppendResp = if self.log.has_next_or_in_progress_unstable_ents() {
         let last = self.log.last_entry_id()
         { index: last.index, log_term: last.term, term: node.current_term() }
@@ -383,7 +433,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
         } else {
           None
         },
-        snapshot: None,
+        snapshot,
         resp,
       })
     }
@@ -404,7 +454,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     },
     read_states: self.read_states.copy(),
     entries,
-    snapshot: None,
+    snapshot,
     committed_entries: committed,
     messages: self.msgs.copy(),
     must_sync: must_sync(hard, self.prev_hard, entries.length()),
@@ -468,6 +518,9 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
   if !hard.is_empty() && hard != self.prev_hard {
     return true
   }
+  if self.log.has_next_unstable_snapshot() {
+    return true
+  }
   if self.msgs.length() > 0 {
     return true
   }
@@ -495,6 +548,14 @@ pub fn RawNode::store(self : RawNode, rd : Ready) -> Unit {
   }
   if rd.entries.length() != 0 {
     self.log.commit_stable(rd.entries)
+  }
+  // Persisting the snapshot to stable storage is acknowledged by dropping it from
+  // the unstable tail (etcd's `appliedSnap` -> `stableSnapTo`); the mirror's
+  // storage already carries the baseline from `reflect_snapshot`, so the tail is
+  // simply cleared and the applied cursor caught up to the snapshot index.
+  if rd.snapshot is Some(s) {
+    self.log.stable_snap_to(s.last_index)
+    self.log.applied_to(s.last_index, 0)
   }
 }
 
@@ -533,6 +594,13 @@ pub fn RawNode::step_append_resp(
     return
   }
   self.log.async_stabilize(resp.index, resp.log_term)
+  // etcd carries the snapshot on the MsgStorageAppendResp and stabilizes it there;
+  // our response does not name it, so a pending snapshot (guarded by the same
+  // non-stale term check above) is acknowledged on the append that carried it.
+  if self.log.pending_snapshot_index() is Some(idx) {
+    self.log.stable_snap_to(idx)
+    self.log.applied_to(idx, 0)
+  }
 }
 
 ///|
