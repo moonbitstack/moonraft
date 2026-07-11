@@ -205,7 +205,7 @@ pub struct RaftNode {
   config : @confchange.Membership
   progress : Map[String, @tracker.Progress]
   votes : Map[String, Bool]
-  pre_vote : Bool
+  mut pre_vote : Bool
   mut check_quorum : Bool
   mut in_pre_campaign : Bool
   mut leader_id : String?
@@ -270,6 +270,7 @@ pub fn RaftNode::report_unreachable(Self, String) -> Unit
 pub fn RaftNode::request_read_index(Self, Bytes) -> Array[@raftpb.Message]
 pub fn RaftNode::request_transfer_leader(Self, String) -> Array[@raftpb.Message]
 pub fn RaftNode::role(Self) -> Role
+pub fn RaftNode::set_pre_vote(Self, Bool) -> Unit
 pub fn RaftNode::set_read_only_option(Self, ReadOnlyOption) -> Unit
 pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
@@ -295,12 +296,14 @@ pub fn RaftStatus::describe(Self) -> String
 
 pub struct RawNode {
   raft : RaftNode
-  log : @log.RaftLog
+  mut log : @log.RaftLog
+  max_committed : UInt64
   msgs : Array[@raftpb.Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : @raftpb.HardState
   mut async_storage : Bool
+  mut reflected_snap : UInt64
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
 pub fn RawNode::apply_conf_change(Self, @confchange.ConfChange) -> Array[String]
@@ -313,6 +316,7 @@ pub fn RawNode::has_ready(Self) -> Bool
 pub fn RawNode::is_async(Self) -> Bool
 pub fn RawNode::new(RaftNode) -> Self
 pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
+pub fn RawNode::next_unstable_snapshot(Self) -> @raftpb.Snapshot?
 pub fn RawNode::node(Self) -> RaftNode
 pub fn RawNode::propose(Self, Bytes) -> Unit
 pub fn RawNode::propose_conf(Self, @confchange.ConfChange) -> Unit

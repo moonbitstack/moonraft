@@ -1,5 +1,5 @@
 // Generate docs/api.html from pkg.generated.mbti — the authoritative public
-// interface `moon info` emits, backed by the 708-test suite. Because `moon doc`
+// interface `moon info` emits, backed by the 723-test suite. Because `moon doc`
 // crashes under the repo's rr-format moon.mod (it looks for a moon.mod.json that
 // no longer exists), we render the .mbti directly instead. Run: node docs/gen-api.mjs
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -163,7 +163,7 @@ const page = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>API · raft-moonbit</title>
-    <meta name="description" content="The public API of raft-moonbit, generated from the authoritative .mbti interface — ${typeCount} types, ${methodCount} methods, ${fnCount} free functions, all backed by 708 tests." />
+    <meta name="description" content="The public API of raft-moonbit, generated from the authoritative .mbti interface — ${typeCount} types, ${methodCount} methods, ${fnCount} free functions, all backed by 723 tests." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
     <script src="assets/nav.js"></script>
@@ -186,7 +186,7 @@ const page = `<!doctype html>
         <h1 class="display" style="font-size:clamp(28px,4.6vw,46px)">The public API</h1>
         <p class="lede" style="font-size:16px">
           Generated straight from <code>pkg.generated.mbti</code> — the interface
-          <code>moon info</code> emits and the 708-test suite pins.
+          <code>moon info</code> emits and the 723-test suite pins.
           <b>${typeCount}</b> types · <b>${methodCount}</b> methods ·
           <b>${fnCount}</b> free functions.
         </p>

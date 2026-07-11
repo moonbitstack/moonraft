@@ -6,7 +6,7 @@
     <title>raft-moonbit · Raft consensus, in MoonBit</title>
     <meta
       name="description"
-      content="A production-grade Raft consensus library in MoonBit — a faithful port of etcd's raft, with 708 tests, formal safety-invariant checks, and a live in-browser demo where every node runs real WebAssembly in its own Web Worker."
+      content="A production-grade Raft consensus library in MoonBit — a faithful port of etcd's raft, with 723 tests, formal safety-invariant checks, and a live in-browser demo where every node runs real WebAssembly in its own Web Worker."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
@@ -57,7 +57,7 @@
 
         <div style="margin-top: 40px" class="badges">
           <span class="badge"><span class="dot"></span> CI <b>passing</b></span>
-          <span class="badge"><b>708</b> tests · 0 failing</span>
+          <span class="badge"><b>723</b> tests · 0 failing</span>
           <span class="badge"><b>100%</b> line &amp; branch coverage</span>
           <span class="badge">targets <b>wasm · wasm-gc · js</b></span>
           <span class="badge">mooncakes <b>Lfan-ke/raft-moonbit</b></span>
@@ -202,7 +202,7 @@
           Porting from Go was not transcription. Three independent methods —
           transliteration against the 258 upstream tests, an adversarial
           falsification audit, and a Go-versus-MoonBit differential trace —
-          surfaced <b>21 real defects</b>, each fixed under a red-then-green
+          surfaced <b>24 real defects</b>, each fixed under a red-then-green
           regression test. MoonBit's algebraic data types and exhaustive
           matching turned a class of them into compile-time-visible cases —
           including one that could elect two leaders in a single term.

@@ -69,6 +69,7 @@ pub fn RaftLog::new_with_size(&@storage.RaftStorage, UInt64) -> Self
 pub fn RaftLog::next_committed_ents(Self, Bool) -> Array[@raftpb.Entry]
 pub fn RaftLog::next_unstable_ents(Self) -> Array[@raftpb.Entry]
 pub fn RaftLog::next_unstable_snapshot(Self) -> @raftpb.Snapshot?
+pub fn RaftLog::pending_snapshot_index(Self) -> UInt64?
 pub fn RaftLog::restore(Self, @raftpb.Snapshot) -> Unit
 pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[@raftpb.Entry]) -> Unit raise) -> Unit raise
 pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
