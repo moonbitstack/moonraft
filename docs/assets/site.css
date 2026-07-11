@@ -49,7 +49,7 @@
   --surface-3: #1e2a3c;
   --border: #24324a;
   --border-strong: #35496a;
-  --ink: #e9eef6;
+  --ink: #ece8dd; /* milky off-white, gently warm — softer on the eyes than pure white */
   --ink-2: #a6b3c6;
   --ink-3: #6d7c93;
 
@@ -59,6 +59,13 @@
   --candidate: #9085e9;
   --learner: #808fa6;
   --replicate: #26b483;
+
+  /* code syntax — a calmer, lower-saturation palette than the role colours,
+     tuned for long reading against the code surface */
+  --code-comment: #7e8ba0;
+  --code-keyword: #c9b0ef;
+  --code-string: #a6d29a;
+  --code-num: #e7bd86;
 
   --good: #35c07a;
   --bad: #e66767;
@@ -71,9 +78,12 @@
     Consolas, monospace;
   --sans: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui,
     -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  /* light-reading register: YaHei UI Light where present, else HarmonyOS Light */
-  --sans-soft: "Microsoft YaHei UI", "HarmonyOS Sans SC", "PingFang SC",
-    system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* light-reading register: YaHei UI Light where present (its Light weight ships
+     under several family names depending on the OS/build, so try them all),
+     else HarmonyOS Sans SC Light via font-weight: 300 */
+  --sans-soft: "Microsoft YaHei UI Light", "MicrosoftYaHeiUILight",
+    "Microsoft YaHei UI", "微软雅黑 UI Light", "微软雅黑 UI", "HarmonyOS Sans SC",
+    "PingFang SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -101,6 +111,11 @@
   --candidate: #4a3aa7;
   --learner: #64738a;
   --replicate: #158a63;
+
+  --code-comment: #7a8698;
+  --code-keyword: #6a40b0;
+  --code-string: #2f855a;
+  --code-num: #b0791e;
 
   --good: #0a7d43;
   --bad: #cc3b3b;
@@ -481,16 +496,17 @@ pre.code {
   color: var(--ink);
 }
 pre.code .c {
-  color: var(--ink-3);
+  color: var(--code-comment);
+  font-style: italic;
 }
 pre.code .k {
-  color: var(--candidate);
+  color: var(--code-keyword);
 }
 pre.code .s {
-  color: var(--replicate);
+  color: var(--code-string);
 }
 pre.code .o {
-  color: var(--leader);
+  color: var(--code-num);
 }
 p code,
 li code,
