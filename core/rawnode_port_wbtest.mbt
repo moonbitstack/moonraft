@@ -85,6 +85,7 @@ test "TestRawNodeStep every network payload routes through Step" {
     match_index: 0,
     conflict_index: 0,
     conflict_term: 0,
+    reject_index: 0,
   }
   let snap : Snapshot = {
     last_index: 1,

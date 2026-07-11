@@ -327,6 +327,7 @@ fn enc_msg(m : Message) -> Array[Int] {
       out.push(u2i(r.match_index))
       out.push(u2i(r.conflict_index))
       out.push(u2i(r.conflict_term))
+      out.push(u2i(r.reject_index))
     }
     Heartbeat(a) => {
       out.push(7)
@@ -429,6 +430,7 @@ fn dec_msg(buf : Array[Int]) -> Message? {
           match_index: buf[5].to_uint64(),
           conflict_index: buf[6].to_uint64(),
           conflict_term: buf[7].to_uint64(),
+          reject_index: buf[8].to_uint64(),
         }),
       )
     // The codec carries only scalars, and the demo never issues a linearizable

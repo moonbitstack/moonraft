@@ -835,10 +835,22 @@ TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
   The two add-node paths also disagreed: `changer.mbt`'s `init_progress` already
   seeded the flag. `reconcile_peers` now seeds it, and the port runs green.
 
+### Ported after the reject_index field was added (0.4.1)
+- #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage:
+  `port_leader_app_resp_wbtest.mbt`. Both were PARTIAL because the AppendEntries
+  reply carried no equivalent of etcd's `MsgAppResp.Index` — the rejected probe
+  point — so the leader re-derived `rejected` as `next_index - 1` when calling
+  `maybe_decr_to`. That made the function's staleness guard (`next_index - 1 !=
+  rejected`) a tautology and thus dead code (FINDINGS_LEDGER.md #22). The reply
+  now carries `reject_index`; the leader feeds the carried value, reviving the
+  guard so a reordered reject for an entry no longer in flight is discarded
+  instead of driving a spurious back-off. TestLeaderAppResp's `{index 3, reject}`
+  row is the direct regression witness: under the old derivation it decremented
+  `next` from 3 to 2 and emitted a probe; it now moves nothing. The full
+  table-driven form of both tests is ported (four rows for #61, the complete
+  reorder sequence for #118).
+
 ### Still PORT/PARTIAL after this batch (with reasons)
-- #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage: require a
-  `reject_index` field on the AppendEntries reply (a breaking cross-segment
-  Payload wire change all segments deferred to 0.4.0). Reachable-case subset only.
 - #79 TestSlowNodeRestore / #97 TestLeaderTransferAfterSnapshot: require snapshot
   delivery through `Ready` plus a message-hook harness; this port does not flow
   snapshots through `Ready` (rd.snapshot is always None), a 2-path property.

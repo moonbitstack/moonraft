@@ -199,6 +199,8 @@ fn fast_next_append(
         match_index: 0,
         conflict_index: reject_index,
         conflict_term: reject_term,
+        // The follower echoes back the rejected probe point (next_index - 1).
+        reject_index: probe_index,
       }),
     ),
   )

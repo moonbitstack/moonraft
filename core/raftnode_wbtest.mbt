@@ -123,6 +123,7 @@ test "a stale leader steps down when it learns of a newer term" {
         match_index: 0,
         conflict_index: 0,
         conflict_term: 0,
+        reject_index: 0,
       }),
     ),
   )
