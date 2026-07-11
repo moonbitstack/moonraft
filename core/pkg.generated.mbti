@@ -413,7 +413,7 @@ pub trait Logger {
   fn log(Self, LogLevel, String) -> Unit
 }
 
-pub trait StateMachine {
+pub(open) trait StateMachine {
   fn apply(Self, Bytes) -> Unit
 }
 

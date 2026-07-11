@@ -3,7 +3,7 @@
 /// Implementors decide what each command means. Keeping this pluggable lets the
 /// same consensus core drive a key-value store, a config registry or anything
 /// else.
-pub trait StateMachine {
+pub(open) trait StateMachine {
   fn apply(Self, Bytes) -> Unit
 }
 
