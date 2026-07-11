@@ -224,7 +224,11 @@ fn RaftNode::lead_read_index(
   // A singleton leader (its only voter) has its leadership trivially confirmed,
   // so the read is answered at once against the commit index — etcd's
   // `IsSingleton` fast path, taken before the in-term-commit gate below.
-  if self.peers.length() == 0 {
+  // `IsSingleton` counts *voters* only (`len(Voters[0]) == 1 && len(Voters[1]) ==
+  // 0`), so a lone voter with learners still qualifies: learners never confirm a
+  // read, and waiting on one would let a down learner stall a read the sole voter
+  // could serve itself.
+  if self.config.size() == 1 && !self.config.is_joint() {
     return self.deliver_read({ from, index: self.core.commit_index, context })
   }
   // The read must be anchored at an index from the current term, else the commit
