@@ -38,7 +38,9 @@ test "snapshot flows through Ready then is stabilized" {
       auto_leave: false,
     },
   }
-  raw.step(Message::new("2", "1", Snapshot(InstallSnapshotArgs::whole(1, "2", snap))))
+  raw.step(
+    Message::new("2", "1", Snapshot(InstallSnapshotArgs::whole(1, "2", snap))),
+  )
   assert_true(raw.has_ready())
   let rd = raw.ready()
   assert_true(rd.snapshot is Some(_))
@@ -66,14 +68,18 @@ test "has_ready reports a pending snapshot without a state change" {
   }
   let n = RaftNode::new("2", ["1"])
   n.step(
-    Message::new("1", "2", Append({
-      term: 1,
-      leader_id: "1",
-      prev_log_index: 0,
-      prev_log_term: 0,
-      entries: [Entry::normal(1, 1, b""), Entry::normal(1, 2, b"")],
-      leader_commit: 2,
-    })),
+    Message::new(
+      "1",
+      "2",
+      Append({
+        term: 1,
+        leader_id: "1",
+        prev_log_index: 0,
+        prev_log_term: 0,
+        entries: [Entry::normal(1, 1, b""), Entry::normal(1, 2, b"")],
+        leader_commit: 2,
+      }),
+    ),
   )
   |> ignore
   let raw = n.raw()
@@ -190,15 +196,17 @@ test "TestLeaderTransferAfterSnapshot" {
   // Hold node 3's non-rejecting AppendResp — the snapshot acknowledgement — as
   // etcd's msgHook does, so the leader does not learn the transferee is caught up.
   let held : Array[Message] = []
-  net.msg_hook = Some(m => match m.payload {
-    AppendResp(r) =>
-      if m.from == "3" && r.success {
-        held.push(m)
-        false
-      } else {
-        true
-      }
-    _ => true
+  net.msg_hook = Some(m => {
+    match m.payload {
+      AppendResp(r) =>
+        if m.from == "3" && r.success {
+          held.push(m)
+          false
+        } else {
+          true
+        }
+      _ => true
+    }
   })
   // Transfer to node 3 while it still lacks the snapshot: the leader ships the
   // snapshot but, with the acknowledgement withheld, stays leader.
