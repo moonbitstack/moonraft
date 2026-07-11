@@ -2,7 +2,42 @@
    Direction: a systems-telemetry / replicated-log aesthetic. Monospace carries
    the display voice (the protocol/ledger register); role colour is functional —
    the same categorical palette the demo uses to encode Leader/Follower/
-   Candidate/Learner. Colours are the dataviz reference set, validated for CVD. */
+   Candidate/Learner. Colours are the dataviz reference set, validated for CVD.
+
+   Fonts are self-hosted and forced via @font-face: HarmonyOS Sans SC (SIL-free,
+   Latin+symbol subset) for the body, JetBrains Mono (OFL) for the protocol/code
+   voice. The light-reading register prefers Microsoft YaHei UI Light where the
+   viewer already has it (a Windows system font, not redistributed here), falling
+   back to HarmonyOS Sans SC Light. */
+
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("fonts/HarmonyOSSansSC-Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/HarmonyOSSansSC-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/JetBrainsMono-Bold.woff2") format("woff2");
+}
 
 :root {
   color-scheme: dark;
@@ -34,8 +69,11 @@
 
   --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", ui-monospace, Menlo,
     Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+  --sans: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui,
+    -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* light-reading register: YaHei UI Light where present, else HarmonyOS Light */
+  --sans-soft: "Microsoft YaHei UI", "HarmonyOS Sans SC", "PingFang SC",
+    system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -550,9 +588,127 @@ footer.site .mono {
   outline-offset: 2px;
 }
 
+/* ---- motion & depth polish ------------------------------------------------ */
+body {
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+a,
+.btn,
+.badge,
+.chip,
+.iconbtn,
+nav.links a,
+.card,
+.cell,
+.rule-accent,
+footer.site a {
+  transition: color 0.18s ease, background-color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.24s ease, transform 0.24s ease,
+    opacity 0.3s ease, filter 0.18s ease, width 0.24s ease;
+}
+
+.topbar {
+  transition: box-shadow 0.24s ease, background-color 0.24s ease;
+}
+.topbar.scrolled {
+  box-shadow: 0 10px 30px -22px rgba(0, 0, 0, 0.8);
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 28px 52px -28px rgba(0, 0, 0, 0.78);
+}
+.card:hover .rule-accent {
+  width: 42px;
+}
+
+.badge:hover {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+.btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -14px
+    color-mix(in oklab, var(--replicate) 70%, transparent);
+}
+
+/* animated underline for prose links (leaves nav / buttons / badges alone) */
+.lede a,
+.sub a,
+.card p a,
+.note a,
+footer.site a,
+table.api td a {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1.5px;
+  transition: background-size 0.26s ease, color 0.18s ease;
+}
+.lede a:hover,
+.sub a:hover,
+.card p a:hover,
+.note a:hover,
+footer.site a:hover,
+table.api td a:hover {
+  text-decoration: none;
+  background-size: 100% 1.5px;
+}
+
+/* light-reading register — the prominent intros are set in Microsoft YaHei UI
+   Light where the viewer has it, otherwise HarmonyOS Sans SC Light */
+.lede,
+.sub {
+  font-family: var(--sans-soft);
+  font-weight: 300;
+}
+
+/* a soft glow behind the hero's highlighted word */
+h1.display .hl {
+  text-shadow: 0 0 34px color-mix(in oklab, var(--leader) 42%, transparent);
+}
+
+/* scroll-progress bar (created by nav.js) */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  background: linear-gradient(
+    90deg,
+    var(--replicate),
+    var(--follower),
+    var(--leader)
+  );
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* scroll reveal — only armed once nav.js confirms JS + motion are allowed, so
+   the content is always visible if either is missing */
+.reveal-ready section.band .card {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal-ready section.band .card.in {
+  opacity: 1;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
+    transition: none !important;
     scroll-behavior: auto;
   }
 }
