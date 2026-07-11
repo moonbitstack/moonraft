@@ -29,6 +29,7 @@ fn ack_from(peer : String, index : UInt64, term : UInt64) -> Message {
       match_index: index,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
 }

@@ -70,4 +70,12 @@ pub(all) struct AppendEntriesReply {
   // findConflictByTerm jump on its own log and skip a whole run of mismatched
   // terms in one retry (Raft §5.3, two-sided).
   conflict_term : UInt64
+  /// The probe point the follower rejected, echoing back the leader's
+  /// `prev_log_index`. This is etcd's `MsgAppResp.Index` on a rejection
+  /// (raft.go:1828, `Index: m.GetIndex()`): the leader feeds it as the
+  /// `rejected` argument to `MaybeDecrTo`, whose staleness guard compares it
+  /// against `next_index - 1` so a reordered reject for an entry no longer in
+  /// flight is discarded rather than driving a spurious back-off. On success it
+  /// is 0 and carries no meaning.
+  reject_index : UInt64
 } derive(Eq)

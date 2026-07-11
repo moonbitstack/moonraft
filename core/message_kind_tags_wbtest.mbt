@@ -40,6 +40,9 @@ test "cov: a reject that cannot decrement sends nothing" {
         match_index: 0,
         conflict_index: 1,
         conflict_term: 0,
+        // The probe rejected sat at the follower's match point (next - 1 = 1);
+        // in StateReplicate `maybe_decr_to` treats `rejected <= match` as stale.
+        reject_index: 1,
       }),
     ),
   )

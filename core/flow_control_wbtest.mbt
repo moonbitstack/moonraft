@@ -33,6 +33,7 @@ fn accept_append(
       match_index: index,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
 }

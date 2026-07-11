@@ -633,7 +633,12 @@ fn RaftNode::handle_append_resp(
         // (two-sided findConflictByTerm): if it reported the term at its
         // conflict point, jump to the last leader index whose term does not
         // exceed it, skipping a whole run of superseded entries in one retry.
-        let rejected = p.next_index - 1
+        // `rejected` is the probe point the follower echoed back (etcd's
+        // `m.GetIndex()`, raft.go:1512), not a value re-derived from `next_index`:
+        // feeding the carried index lets `maybe_decr_to`'s staleness guard
+        // (`next_index - 1 != rejected`) discard a reordered reject for an entry
+        // no longer in flight instead of driving a spurious back-off.
+        let rejected = reply.reject_index
         let next_probe = if reply.conflict_term > 0 {
           let (idx, _) = self.core.find_conflict_by_term(
             reply.conflict_index,
@@ -736,6 +741,7 @@ fn RaftNode::snapshot_ack(
       match_index: index,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
 }

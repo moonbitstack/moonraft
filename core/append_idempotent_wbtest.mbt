@@ -93,6 +93,7 @@ test "message term and kind cover snapshot and timeout-now" {
       match_index: 9,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
   assert_true(sr.is_response())

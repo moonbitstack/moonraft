@@ -34,6 +34,7 @@ pub(all) struct AppendEntriesReply {
   match_index : UInt64
   conflict_index : UInt64
   conflict_term : UInt64
+  reject_index : UInt64
 } derive(Eq)
 
 pub(all) struct ConfState {

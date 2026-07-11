@@ -75,6 +75,7 @@ test "B1: stale AppendResp does not inflate progress or commit" {
       match_index: 99,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
   n.step(stale) |> ignore

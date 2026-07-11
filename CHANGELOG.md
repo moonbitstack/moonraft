@@ -3,6 +3,29 @@
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project
 adheres to semantic versioning.
 
+## [0.4.1]
+
+A single breaking wire change that completes the port of the AppendEntries
+rejection path.
+
+### Added (breaking)
+
+- **`AppendEntriesReply.reject_index`.** The reply now carries the probe point a
+  follower rejected — etcd's `MsgAppResp.Index` on a rejection (`raft.go:1828`,
+  `Index: m.GetIndex()`). Adding a field to the `pub(all)` reply struct is a
+  breaking change for any code constructing or exhaustively matching it.
+
+### Fixed
+
+- **Reordered rejections no longer drive a spurious back-off.** The leader fed
+  `maybe_decr_to` a `rejected` value re-derived as `next_index - 1` instead of
+  the index the follower actually rejected, which made that function's staleness
+  guard (`next_index - 1 != rejected`) always false — dead code. It now feeds the
+  carried `reject_index`, so a reordered reject for an entry no longer in flight
+  is discarded rather than regressing the follower's progress. Verified by ports
+  of upstream `TestLeaderAppResp` and `TestLogReplicationWithReorderedMessage`
+  (FINDINGS_LEDGER #22).
+
 ## [0.4.0]
 
 A coordinated breaking-change release: the codebase is reorganised into packages,
