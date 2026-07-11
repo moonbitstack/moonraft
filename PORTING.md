@@ -340,7 +340,7 @@ ReadOnlySafe two-mode, dueling-candidates / overwrite-newer-logs, RawNode/Ready.
 `TestCandidateStartNewElection` and `TestLeaderCommitPrecedingEntries` now ported
 in `raft_core_port_wbtest.mbt` (20/26 total).
 
-## rawnode_test.go — DONE (9/12 ported, 3 N/A; +2 benchmarks N/A)
+## rawnode_test.go — DONE (12/12 ported; +2 benchmarks N/A)
 Feature added: `rawnode.mbt` (`RawNode`), `ready.mbt` (`Ready`/`SoftState`/
 `ReadState`/`HardState` change-detection + `must_sync`), `rawnode_driver.mbt`
 (`run_single_node`). `RawNode` wraps the existing `RaftNode`: the core's
@@ -409,7 +409,7 @@ Ready, `committed_entries` in the next). Ported in `rawnode_port_wbtest.mbt`.
   buffer; `ready` drains it; `advance` does not drop a message enqueued after.
 - `BenchmarkStatus`, `BenchmarkRawNode` — **N/A** (benchmarks).
 
-## node_test.go — DONE (12/22 ported, 10 N/A)
+## node_test.go — DONE (20/22 ported, 2 N/A)
 etcd's `Node` is a goroutine loop over Go channels; `RawNode` is its documented
 goroutine-free equivalent, so protocol-level tests map directly. Ported in
 `node_port_wbtest.mbt`. Tests that assert channel/goroutine/context plumbing
@@ -788,6 +788,10 @@ Feature added: `limit_size`, `entry_encoding_size`, `ents_size`, `payload_size`,
 - Batch (snapshot-through-Ready: #79 / #97 + the wiring witness and an async
   case): **715 passed, 0 failed**, on all four backends; `moon check --deny-warn`
   clean on all four; coverage `analyze` fully covered, `summary` 3079/3079.
+- Batch (read-only close-out: #60 / #57 + the singleton-read fix): merged with the
+  pre-vote and snapshot batches on `master`, **723 passed, 0 failed** on all four
+  backends; `moon check --deny-warn` clean; coverage `analyze` fully covered,
+  `summary` **3094/3094**. `PARTIAL` / `TODO` / `PORT-pending` now zero.
 
 ## Batch (port-remaining): raft_test.go PORT/PARTIAL cleanup
 
