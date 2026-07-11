@@ -17,6 +17,7 @@
 /// quiet, agreed-upon state every later example departs from.
 ///
 ///     moon run examples/00-helloworld
+#coverage.skip
 fn main {
   let ids = ["n1", "n2", "n3", "n4", "n5"]
   let cluster = @raft.Cluster::new(ids, seed=7)

@@ -17,6 +17,7 @@
 /// same prefix - the one guarantee a replicated log exists to provide.
 ///
 ///     moon run examples/01-replicate
+#coverage.skip
 fn main {
   let ids = ["a", "b", "c"]
   let cluster = @raft.Cluster::new(ids, seed=11)

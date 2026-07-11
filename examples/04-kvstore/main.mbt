@@ -91,6 +91,23 @@ fn show(v : String?) -> String {
 }
 
 ///|
+/// Exercise the store and its command codec directly, so the sample above is
+/// covered by `moon test` without having to invoke `main`.
+test "the replicated store applies sets and deletes, and ignores anything else" {
+  let kv = KVStore::new()
+  kv.apply(kv_set("name", "raft"))
+  assert_true(kv.get("name") == Some("raft"))
+  kv.apply(kv_set("name", "echelon"))
+  assert_true(kv.get("name") == Some("echelon"))
+  kv.apply(kv_delete("name"))
+  assert_true(kv.get("name") == None)
+  kv.apply(to_wire("noop")) // neither "s" nor "d" - applied as a no-op
+  assert_true(show(kv.get("name")) == "<none>")
+  assert_true(show(Some("value")) == "value")
+}
+
+///|
+#coverage.skip
 fn main {
   let ids = ["a", "b", "c", "d", "e"]
   let cluster = @raft.Cluster::new(ids, seed=31)

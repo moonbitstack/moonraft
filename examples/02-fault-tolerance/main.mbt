@@ -18,6 +18,7 @@
 /// held through all of it.
 ///
 ///     moon run examples/02-fault-tolerance
+#coverage.skip
 fn main {
   let ids = ["a", "b", "c", "d", "e"]
   let cluster = @raft.Cluster::new(ids, seed=5)

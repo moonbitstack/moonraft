@@ -18,6 +18,7 @@
 /// snapshot, and turn on check-quorum.
 ///
 ///     moon run examples/03-operations
+#coverage.skip
 fn main {
   let ids = ["a", "b", "c"]
   let cluster = @raft.Cluster::new(ids, seed=9)
