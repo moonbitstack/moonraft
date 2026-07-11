@@ -21,6 +21,11 @@
 pub fn RaftNode::quorum_active(self : RaftNode) -> Bool {
   let acked : Array[String] = [self.id]
   for peer, p in self.progress {
+    // The leader itself is always counted (added above); skip its own tracked
+    // entry so it is not counted twice now that it appears in the progress map.
+    if peer == self.id {
+      continue
+    }
     if p.is_active() {
       acked.push(peer)
     }

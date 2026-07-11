@@ -850,19 +850,40 @@ TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
   table-driven form of both tests is ported (four rows for #61, the complete
   reorder sequence for #118).
 
+### Group C batch: #113 / #114 / #1 / #39 now DONE
+- #113/#114 TestPreVoteMigrationCanCompleteElection /
+  TestPreVoteMigrationWithFreeStuckPreCandidate — DONE. `RaftNode.pre_vote` is now
+  a mutable field with a `set_pre_vote` setter, so a mixed-version cluster can
+  enable pre-vote replica by replica (etcd sets `r.preVote` directly in
+  `newPreVoteMigrationCluster`). Both cases ported over the FIFO net harness in
+  `port_prevote_migration_wbtest.mbt`, including the stuck-pre-candidate free via a
+  lower-term heartbeat answered with the higher term. The stale higher-term
+  pre-candidate stays stuck because the majority's rejections carry *their* lower
+  term and are dropped as stale (`on_stale`), exactly as etcd's term filter does.
+- #1 TestProgressLeader — DONE. `become_leader` now seeds the leader's own entry in
+  the progress map (etcd's `reset()` sets `trk.Progress[selfID].Match = lastIndex`,
+  then `becomeLeader` calls `BecomeReplicate` on it). etcd self-acks its own appends
+  through `msgsAfterAppend` (AsyncStorageWrites); this port appends synchronously,
+  so a new `self_ack` folds each leader self-append into its own progress in place
+  (become_leader / step_propose / maybe_append_auto_leave). `maybe_commit` sets the
+  leader's acked index after the progress sweep so the stored self entry never
+  undercounts the quorum; `progress_status` and `quorum_active` skip the stored self
+  entry to avoid double-counting the synthesised one. Test in
+  `port_progress_leader_wbtest.mbt`.
+- #39 TestRecvMsgPreVote — DONE, source bug fixed (FINDINGS_LEDGER #23).
+  `handle_pre_vote` granted only on a strictly-higher term, missing the two
+  same-term clauses of etcd's `canVote` (already voted for this candidate; or no
+  vote and no recognised leader). Fixed to mirror `canVote`; `TestRecvMsgVote` /
+  `TestRecvMsgPreVote` ported as one shared table in `port_recv_vote_wbtest.mbt`.
+  The real-vote path (`handle_vote` → `handle_request_vote`) already matched for the
+  table's rows (all have `lead == None`), which `TestRecvMsgVote` witnesses.
+
 ### Still PORT/PARTIAL after this batch (with reasons)
 - #79 TestSlowNodeRestore / #97 TestLeaderTransferAfterSnapshot: require snapshot
   delivery through `Ready` plus a message-hook harness; this port does not flow
   snapshots through `Ready` (rd.snapshot is always None), a 2-path property.
 - #60 TestReadOnlyDuplicateRequest: requires a message-delay/duplicate hook the
   FIFO harness does not model.
-- #113/#114 TestPreVoteMigration*: require a node's `pre_vote` to flip mid-test
-  (mixed-version rolling restart); `RaftNode.pre_vote` is not a mutable field.
-- #1 TestProgressLeader: requires the leader to appear in its own progress map
-  plus async self-ack (2-path/AsyncStorageWrites), both source-level.
-- #39 TestRecvMsgPreVote: the synthetic equal-term pre-vote grant needs review
-  (`handle_pre_vote` grants only on strictly-higher term); left PARTIAL pending a
-  divergence determination.
 - #57 TestReadOnlyWithLearner: portable but needs a read-index injection harness;
   not built this batch.
 
