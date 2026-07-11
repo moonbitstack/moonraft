@@ -12,7 +12,7 @@
 
 **[▶ Live demo](https://lfan-ke.github.io/raft-moonbit/demo.html)** · **[Docs](https://lfan-ke.github.io/raft-moonbit/)** · **[API](https://lfan-ke.github.io/raft-moonbit/api.html)** · **[Quickstart](https://lfan-ke.github.io/raft-moonbit/quickstart.html)**
 
-<a href="https://lfan-ke.github.io/raft-moonbit/"><img src="docs/site-home-dark.png" alt="raft-moonbit" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/"><img src="docs/site-home.png" alt="raft-moonbit" width="860"></a>
 
 </div>
 
