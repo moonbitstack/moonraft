@@ -785,6 +785,9 @@ Feature added: `limit_size`, `entry_encoding_size`, `ents_size`, `payload_size`,
   test` cannot run in this environment (missing C toolchain header `stddef.h`),
   which also fails identically on the untouched `master` baseline — an
   environment limitation, not a code regression.
+- Batch (snapshot-through-Ready: #79 / #97 + the wiring witness and an async
+  case): **715 passed, 0 failed**, on all four backends; `moon check --deny-warn`
+  clean on all four; coverage `analyze` fully covered, `summary` 3079/3079.
 
 ## Batch (port-remaining): raft_test.go PORT/PARTIAL cleanup
 
@@ -850,10 +853,34 @@ TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
   table-driven form of both tests is ported (four rows for #61, the complete
   reorder sequence for #118).
 
+## Batch (snapshot-through-Ready): #79 / #97 closed — DONE
+
+Root cause closed: `Ready.snapshot` was always `None`; a leader-sent snapshot the
+core installs synchronously never surfaced through the driver's Ready/Advance
+cycle. `RawNode` now mirrors etcd's `rawnode.go:156`: `sync_log` detects a snapshot
+the core installed since the last poll and hands it to the log mirror's unstable
+tail (`reflect_snapshot` = etcd's `raftLog.restore`), `ready_without_accept` fills
+`rd.snapshot` from `next_unstable_snapshot`, and `store` / `step_append_resp`
+acknowledge it with `stable_snap_to` (etcd's `appliedSnap`). Under async writes the
+snapshot rides the `StorageAppend` directive. Ported in
+`port_snapshot_ready_wbtest.mbt`; the `Net` harness gained an optional `msg_hook`.
+
+- #79 TestSlowNodeRestore — DONE. Ported on the `Net` harness: a node isolated
+  while the leader compacts past it is restored by a snapshot and rejoins the
+  commit quorum (asserts the recovered follower's commit index catches the
+  leader's). This assertion is core-level (no Ready), so it is green independent of
+  the wiring above; the wiring is what #97 needs.
+- #97 TestLeaderTransferAfterSnapshot — DONE. A transfer to a node that must first
+  be snapshot-caught-up stalls while the transferee's snapshot ack is withheld
+  (`msg_hook`), the snapshot reaches the transferee through its Ready
+  (`RawNode::next_unstable_snapshot`, wrapping the same core node the `Net` drives),
+  and the transfer completes once the snapshot is applied and the ack replayed.
+- Direct red→green witness: `snapshot flows through Ready then is stabilized` —
+  under the pre-wiring source `rd.snapshot` is `None` and the test fails at
+  `rd.snapshot is Some(_)`; with the wiring it carries the installed snapshot and is
+  withdrawn after `store`/`advance`.
+
 ### Still PORT/PARTIAL after this batch (with reasons)
-- #79 TestSlowNodeRestore / #97 TestLeaderTransferAfterSnapshot: require snapshot
-  delivery through `Ready` plus a message-hook harness; this port does not flow
-  snapshots through `Ready` (rd.snapshot is always None), a 2-path property.
 - #60 TestReadOnlyDuplicateRequest: requires a message-delay/duplicate hook the
   FIFO harness does not model.
 - #113/#114 TestPreVoteMigration*: require a node's `pre_vote` to flip mid-test
