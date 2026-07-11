@@ -403,6 +403,14 @@ pub fn RaftLog::stable_snap_to(self : RaftLog, i : UInt64) -> Unit {
 }
 
 ///|
+/// The index of the snapshot still held in the unstable tail, if any (whether or
+/// not its write is in progress). Used to acknowledge a snapshot made durable
+/// under async storage writes, where the append response does not name it.
+pub fn RaftLog::pending_snapshot_index(self : RaftLog) -> UInt64? {
+  self.unstable.snapshot.map(s => s.last_index)
+}
+
+///|
 /// Mark the current unstable entries and snapshot as being written.
 pub fn RaftLog::accept_unstable(self : RaftLog) -> Unit {
   self.unstable.accept_in_progress()
