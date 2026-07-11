@@ -12,7 +12,7 @@
 
 **[▶ Live demo](https://lfan-ke.github.io/raft-moonbit/demo.html)** · **[Docs](https://lfan-ke.github.io/raft-moonbit/)** · **[API](https://lfan-ke.github.io/raft-moonbit/api.html)** · **[Quickstart](https://lfan-ke.github.io/raft-moonbit/quickstart.html)**
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-home.png" alt="raft-moonbit home page - 'A cluster that stays in agreement - even when it shouldn't', a faithful MoonBit port of etcd's raft with 100% line and branch coverage" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-home.png" alt="raft-moonbit home page - 'A cluster that stays in agreement - even when it shouldn't', a faithful MoonBit port of etcd's raft, with a live cluster snapshot and replicated log" width="860"></a>
 
 <sub><em>The project home - a faithful MoonBit port of etcd's raft. Click through to the live, in-browser demo.</em></sub>
 
@@ -90,7 +90,7 @@ Together they surfaced **24 correctness defects** in the consensus, log and stor
 
 Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to **WebAssembly**, ticks on its own wall-clock timer, and talks to peers only by `postMessage`. The main thread is the network — drop packets, add delay, **split** the cluster, **isolate** or **crash** the leader — and it holds no Raft state of its own. Elections race, messages reorder, nothing about the schedule is deterministic; a panel re-checks the safety invariants (*one leader per term*, *committed prefixes agree*) on every frame.
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
 
 Click **Split 2 | 3** and you can watch two nodes lead *different* terms at once - and **Election Safety still holds**, because two leaders only contradict Raft if they share a term, and the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
