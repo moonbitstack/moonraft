@@ -28,7 +28,11 @@ pub struct RaftNode {
   config : Membership
   progress : Map[String, Progress]
   votes : Map[String, Bool]
-  pre_vote : Bool
+  // Whether this server runs the pre-vote probe before a real election (etcd's
+  // Config.PreVote). Mutable so a mixed-version cluster can flip it mid-run, as a
+  // rolling restart enables pre-vote replica by replica (etcd sets `r.preVote`
+  // directly in newPreVoteMigrationCluster).
+  mut pre_vote : Bool
   mut check_quorum : Bool
   mut in_pre_campaign : Bool
   mut leader_id : String?
@@ -340,6 +344,14 @@ pub fn RaftNode::enable_check_quorum(self : RaftNode) -> Unit {
 }
 
 ///|
+/// Enable or disable the pre-vote probe at runtime (etcd sets `r.preVote`
+/// directly). A mixed-version rolling restart flips replicas one at a time, so a
+/// cluster momentarily runs some nodes with pre-vote and some without.
+pub fn RaftNode::set_pre_vote(self : RaftNode, on : Bool) -> Unit {
+  self.pre_vote = on
+}
+
+///|
 /// Stand down to follower in the current term, e.g. on losing quorum contact.
 fn RaftNode::step_down(self : RaftNode) -> Unit {
   self.core.become_follower(self.core.current_term())
@@ -432,6 +444,17 @@ fn RaftNode::start_real_campaign(
 }
 
 ///|
+/// Fold the leader's own freshly-appended entries into its progress. etcd has the
+/// leader self-ack via a self-directed MsgAppResp queued in msgsAfterAppend; this
+/// port appends synchronously, so the ack is applied in place after every leader
+/// append. A no-op on a node that does not track itself (i.e. not a leader).
+fn RaftNode::self_ack(self : RaftNode) -> Unit {
+  if self.progress.get(self.id) is Some(p) {
+    p.maybe_update(self.core.last_log_index()) |> ignore
+  }
+}
+
+///|
 /// Take leadership: initialise per-follower progress, then append a no-op entry
 /// under the new term. Committing that entry commits everything before it,
 /// which is how a new leader safely learns its true commit index (Raft §5.4.2).
@@ -449,6 +472,20 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
   // to lastIndex here, before appending the no-op below). For a fresh leader with
   // an empty log this is 0, so the first conf change is allowed at once.
   self.pending_conf_index = last
+  // etcd's reset() seeds every follower's progress at match 0 / next last+1, but
+  // the leader's own entry at its last index, already streaming (becomeLeader
+  // then calls pr.BecomeReplicate on it). The leader tracks itself in the same
+  // progress map because it must self-ack its own appends — it sends no MsgApp to
+  // itself — so `maybe_commit` counts the leader's stored log like any voter's.
+  let self_pr = Progress::new(
+    last + 1,
+    max_inflight=self.max_inflight,
+    max_inflight_bytes=self.max_inflight_bytes,
+  )
+  self_pr.match_index = last
+  self_pr.become_replicate()
+  self_pr.recent_active = true
+  self.progress[self.id] = self_pr
   for p in self.peers {
     self.progress[p] = Progress::new(
       last + 1,
@@ -457,6 +494,10 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
     )
   }
   let _ = self.core.append(self.core.current_term(), b"")
+  // Self-ack the no-op just appended. etcd routes this through msgsAfterAppend as
+  // a self-directed MsgAppResp delivered once the entry is durable; this port
+  // appends synchronously, so the leader acks itself in place.
+  self.self_ack()
   // Like etcd's reset() on every state change, re-randomize the election
   // timeout and clear the timers.
   self.reset_timeout()
@@ -803,10 +844,13 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     // itself included, at its last index). In a joint configuration this is the
     // smaller of the two halves' agreed indices.
     let acked : Map[String, UInt64] = {}
-    acked[self.id] = self.core.last_log_index()
     for peer, p in self.progress {
       acked[peer] = p.match_index
     }
+    // The leader stores up to its last index regardless of what its own
+    // (self-acked) progress records, so set it after the loop rather than let a
+    // stale self entry undercount the quorum index.
+    acked[self.id] = self.core.last_log_index()
     let mci = self.config.committed_index(acked)
     // §5.4.2: a leader only commits an index whose entry is from its own term;
     // since terms are monotonic in the log, no lower current-term index can be
@@ -927,6 +971,8 @@ fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
       self.core.current_term(),
       ConfChangeV2::leave_joint().encode(),
     )
+    // Self-ack the auto-appended leave, as with any leader self-append.
+    self.self_ack()
     // The auto-appended leave is itself now the pending change, so no other
     // conf change is proposed until it applies (etcd tracks pendingConfIndex for
     // the automatic transition too).
@@ -1042,6 +1088,11 @@ pub fn RaftNode::progress_status(self : RaftNode) -> Array[ProgressStatus] {
     })
   }
   for id, p in self.progress {
+    // The leader's own entry is synthesised above (always fully caught up), so
+    // skip its stored progress here to avoid listing it twice.
+    if id == self.id {
+      continue
+    }
     out.push(progress_status_of(id, p))
   }
   out
