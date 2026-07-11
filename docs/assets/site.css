@@ -276,10 +276,16 @@ nav.links a.active {
   color: var(--ink);
   border-color: var(--border-strong);
 }
-/* the theme-toggle glyph, enlarged to ~1.3x without growing the button */
+/* the theme-toggle glyph, sized to match the burger icon (24px); the button's
+   vertical padding is trimmed so it does not grow much taller than before */
 .iconbtn .tgl-icon {
-  font-size: 1.3em;
+  font-size: 24px;
   line-height: 1;
+  vertical-align: -0.18em;
+}
+.iconbtn[data-theme-toggle] {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 /* the burger only does something once the nav collapses, so it is desktop-hidden
    (no dead button on PC) and its glyph is sized up where it does appear */
