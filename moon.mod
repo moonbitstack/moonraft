@@ -1,6 +1,6 @@
 name = "Lfan-ke/raft-moonbit"
 
-version = "0.3.0"
+version = "0.4.1"
 
 readme = "README.md"
 

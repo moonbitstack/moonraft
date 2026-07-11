@@ -78,6 +78,7 @@ test "responses are recognised" {
       match_index: 3,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
   assert_true(r.is_response())

@@ -211,6 +211,10 @@ fn RaftNode::step_propose(
           self.core.append(self.core.current_term(), e.command) |> ignore
         }
       }
+      // Self-ack the appended tail before committing, as etcd's leader self-acks
+      // its own writes (it sends no MsgApp to itself); the leader's own progress
+      // must reflect its stored log for `maybe_commit` to count it.
+      self.self_ack()
       self.maybe_commit() |> ignore
       self.bcast_append()
     }
@@ -328,11 +332,20 @@ fn RaftNode::handle_pre_vote(
   from : String,
   args : RequestVoteArgs,
 ) -> Array[Message] {
+  // etcd's `canVote` (raft.go:1214) governs pre-votes as well as real votes: a
+  // node may (pre)vote when it has already voted for this candidate, or when it
+  // has neither voted nor recognised a leader this term, or — the pre-vote-only
+  // clause — when the solicitation is for a strictly future term. The first two
+  // clauses grant a pre-vote at the *same* term, which the earlier port missed by
+  // requiring a strictly higher term outright (FINDINGS_LEDGER #23).
+  let can_vote = self.core.voted_for == Some(from) ||
+    (self.core.voted_for == None && self.leader_id == None) ||
+    args.term > self.core.current_term()
   // B3: while we still have contact with a leader (check-quorum lease), refuse
   // to encourage a challenger, so a partitioned node that keeps timing out
   // cannot force needless elections and inflate the term (§4.2.3 disruption).
   let granted = !self.in_lease() &&
-    args.term > self.core.current_term() &&
+    can_vote &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
   let term = if granted { args.term } else { self.core.current_term() }
   [Message::new(self.id, from, PreVoteResp({ term, vote_granted: granted }))]
@@ -633,7 +646,12 @@ fn RaftNode::handle_append_resp(
         // (two-sided findConflictByTerm): if it reported the term at its
         // conflict point, jump to the last leader index whose term does not
         // exceed it, skipping a whole run of superseded entries in one retry.
-        let rejected = p.next_index - 1
+        // `rejected` is the probe point the follower echoed back (etcd's
+        // `m.GetIndex()`, raft.go:1512), not a value re-derived from `next_index`:
+        // feeding the carried index lets `maybe_decr_to`'s staleness guard
+        // (`next_index - 1 != rejected`) discard a reordered reject for an entry
+        // no longer in flight instead of driving a spurious back-off.
+        let rejected = reply.reject_index
         let next_probe = if reply.conflict_term > 0 {
           let (idx, _) = self.core.find_conflict_by_term(
             reply.conflict_index,
@@ -736,6 +754,7 @@ fn RaftNode::snapshot_ack(
       match_index: index,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }),
   )
 }

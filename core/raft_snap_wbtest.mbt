@@ -79,6 +79,8 @@ test "TestSendingSnapshotSetPendingSnapshot" {
         match_index: 0,
         conflict_index: 1,
         conflict_term: 0,
+        // The follower rejected the probe at prev_log_index = next_index - 1 = 11.
+        reject_index: 11,
       }),
     ),
   )

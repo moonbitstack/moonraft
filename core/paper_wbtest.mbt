@@ -243,6 +243,7 @@ test "TestLeaderStartReplication" {
           match_index: 1,
           conflict_index: 0,
           conflict_term: 0,
+          reject_index: 0,
         }),
       ),
     )
@@ -287,6 +288,7 @@ test "TestLeaderCommitEntry" {
         match_index: li + 1,
         conflict_index: 0,
         conflict_term: 0,
+        reject_index: 0,
       }),
     ),
   )
@@ -332,6 +334,7 @@ test "TestLeaderAcknowledgeCommit" {
             match_index: li + 1,
             conflict_index: 0,
             conflict_term: 0,
+            reject_index: 0,
           }),
         ),
       )
@@ -577,6 +580,7 @@ test "TestLeaderOnlyCommitsLogFromCurrentTerm" {
           match_index: ack_index,
           conflict_index: 0,
           conflict_term: 0,
+          reject_index: 0,
         }),
       ),
     )

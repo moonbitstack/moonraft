@@ -147,7 +147,7 @@ test "an inbound append is decoded, stored, and shows in the log" {
     ),
   )
   // The follower's AppendResp is queued for the router.
-  inspect(wnode_drain(), content="[[6,2,1,1,1,2,0,0]]")
+  inspect(wnode_drain(), content="[[6,2,1,1,1,2,0,0,0]]")
 }
 
 ///|
@@ -245,6 +245,7 @@ test "codec round-trips an AppendResp in both success states" {
     match_index: 7,
     conflict_index: 0,
     conflict_term: 0,
+    reject_index: 0,
   }
   match rt(Message::new("S2", "S1", AppendResp(ok))) {
     AppendResp(got) => assert_true(got == ok)
@@ -256,6 +257,7 @@ test "codec round-trips an AppendResp in both success states" {
     match_index: 0,
     conflict_index: 4,
     conflict_term: 2,
+    reject_index: 5,
   }
   match rt(Message::new("S2", "S1", AppendResp(rej))) {
     AppendResp(got) => assert_true(got == rej)

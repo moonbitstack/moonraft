@@ -24,6 +24,10 @@ struct Net {
   cuts : Map[String, Bool]
   // Payload kinds (Message::kind) that are dropped in flight.
   ignored : Map[String, Bool]
+  // A per-message filter (etcd's `newNetwork().msgHook`): return false to drop the
+  // message in flight, so a test can hold a specific reply back and replay it
+  // later. `None` passes everything through.
+  mut msg_hook : ((Message) -> Bool)?
 }
 
 ///|
@@ -33,7 +37,7 @@ fn Net::new(ids : Array[String], pre_vote? : Bool = false) -> Net {
     let peers = ids.filter(fn(x) { x != id })
     nodes[id] = RaftNode::new(id, peers, seed=(i + 1).to_uint64(), pre_vote~)
   }
-  { nodes, cuts: {}, ignored: {} }
+  { nodes, cuts: {}, ignored: {}, msg_hook: None }
 }
 
 ///|
@@ -102,6 +106,9 @@ fn Net::deliver(self : Net, initial : Array[Message]) -> Unit {
     let m = q[i]
     i = i + 1
     if self.blocked(m) {
+      continue
+    }
+    if self.msg_hook is Some(h) && !h(m) {
       continue
     }
     match self.nodes.get(m.to) {

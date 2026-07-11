@@ -49,12 +49,16 @@ pub fn Node::handle_append_entries(
   args : AppendEntriesArgs,
 ) -> AppendEntriesReply {
   if args.term < self.current_term {
+    // etcd answers a stale MsgApp with a bare MsgAppResp (raft.go:1157): no
+    // reject hint and `Index` unset, its only purpose being to reveal our term
+    // so the superseded leader steps down. `reject_index` is therefore 0.
     return {
       term: self.current_term,
       success: false,
       match_index: 0,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }
   }
   // A legitimate leader whose term is at least ours: adopt the term and step
@@ -75,6 +79,7 @@ pub fn Node::handle_append_entries(
       match_index: self.commit_index,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }
   }
   // Log matching: accept only if our log holds an entry at `prev_log_index`
@@ -95,6 +100,7 @@ pub fn Node::handle_append_entries(
       match_index: last_new,
       conflict_index: 0,
       conflict_term: 0,
+      reject_index: 0,
     }
   }
   // Rejection: hint the leader with the highest (index, term) at or below the
@@ -106,12 +112,15 @@ pub fn Node::handle_append_entries(
     self.last_log_index()
   }
   let (ci, ct) = self.find_conflict_by_term(hint, args.prev_log_term)
+  // etcd echoes the rejected probe point back as `MsgAppResp.Index`
+  // (raft.go:1828), which the leader feeds to `MaybeDecrTo` as `rejected`.
   {
     term: self.current_term,
     success: false,
     match_index: 0,
     conflict_index: ci,
     conflict_term: ct,
+    reject_index: args.prev_log_index,
   }
 }
 

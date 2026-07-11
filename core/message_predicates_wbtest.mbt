@@ -80,6 +80,7 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     match_index: 0,
     conflict_index: 0,
     conflict_term: 0,
+    reject_index: 0,
   }
   let snap_args : InstallSnapshotArgs = {
     term: 1,
@@ -130,6 +131,7 @@ test "TestIsResponseMsg" {
     match_index: 0,
     conflict_index: 0,
     conflict_term: 0,
+    reject_index: 0,
   }
   let snap_args : InstallSnapshotArgs = {
     term: 1,

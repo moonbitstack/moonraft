@@ -785,6 +785,9 @@ Feature added: `limit_size`, `entry_encoding_size`, `ents_size`, `payload_size`,
   test` cannot run in this environment (missing C toolchain header `stddef.h`),
   which also fails identically on the untouched `master` baseline — an
   environment limitation, not a code regression.
+- Batch (snapshot-through-Ready: #79 / #97 + the wiring witness and an async
+  case): **715 passed, 0 failed**, on all four backends; `moon check --deny-warn`
+  clean on all four; coverage `analyze` fully covered, `summary` 3079/3079.
 
 ## Batch (port-remaining): raft_test.go PORT/PARTIAL cleanup
 
@@ -835,24 +838,108 @@ TestLeaderElection and #49 TestLeaderStepdownWhenQuorumLost.
   The two add-node paths also disagreed: `changer.mbt`'s `init_progress` already
   seeded the flag. `reconcile_peers` now seeds it, and the port runs green.
 
-### Still PORT/PARTIAL after this batch (with reasons)
-- #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage: require a
-  `reject_index` field on the AppendEntries reply (a breaking cross-segment
-  Payload wire change all segments deferred to 0.4.0). Reachable-case subset only.
-- #79 TestSlowNodeRestore / #97 TestLeaderTransferAfterSnapshot: require snapshot
-  delivery through `Ready` plus a message-hook harness; this port does not flow
-  snapshots through `Ready` (rd.snapshot is always None), a 2-path property.
-- #60 TestReadOnlyDuplicateRequest: requires a message-delay/duplicate hook the
-  FIFO harness does not model.
-- #113/#114 TestPreVoteMigration*: require a node's `pre_vote` to flip mid-test
-  (mixed-version rolling restart); `RaftNode.pre_vote` is not a mutable field.
-- #1 TestProgressLeader: requires the leader to appear in its own progress map
-  plus async self-ack (2-path/AsyncStorageWrites), both source-level.
-- #39 TestRecvMsgPreVote: the synthetic equal-term pre-vote grant needs review
-  (`handle_pre_vote` grants only on strictly-higher term); left PARTIAL pending a
-  divergence determination.
-- #57 TestReadOnlyWithLearner: portable but needs a read-index injection harness;
-  not built this batch.
+### Ported after the reject_index field was added (0.4.1)
+- #61 TestLeaderAppResp / #118 TestLogReplicationWithReorderedMessage:
+  `port_leader_app_resp_wbtest.mbt`. Both were PARTIAL because the AppendEntries
+  reply carried no equivalent of etcd's `MsgAppResp.Index` — the rejected probe
+  point — so the leader re-derived `rejected` as `next_index - 1` when calling
+  `maybe_decr_to`. That made the function's staleness guard (`next_index - 1 !=
+  rejected`) a tautology and thus dead code (FINDINGS_LEDGER.md #22). The reply
+  now carries `reject_index`; the leader feeds the carried value, reviving the
+  guard so a reordered reject for an entry no longer in flight is discarded
+  instead of driving a spurious back-off. TestLeaderAppResp's `{index 3, reject}`
+  row is the direct regression witness: under the old derivation it decremented
+  `next` from 3 to 2 and emitted a probe; it now moves nothing. The full
+  table-driven form of both tests is ported (four rows for #61, the complete
+  reorder sequence for #118).
+
+### Group C batch: #113 / #114 / #1 / #39 now DONE
+- #113/#114 TestPreVoteMigrationCanCompleteElection /
+  TestPreVoteMigrationWithFreeStuckPreCandidate — DONE. `RaftNode.pre_vote` is now
+  a mutable field with a `set_pre_vote` setter, so a mixed-version cluster can
+  enable pre-vote replica by replica (etcd sets `r.preVote` directly in
+  `newPreVoteMigrationCluster`). Both cases ported over the FIFO net harness in
+  `port_prevote_migration_wbtest.mbt`, including the stuck-pre-candidate free via a
+  lower-term heartbeat answered with the higher term. The stale higher-term
+  pre-candidate stays stuck because the majority's rejections carry *their* lower
+  term and are dropped as stale (`on_stale`), exactly as etcd's term filter does.
+- #1 TestProgressLeader — DONE. `become_leader` now seeds the leader's own entry in
+  the progress map (etcd's `reset()` sets `trk.Progress[selfID].Match = lastIndex`,
+  then `becomeLeader` calls `BecomeReplicate` on it). etcd self-acks its own appends
+  through `msgsAfterAppend` (AsyncStorageWrites); this port appends synchronously,
+  so a new `self_ack` folds each leader self-append into its own progress in place
+  (become_leader / step_propose / maybe_append_auto_leave). `maybe_commit` sets the
+  leader's acked index after the progress sweep so the stored self entry never
+  undercounts the quorum; `progress_status` and `quorum_active` skip the stored self
+  entry to avoid double-counting the synthesised one. Test in
+  `port_progress_leader_wbtest.mbt`.
+- #39 TestRecvMsgPreVote — DONE, source bug fixed (FINDINGS_LEDGER #23).
+  `handle_pre_vote` granted only on a strictly-higher term, missing the two
+  same-term clauses of etcd's `canVote` (already voted for this candidate; or no
+  vote and no recognised leader). Fixed to mirror `canVote`; `TestRecvMsgVote` /
+  `TestRecvMsgPreVote` ported as one shared table in `port_recv_vote_wbtest.mbt`.
+  The real-vote path (`handle_vote` → `handle_request_vote`) already matched for the
+  table's rows (all have `lead == None`), which `TestRecvMsgVote` witnesses.
+
+## Batch (snapshot-through-Ready): #79 / #97 closed — DONE
+
+Root cause closed: `Ready.snapshot` was always `None`; a leader-sent snapshot the
+core installs synchronously never surfaced through the driver's Ready/Advance
+cycle. `RawNode` now mirrors etcd's `rawnode.go:156`: `sync_log` detects a snapshot
+the core installed since the last poll and hands it to the log mirror's unstable
+tail (`reflect_snapshot` = etcd's `raftLog.restore`), `ready_without_accept` fills
+`rd.snapshot` from `next_unstable_snapshot`, and `store` / `step_append_resp`
+acknowledge it with `stable_snap_to` (etcd's `appliedSnap`). Under async writes the
+snapshot rides the `StorageAppend` directive. Ported in
+`port_snapshot_ready_wbtest.mbt`; the `Net` harness gained an optional `msg_hook`.
+
+- #79 TestSlowNodeRestore — DONE. Ported on the `Net` harness: a node isolated
+  while the leader compacts past it is restored by a snapshot and rejoins the
+  commit quorum (asserts the recovered follower's commit index catches the
+  leader's). This assertion is core-level (no Ready), so it is green independent of
+  the wiring above; the wiring is what #97 needs.
+- #97 TestLeaderTransferAfterSnapshot — DONE. A transfer to a node that must first
+  be snapshot-caught-up stalls while the transferee's snapshot ack is withheld
+  (`msg_hook`), the snapshot reaches the transferee through its Ready
+  (`RawNode::next_unstable_snapshot`, wrapping the same core node the `Net` drives),
+  and the transfer completes once the snapshot is applied and the ack replayed.
+- Direct red→green witness: `snapshot flows through Ready then is stabilized` —
+  under the pre-wiring source `rd.snapshot` is `None` and the test fails at
+  `rd.snapshot is Some(_)`; with the wiring it carries the installed snapshot and is
+  withdrawn after `store`/`advance`.
+
+## Batch (read-only close-out): #60 / #57 now DONE — PARTIAL count is zero
+
+The two remaining read-only PARTIALs are closed; the census has no PORT/PARTIAL
+rows left.
+
+- #57 TestReadOnlyWithLearner — DONE, source bug fixed (FINDINGS_LEDGER.md #24).
+  The read-index singleton fast path gated on `self.peers.length() == 0`, but
+  etcd's `IsSingleton` counts *voters only* (`len(Voters[0]) == 1 &&
+  len(Voters[1]) == 0`). A lone voter with a learner therefore missed the fast
+  path and, in ReadOnlySafe mode, broadcast a heartbeat and waited for the
+  learner to ack before confirming the read — a liveness bug, since a down
+  learner could stall a read the sole voter can serve itself. Fixed to
+  `self.config.size() == 1 && not(self.config.is_joint())` (etcd's IsSingleton).
+  Red→green witness: `port_read_only_learner_wbtest.mbt` — pre-fix the single
+  voter + learner confirms no read (0 read states); post-fix it answers at once at
+  the commit index. The "read-index injection harness" the prior note called for
+  was unnecessary: `propose_conf(add_learner)` builds the voter+learner config
+  directly and `request_read_index` drives the read, no harness.
+- #60 TestReadOnlyDuplicateRequest — DONE, no source change. The prior note said
+  it "requires a message-delay/duplicate hook the FIFO harness does not model";
+  that reason is obsolete — the `Net` harness gained `msg_hook` in the
+  snapshot-through-Ready batch, which models exactly the delay-and-replay this
+  test needs, and duplication is just re-injecting the saved message. Ported in
+  `port_read_only_duplicate_wbtest.mbt` over `Net`: elect r1, forward a follower's
+  ReadIndex(A) while holding its heartbeat responses back (and duplicating the
+  request), isolate r1, elect r2 and commit, read B on the stale r1, then recover
+  and replay the duplicate + delayed heartbeats. The linearizability invariant —
+  no confirmed read index below the commit index it was issued against — holds
+  green, which is what the position-counter `readOnly` design was introduced to
+  guarantee. The test asserts A is actually confirmed (non-vacuity). The earlier
+  context-collision defect that motivated etcd's refactor already has its own
+  red→green witness (`read_only_rewrite_wbtest.mbt`, FINDINGS-tracked).
 
 ## Breaking change (0.4.0): log-read error narrowed to `LogCompacted`
 
