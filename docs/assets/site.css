@@ -397,6 +397,10 @@ h1.display .caret {
 .btn.primary:hover {
   filter: brightness(1.06);
 }
+/* the light-mode green is dark, so the primary button needs milky text on it */
+:root[data-theme="light"] .btn.primary {
+  color: #f3efe7;
+}
 
 /* ---- ledger signature ----------------------------------------------------- */
 .ledger {
