@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>rpc.mbt &mdash; </title>
+    <meta name="description" content="100.00% coverage in raftpb\rpc.mbt">
+    <link rel="stylesheet" href="..\coverage.css"/>
+    <script src="..\highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <div id="header">
+      <h1>
+        <a href="..\index.html">
+          <span class="dirname">raftpb\</span>rpc.mbt
+        </a>
+      </h1>
+      <h2>100.00%</h2>
+    </div>
+    <div id="navbar">
+    </div>
+    <div id="report">
+      <div id="lines-layer">
+        <pre>
+<a id="L1"></a><span > </span>
+<a id="L2"></a><span > </span>
+<a id="L3"></a><span > </span>
+<a id="L4"></a><span > </span>
+<a id="L5"></a><span > </span>
+<a id="L6"></a><span > </span>
+<a id="L7"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span > </span>
+<a id="L10"></a><span > </span>
+<a id="L11"></a><span > </span>
+<a id="L12"></a><span > </span>
+<a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
+<a id="L15"></a><span > </span>
+<a id="L16"></a><span > </span>
+<a id="L17"></a><span > </span>
+<a id="L18"></a><span > </span>
+<a id="L19"></a><span > </span>
+<a id="L20"></a><span > </span>
+<a id="L21"></a><span > </span>
+<a id="L22"></a><span > </span>
+<a id="L23"></a><span > </span>
+<a id="L24"></a><span > </span>
+<a id="L25"></a><span > </span>
+<a id="L26"></a><span > </span>
+<a id="L27"></a><span > </span>
+<a id="L28"></a><span > </span>
+<a id="L29"></a><span > </span>
+<a id="L30"></a><span > </span>
+<a id="L31"></a><span > </span>
+<a id="L32"></a><span > </span>
+<a id="L33"></a><span > </span>
+<a id="L34"></a><span > </span>
+<a id="L35"></a><span > </span>
+<a id="L36"></a><span > </span>
+<a id="L37"></a><span > </span>
+<a id="L38"></a><span > </span>
+<a id="L39"></a><span > </span>
+<a id="L40"></a><span > </span>
+<a id="L41"></a><span > </span>
+<a id="L42"></a><span > </span>
+<a id="L43"></a><span > </span>
+<a id="L44"></a><span > </span>
+<a id="L45"></a><span > </span>
+<a id="L46"></a><span > </span>
+<a id="L47"></a><span > </span>
+<a id="L48"></a><span > </span>
+<a id="L49"></a><span > </span>
+<a id="L50"></a><span > </span>
+<a id="L51"></a><span > </span>
+<a id="L52"></a><span > </span>
+<a id="L53"></a><span > </span>
+<a id="L54"></a><span > </span>
+<a id="L55"></a><span > </span>
+<a id="L56"></a><span > </span>
+<a id="L57"></a><span > </span>
+<a id="L58"></a><span > </span>
+<a id="L59"></a><span > </span>
+<a id="L60"></a><span > </span>
+<a id="L61"></a><span > </span>
+<a id="L62"></a><span > </span>
+<a id="L63"></a><span > </span>
+<a id="L64"></a><span > </span>
+<a id="L65"></a><span > </span>
+<a id="L66"></a><span > </span>
+<a id="L67"></a><span > </span>
+<a id="L68"></a><span > </span>
+<a id="L69"></a><span > </span>
+<a id="L70"></a><span > </span>
+<a id="L71"></a><span > </span>
+<a id="L72"></a><span > </span>
+<a id="L73"></a><span > </span>
+<a id="L74"></a><span > </span>
+<a id="L75"></a><span > </span>
+<a id="L76"></a><span > </span>
+<a id="L77"></a><span > </span>
+<a id="L78"></a><span > </span>
+<a id="L79"></a><span > </span>
+<a id="L80"></a><span > </span>
+<a id="L81"></a><span > </span>
+</pre>
+      </div>
+      <div id="text-layer">
+        <pre id="line-numbers">
+<a href="#L1"> 1</a>
+<a href="#L2"> 2</a>
+<a href="#L3"> 3</a>
+<a href="#L4"> 4</a>
+<a href="#L5"> 5</a>
+<a href="#L6"> 6</a>
+<a href="#L7"> 7</a>
+<a href="#L8"> 8</a>
+<a href="#L9"> 9</a>
+<a href="#L10">10</a>
+<a href="#L11">11</a>
+<a href="#L12">12</a>
+<a href="#L13">13</a>
+<a href="#L14">14</a>
+<a href="#L15">15</a>
+<a href="#L16">16</a>
+<a href="#L17">17</a>
+<a href="#L18">18</a>
+<a href="#L19">19</a>
+<a href="#L20">20</a>
+<a href="#L21">21</a>
+<a href="#L22">22</a>
+<a href="#L23">23</a>
+<a href="#L24">24</a>
+<a href="#L25">25</a>
+<a href="#L26">26</a>
+<a href="#L27">27</a>
+<a href="#L28">28</a>
+<a href="#L29">29</a>
+<a href="#L30">30</a>
+<a href="#L31">31</a>
+<a href="#L32">32</a>
+<a href="#L33">33</a>
+<a href="#L34">34</a>
+<a href="#L35">35</a>
+<a href="#L36">36</a>
+<a href="#L37">37</a>
+<a href="#L38">38</a>
+<a href="#L39">39</a>
+<a href="#L40">40</a>
+<a href="#L41">41</a>
+<a href="#L42">42</a>
+<a href="#L43">43</a>
+<a href="#L44">44</a>
+<a href="#L45">45</a>
+<a href="#L46">46</a>
+<a href="#L47">47</a>
+<a href="#L48">48</a>
+<a href="#L49">49</a>
+<a href="#L50">50</a>
+<a href="#L51">51</a>
+<a href="#L52">52</a>
+<a href="#L53">53</a>
+<a href="#L54">54</a>
+<a href="#L55">55</a>
+<a href="#L56">56</a>
+<a href="#L57">57</a>
+<a href="#L58">58</a>
+<a href="#L59">59</a>
+<a href="#L60">60</a>
+<a href="#L61">61</a>
+<a href="#L62">62</a>
+<a href="#L63">63</a>
+<a href="#L64">64</a>
+<a href="#L65">65</a>
+<a href="#L66">66</a>
+<a href="#L67">67</a>
+<a href="#L68">68</a>
+<a href="#L69">69</a>
+<a href="#L70">70</a>
+<a href="#L71">71</a>
+<a href="#L72">72</a>
+<a href="#L73">73</a>
+<a href="#L74">74</a>
+<a href="#L75">75</a>
+<a href="#L76">76</a>
+<a href="#L77">77</a>
+<a href="#L78">78</a>
+<a href="#L79">79</a>
+<a href="#L80">80</a>
+<a href="#L81">81</a>
+</pre>
+<pre><code class="ocaml">///|
+/// Arguments for the RequestVote RPC (Raft §5.2), sent by a candidate to
+/// gather votes for the term it is standing in.
+pub(all) struct RequestVoteArgs {
+  term : UInt64
+  candidate_id : String
+  last_log_index : UInt64
+  last_log_term : UInt64
+} derive(Eq)
+
+///|
+/// Reply to a RequestVote RPC. `term` lets a stale candidate discover it has
+/// been superseded; `vote_granted` is true when the vote was given.
+pub(all) struct RequestVoteReply {
+  term : UInt64
+  vote_granted : Bool
+} derive(Eq)
+
+///|
+/// Arguments for the Heartbeat RPC (Raft §5.2): a leader's periodic liveness
+/// beat. It carries no entries — only the leader's `commit` index (capped at
+/// what the follower is known to hold) so a follower can advance its commit
+/// index between AppendEntries. Modelling it as a distinct message (rather than
+/// an empty AppendEntries) lets the leader treat a heartbeat acknowledgement as
+/// pure liveness, separate from log-matching.
+pub(all) struct HeartbeatArgs {
+  term : UInt64
+  leader_id : String
+  commit : UInt64
+  // An opaque read-index context echoed back by the follower, used by the
+  // ReadOnlySafe path to confirm leadership with a fresh quorum round-trip
+  // (Raft §6.4). Empty for an ordinary liveness beat.
+  context : Bytes
+} derive(Eq)
+
+///|
+/// Reply to a Heartbeat RPC: the follower's term and the read-index context it
+/// is acknowledging (echoed verbatim).
+pub(all) struct HeartbeatReply {
+  term : UInt64
+  context : Bytes
+} derive(Eq)
+
+///|
+/// Arguments for the AppendEntries RPC (Raft §5.3), used by the leader both
+/// to replicate log entries and, with an empty `entries`, as a heartbeat.
+pub(all) struct AppendEntriesArgs {
+  term : UInt64
+  leader_id : String
+  prev_log_index : UInt64
+  prev_log_term : UInt64
+  entries : Array[Entry]
+  leader_commit : UInt64
+} derive(Eq)
+
+///|
+/// Reply to an AppendEntries RPC. `success` is true when the follower's log
+/// contained a matching entry at `prev_log_index` and the entries were stored.
+/// On success `match_index` is the highest index the follower now agrees on, so
+/// the leader can advance its progress without guessing. On rejection
+/// `conflict_index` is a hint at where the two logs diverge, letting the leader
+/// back off in one jump instead of decrementing nextIndex one entry at a time
+/// (the optimization sketched in Raft §5.3).
+pub(all) struct AppendEntriesReply {
+  term : UInt64
+  success : Bool
+  match_index : UInt64
+  conflict_index : UInt64
+  // The term at `conflict_index` (0 if unknown), so the leader can run the same
+  // findConflictByTerm jump on its own log and skip a whole run of mismatched
+  // terms in one retry (Raft §5.3, two-sided).
+  conflict_term : UInt64
+  /// The probe point the follower rejected, echoing back the leader's
+  /// `prev_log_index`. This is etcd's `MsgAppResp.Index` on a rejection
+  /// (raft.go:1828, `Index: m.GetIndex()`): the leader feeds it as the
+  /// `rejected` argument to `MaybeDecrTo`, whose staleness guard compares it
+  /// against `next_index - 1` so a reordered reject for an entry no longer in
+  /// flight is discarded rather than driving a spurious back-off. On success it
+  /// is 0 and carries no meaning.
+  reject_index : UInt64
+} derive(Eq)
+</code></pre>
+      </div>
+    </div>
+    <script src="..\coverage.js"></script>
+  </body>
+</html>

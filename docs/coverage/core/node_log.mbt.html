@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>node_log.mbt &mdash; </title>
+    <meta name="description" content="100.00% coverage in core\node_log.mbt">
+    <link rel="stylesheet" href="..\coverage.css"/>
+    <script src="..\highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <div id="header">
+      <h1>
+        <a href="..\index.html">
+          <span class="dirname">core\</span>node_log.mbt
+        </a>
+      </h1>
+      <h2>100.00%</h2>
+    </div>
+    <div id="navbar">
+    </div>
+    <div id="report">
+      <div id="lines-layer">
+        <pre>
+<a id="L1"></a><span > </span>
+<a id="L2"></a><span > </span>
+<a id="L3"></a><span > </span>
+<a id="L4"></a><span > </span>
+<a id="L5"></a><span > </span>
+<a id="L6"></a><span > </span>
+<a id="L7"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span > </span>
+<a id="L10"></a><span > </span>
+<a id="L11"></a><span > </span>
+<a id="L12"></a><span > </span>
+<a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
+<a id="L15"></a><span > </span>
+<a id="L16"></a><span > </span>
+<a id="L17"></a><span > </span>
+<a id="L18"></a><span > </span>
+<a id="L19"></a><span > </span>
+<a id="L20"></a><span class="visited"> </span>
+<a id="L21"></a><span > </span>
+<a id="L22"></a><span class="visited"> </span>
+<a id="L23"></a><span > </span>
+<a id="L24"></a><span class="visited"> </span>
+<a id="L25"></a><span > </span>
+<a id="L26"></a><span > </span>
+<a id="L27"></a><span > </span>
+<a id="L28"></a><span > </span>
+<a id="L29"></a><span > </span>
+<a id="L30"></a><span > </span>
+<a id="L31"></a><span > </span>
+<a id="L32"></a><span class="visited"> </span>
+<a id="L33"></a><span > </span>
+<a id="L34"></a><span class="visited"> </span>
+<a id="L35"></a><span > </span>
+<a id="L36"></a><span class="visited"> </span>
+<a id="L37"></a><span > </span>
+<a id="L38"></a><span > </span>
+<a id="L39"></a><span > </span>
+<a id="L40"></a><span > </span>
+<a id="L41"></a><span > </span>
+<a id="L42"></a><span > </span>
+<a id="L43"></a><span > </span>
+<a id="L44"></a><span class="visited"> </span>
+<a id="L45"></a><span > </span>
+<a id="L46"></a><span > </span>
+<a id="L47"></a><span > </span>
+<a id="L48"></a><span > </span>
+<a id="L49"></a><span > </span>
+<a id="L50"></a><span > </span>
+<a id="L51"></a><span class="visited"> </span>
+<a id="L52"></a><span class="visited"> </span>
+<a id="L53"></a><span > </span>
+<a id="L54"></a><span > </span>
+<a id="L55"></a><span > </span>
+<a id="L56"></a><span > </span>
+<a id="L57"></a><span > </span>
+<a id="L58"></a><span > </span>
+<a id="L59"></a><span > </span>
+<a id="L60"></a><span > </span>
+<a id="L61"></a><span class="visited"> </span>
+<a id="L62"></a><span class="visited"> </span>
+<a id="L63"></a><span > </span>
+<a id="L64"></a><span > </span>
+<a id="L65"></a><span > </span>
+<a id="L66"></a><span > </span>
+<a id="L67"></a><span > </span>
+<a id="L68"></a><span > </span>
+<a id="L69"></a><span > </span>
+<a id="L70"></a><span class="visited"> </span>
+<a id="L71"></a><span class="visited"> </span>
+<a id="L72"></a><span > </span>
+<a id="L73"></a><span class="visited"> </span>
+<a id="L74"></a><span > </span>
+<a id="L75"></a><span > </span>
+<a id="L76"></a><span > </span>
+<a id="L77"></a><span > </span>
+<a id="L78"></a><span > </span>
+<a id="L79"></a><span > </span>
+<a id="L80"></a><span > </span>
+<a id="L81"></a><span > </span>
+<a id="L82"></a><span class="visited"> </span>
+<a id="L83"></a><span class="visited"> </span>
+<a id="L84"></a><span class="visited"> </span>
+<a id="L85"></a><span class="visited"> </span>
+<a id="L86"></a><span > </span>
+<a id="L87"></a><span class="visited"> </span>
+<a id="L88"></a><span > </span>
+<a id="L89"></a><span > </span>
+<a id="L90"></a><span > </span>
+<a id="L91"></a><span > </span>
+<a id="L92"></a><span > </span>
+<a id="L93"></a><span > </span>
+<a id="L94"></a><span > </span>
+<a id="L95"></a><span class="visited"> </span>
+<a id="L96"></a><span class="visited"> </span>
+<a id="L97"></a><span > </span>
+<a id="L98"></a><span > </span>
+<a id="L99"></a><span class="visited"> </span>
+<a id="L100"></a><span class="visited"> </span>
+<a id="L101"></a><span > </span>
+<a id="L102"></a><span > </span>
+<a id="L103"></a><span > </span>
+<a id="L104"></a><span > </span>
+<a id="L105"></a><span > </span>
+<a id="L106"></a><span > </span>
+<a id="L107"></a><span > </span>
+<a id="L108"></a><span > </span>
+<a id="L109"></a><span > </span>
+<a id="L110"></a><span > </span>
+<a id="L111"></a><span > </span>
+<a id="L112"></a><span > </span>
+<a id="L113"></a><span > </span>
+<a id="L114"></a><span > </span>
+<a id="L115"></a><span > </span>
+<a id="L116"></a><span class="visited"> </span>
+<a id="L117"></a><span class="visited"> </span>
+<a id="L118"></a><span > </span>
+<a id="L119"></a><span class="visited"> </span>
+<a id="L120"></a><span class="visited"> </span>
+<a id="L121"></a><span class="visited"> </span>
+<a id="L122"></a><span > </span>
+<a id="L123"></a><span > </span>
+<a id="L124"></a><span > </span>
+<a id="L125"></a><span > </span>
+<a id="L126"></a><span > </span>
+</pre>
+      </div>
+      <div id="text-layer">
+        <pre id="line-numbers">
+<a href="#L1">  1</a>
+<a href="#L2">  2</a>
+<a href="#L3">  3</a>
+<a href="#L4">  4</a>
+<a href="#L5">  5</a>
+<a href="#L6">  6</a>
+<a href="#L7">  7</a>
+<a href="#L8">  8</a>
+<a href="#L9">  9</a>
+<a href="#L10"> 10</a>
+<a href="#L11"> 11</a>
+<a href="#L12"> 12</a>
+<a href="#L13"> 13</a>
+<a href="#L14"> 14</a>
+<a href="#L15"> 15</a>
+<a href="#L16"> 16</a>
+<a href="#L17"> 17</a>
+<a href="#L18"> 18</a>
+<a href="#L19"> 19</a>
+<a href="#L20"> 20</a>
+<a href="#L21"> 21</a>
+<a href="#L22"> 22</a>
+<a href="#L23"> 23</a>
+<a href="#L24"> 24</a>
+<a href="#L25"> 25</a>
+<a href="#L26"> 26</a>
+<a href="#L27"> 27</a>
+<a href="#L28"> 28</a>
+<a href="#L29"> 29</a>
+<a href="#L30"> 30</a>
+<a href="#L31"> 31</a>
+<a href="#L32"> 32</a>
+<a href="#L33"> 33</a>
+<a href="#L34"> 34</a>
+<a href="#L35"> 35</a>
+<a href="#L36"> 36</a>
+<a href="#L37"> 37</a>
+<a href="#L38"> 38</a>
+<a href="#L39"> 39</a>
+<a href="#L40"> 40</a>
+<a href="#L41"> 41</a>
+<a href="#L42"> 42</a>
+<a href="#L43"> 43</a>
+<a href="#L44"> 44</a>
+<a href="#L45"> 45</a>
+<a href="#L46"> 46</a>
+<a href="#L47"> 47</a>
+<a href="#L48"> 48</a>
+<a href="#L49"> 49</a>
+<a href="#L50"> 50</a>
+<a href="#L51"> 51</a>
+<a href="#L52"> 52</a>
+<a href="#L53"> 53</a>
+<a href="#L54"> 54</a>
+<a href="#L55"> 55</a>
+<a href="#L56"> 56</a>
+<a href="#L57"> 57</a>
+<a href="#L58"> 58</a>
+<a href="#L59"> 59</a>
+<a href="#L60"> 60</a>
+<a href="#L61"> 61</a>
+<a href="#L62"> 62</a>
+<a href="#L63"> 63</a>
+<a href="#L64"> 64</a>
+<a href="#L65"> 65</a>
+<a href="#L66"> 66</a>
+<a href="#L67"> 67</a>
+<a href="#L68"> 68</a>
+<a href="#L69"> 69</a>
+<a href="#L70"> 70</a>
+<a href="#L71"> 71</a>
+<a href="#L72"> 72</a>
+<a href="#L73"> 73</a>
+<a href="#L74"> 74</a>
+<a href="#L75"> 75</a>
+<a href="#L76"> 76</a>
+<a href="#L77"> 77</a>
+<a href="#L78"> 78</a>
+<a href="#L79"> 79</a>
+<a href="#L80"> 80</a>
+<a href="#L81"> 81</a>
+<a href="#L82"> 82</a>
+<a href="#L83"> 83</a>
+<a href="#L84"> 84</a>
+<a href="#L85"> 85</a>
+<a href="#L86"> 86</a>
+<a href="#L87"> 87</a>
+<a href="#L88"> 88</a>
+<a href="#L89"> 89</a>
+<a href="#L90"> 90</a>
+<a href="#L91"> 91</a>
+<a href="#L92"> 92</a>
+<a href="#L93"> 93</a>
+<a href="#L94"> 94</a>
+<a href="#L95"> 95</a>
+<a href="#L96"> 96</a>
+<a href="#L97"> 97</a>
+<a href="#L98"> 98</a>
+<a href="#L99"> 99</a>
+<a href="#L100">100</a>
+<a href="#L101">101</a>
+<a href="#L102">102</a>
+<a href="#L103">103</a>
+<a href="#L104">104</a>
+<a href="#L105">105</a>
+<a href="#L106">106</a>
+<a href="#L107">107</a>
+<a href="#L108">108</a>
+<a href="#L109">109</a>
+<a href="#L110">110</a>
+<a href="#L111">111</a>
+<a href="#L112">112</a>
+<a href="#L113">113</a>
+<a href="#L114">114</a>
+<a href="#L115">115</a>
+<a href="#L116">116</a>
+<a href="#L117">117</a>
+<a href="#L118">118</a>
+<a href="#L119">119</a>
+<a href="#L120">120</a>
+<a href="#L121">121</a>
+<a href="#L122">122</a>
+<a href="#L123">123</a>
+<a href="#L124">124</a>
+<a href="#L125">125</a>
+<a href="#L126">126</a>
+</pre>
+<pre><code class="ocaml">// Copyright 2015 The etcd Authors
+// Copyright 2026 Leo Cheng
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+///|
+/// The index of the last entry in the log, or the snapshot baseline when the
+/// log is empty (0 on a fresh node).
+pub fn Node::last_log_index(self : Node) -&gt; UInt64 {
+  <span data-count="224185">l</span>et n = self.log.<span data-count="224185">l</span>ength()
+  if n == 0 {
+    <span data-count="5601">s</span>elf.snapshot_index
+  } else {
+    <span data-count="218584">s</span>elf.log[n - 1].index
+  }
+}
+
+///|
+/// The term of the last entry in the log, or the snapshot baseline term when
+/// the log is empty (0 on a fresh node).
+pub fn Node::last_log_term(self : Node) -&gt; UInt64 {
+  <span data-count="4543">l</span>et n = self.log.<span data-count="4543">l</span>ength()
+  if n == 0 {
+    <span data-count="4146">s</span>elf.snapshot_term
+  } else {
+    <span data-count="397">s</span>elf.log[n - 1].term
+  }
+}
+
+///|
+/// The number of entries physically held in memory (those after the snapshot
+/// baseline). Useful for compaction bookkeeping and tests.
+pub fn Node::log_len(self : Node) -&gt; Int {
+  <span data-count="1">s</span>elf.log.<span data-count="1">l</span>ength()
+}
+
+///|
+/// Append a command to the log under `term`, returning the newly stored entry.
+/// The new entry takes the next sequential index.
+pub fn Node::append(self : Node, term : UInt64, command : Bytes) -&gt; Entry {
+  <span data-count="3294">l</span>et entry = <span data-count="3294">E</span>ntry::normal(term, self.<span data-count="3294">l</span>ast_log_index() + 1, command)
+  self.log.<span data-count="3294">p</span>ush(entry)
+  entry
+}
+
+///|
+/// Append a configuration-change command to the log under `term`. Membership
+/// changes travel through the log like any other entry so that every server
+/// adopts them at the same point in the sequence (Raft §6).
+pub fn Node::append_conf(self : Node, term : UInt64, command : Bytes) -&gt; Entry {
+  <span data-count="63">l</span>et entry = <span data-count="63">E</span>ntry::conf(term, self.<span data-count="63">l</span>ast_log_index() + 1, command)
+  self.log.<span data-count="63">p</span>ush(entry)
+  entry
+}
+
+///|
+/// Fetch the entry at absolute `index`, or `None` when it is at or before the
+/// snapshot baseline or past the end of the log.
+pub fn Node::entry_at(self : Node, index : UInt64) -&gt; Entry? {
+  <span data-count="7340">i</span>f index &lt;= self.snapshot_index || index &gt; self.<span data-count="7224">l</span>ast_log_index() {
+    <span data-count="122">N</span>one
+  } else {
+    <span data-count="7218">S</span>ome(self.log[(index - self.snapshot_index - 1).<span data-count="7218">t</span>o_int()])
+  }
+}
+
+///|
+/// The term of the entry at `index`, or 0 when `index` is 0 (the empty
+/// position before the first entry) or past the end of the log. Used by the
+/// log-matching consistency check.
+pub fn Node::term_at(self : Node, index : UInt64) -&gt; UInt64 {
+  <span data-count="9176">i</span>f index == self.snapshot_index {
+    <span data-count="656">s</span>elf.snapshot_term
+  } else <span data-count="8520">i</span>f index &lt;= self.snapshot_index || index &gt; self.<span data-count="8514">l</span>ast_log_index() {
+    <span data-count="7">0</span>
+  } else {
+    <span data-count="8513">s</span>elf.log[(index - self.snapshot_index - 1).<span data-count="8513">t</span>o_int()].term
+  }
+}
+
+///|
+/// Every entry strictly after absolute `index`, in order. The leader uses this
+/// to assemble the payload of an AppendEntries that repairs a lagging follower.
+pub fn Node::entries_after(self : Node, index : UInt64) -&gt; Array[Entry] {
+  <span data-count="4284">l</span>et out : Array[Entry] = []
+  let last = self.<span data-count="4284">l</span>ast_log_index()
+  let mut i = index
+  while i &lt; last {
+    <span data-count="3157">i</span>f self.<span data-count="3157">e</span>ntry_at(i + 1) is Some(e) {
+      <span data-count="3155">o</span>ut.<span data-count="3155">p</span>ush(e)
+    }
+    i = i + 1
+  }
+  out
+}
+
+///|
+/// At most `max` entries strictly after absolute `index`, in order. A leader
+/// caps the size of an AppendEntries with this so a badly lagging follower is
+/// caught up over several bounded messages instead of one huge one.
+pub fn Node::entries_after_limited(
+  self : Node,
+  index : UInt64,
+  max : UInt64,
+) -&gt; Array[Entry] {
+  <span data-count="6">l</span>et out : Array[Entry] = []
+  let last = self.<span data-count="6">l</span>ast_log_index()
+  let mut i = index
+  while i &lt; last &amp;&amp; out.<span data-count="16">l</span>ength().<span data-count="16">t</span>o_uint64() &lt; max {
+    <span data-count="14">i</span>f self.<span data-count="14">e</span>ntry_at(i + 1) is Some(e) {
+      <span data-count="12">o</span>ut.<span data-count="12">p</span>ush(e)
+    }
+    i = i + 1
+  }
+  out
+}
+</code></pre>
+      </div>
+    </div>
+    <script src="..\coverage.js"></script>
+  </body>
+</html>

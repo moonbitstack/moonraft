@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>rawnode.mbt &mdash; </title>
+    <meta name="description" content="100.00% coverage in core\rawnode.mbt">
+    <link rel="stylesheet" href="..\coverage.css"/>
+    <script src="..\highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <div id="header">
+      <h1>
+        <a href="..\index.html">
+          <span class="dirname">core\</span>rawnode.mbt
+        </a>
+      </h1>
+      <h2>100.00%</h2>
+    </div>
+    <div id="navbar">
+    </div>
+    <div id="report">
+      <div id="lines-layer">
+        <pre>
+<a id="L1"></a><span > </span>
+<a id="L2"></a><span > </span>
+<a id="L3"></a><span > </span>
+<a id="L4"></a><span > </span>
+<a id="L5"></a><span > </span>
+<a id="L6"></a><span > </span>
+<a id="L7"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span > </span>
+<a id="L10"></a><span > </span>
+<a id="L11"></a><span > </span>
+<a id="L12"></a><span > </span>
+<a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
+<a id="L15"></a><span > </span>
+<a id="L16"></a><span > </span>
+<a id="L17"></a><span > </span>
+<a id="L18"></a><span > </span>
+<a id="L19"></a><span > </span>
+<a id="L20"></a><span class="visited"> </span>
+<a id="L21"></a><span > </span>
+<a id="L22"></a><span > </span>
+<a id="L23"></a><span > </span>
+<a id="L24"></a><span > </span>
+<a id="L25"></a><span > </span>
+<a id="L26"></a><span > </span>
+<a id="L27"></a><span > </span>
+<a id="L28"></a><span > </span>
+<a id="L29"></a><span > </span>
+<a id="L30"></a><span > </span>
+<a id="L31"></a><span > </span>
+<a id="L32"></a><span > </span>
+<a id="L33"></a><span > </span>
+<a id="L34"></a><span > </span>
+<a id="L35"></a><span > </span>
+<a id="L36"></a><span > </span>
+<a id="L37"></a><span > </span>
+<a id="L38"></a><span > </span>
+<a id="L39"></a><span > </span>
+<a id="L40"></a><span > </span>
+<a id="L41"></a><span > </span>
+<a id="L42"></a><span > </span>
+<a id="L43"></a><span > </span>
+<a id="L44"></a><span > </span>
+<a id="L45"></a><span > </span>
+<a id="L46"></a><span > </span>
+<a id="L47"></a><span > </span>
+<a id="L48"></a><span > </span>
+<a id="L49"></a><span > </span>
+<a id="L50"></a><span > </span>
+<a id="L51"></a><span > </span>
+<a id="L52"></a><span > </span>
+<a id="L53"></a><span > </span>
+<a id="L54"></a><span > </span>
+<a id="L55"></a><span > </span>
+<a id="L56"></a><span > </span>
+<a id="L57"></a><span > </span>
+<a id="L58"></a><span > </span>
+<a id="L59"></a><span > </span>
+<a id="L60"></a><span > </span>
+<a id="L61"></a><span > </span>
+<a id="L62"></a><span > </span>
+<a id="L63"></a><span > </span>
+<a id="L64"></a><span > </span>
+<a id="L65"></a><span > </span>
+<a id="L66"></a><span > </span>
+<a id="L67"></a><span class="visited"> </span>
+<a id="L68"></a><span > </span>
+<a id="L69"></a><span > </span>
+<a id="L70"></a><span > </span>
+<a id="L71"></a><span > </span>
+<a id="L72"></a><span > </span>
+<a id="L73"></a><span > </span>
+<a id="L74"></a><span > </span>
+<a id="L75"></a><span > </span>
+<a id="L76"></a><span > </span>
+<a id="L77"></a><span > </span>
+<a id="L78"></a><span > </span>
+<a id="L79"></a><span class="visited"> </span>
+<a id="L80"></a><span class="visited"> </span>
+<a id="L81"></a><span > </span>
+<a id="L82"></a><span > </span>
+<a id="L83"></a><span > </span>
+<a id="L84"></a><span > </span>
+<a id="L85"></a><span class="visited"> </span>
+<a id="L86"></a><span > </span>
+<a id="L87"></a><span > </span>
+<a id="L88"></a><span > </span>
+<a id="L89"></a><span class="visited"> </span>
+<a id="L90"></a><span > </span>
+<a id="L91"></a><span > </span>
+<a id="L92"></a><span class="visited"> </span>
+<a id="L93"></a><span class="visited"> </span>
+<a id="L94"></a><span class="visited"> </span>
+<a id="L95"></a><span > </span>
+<a id="L96"></a><span > </span>
+<a id="L97"></a><span > </span>
+<a id="L98"></a><span > </span>
+<a id="L99"></a><span > </span>
+<a id="L100"></a><span > </span>
+<a id="L101"></a><span class="visited"> </span>
+<a id="L102"></a><span class="visited"> </span>
+<a id="L103"></a><span > </span>
+<a id="L104"></a><span > </span>
+<a id="L105"></a><span > </span>
+<a id="L106"></a><span > </span>
+<a id="L107"></a><span > </span>
+<a id="L108"></a><span > </span>
+<a id="L109"></a><span > </span>
+<a id="L110"></a><span > </span>
+<a id="L111"></a><span > </span>
+<a id="L112"></a><span > </span>
+<a id="L113"></a><span > </span>
+<a id="L114"></a><span > </span>
+<a id="L115"></a><span class="visited"> </span>
+<a id="L116"></a><span > </span>
+<a id="L117"></a><span > </span>
+<a id="L118"></a><span > </span>
+<a id="L119"></a><span > </span>
+<a id="L120"></a><span > </span>
+<a id="L121"></a><span > </span>
+<a id="L122"></a><span > </span>
+<a id="L123"></a><span > </span>
+<a id="L124"></a><span > </span>
+<a id="L125"></a><span > </span>
+<a id="L126"></a><span class="visited"> </span>
+<a id="L127"></a><span > </span>
+<a id="L128"></a><span > </span>
+<a id="L129"></a><span > </span>
+<a id="L130"></a><span > </span>
+<a id="L131"></a><span > </span>
+<a id="L132"></a><span > </span>
+<a id="L133"></a><span > </span>
+<a id="L134"></a><span > </span>
+<a id="L135"></a><span > </span>
+<a id="L136"></a><span > </span>
+<a id="L137"></a><span > </span>
+<a id="L138"></a><span > </span>
+<a id="L139"></a><span class="visited"> </span>
+<a id="L140"></a><span > </span>
+<a id="L141"></a><span > </span>
+<a id="L142"></a><span > </span>
+<a id="L143"></a><span > </span>
+<a id="L144"></a><span > </span>
+<a id="L145"></a><span > </span>
+<a id="L146"></a><span > </span>
+<a id="L147"></a><span class="visited"> </span>
+<a id="L148"></a><span > </span>
+<a id="L149"></a><span > </span>
+<a id="L150"></a><span > </span>
+<a id="L151"></a><span > </span>
+<a id="L152"></a><span > </span>
+<a id="L153"></a><span > </span>
+<a id="L154"></a><span > </span>
+<a id="L155"></a><span > </span>
+<a id="L156"></a><span > </span>
+<a id="L157"></a><span class="visited"> </span>
+<a id="L158"></a><span > </span>
+<a id="L159"></a><span > </span>
+<a id="L160"></a><span > </span>
+<a id="L161"></a><span > </span>
+<a id="L162"></a><span > </span>
+<a id="L163"></a><span > </span>
+<a id="L164"></a><span class="visited"> </span>
+<a id="L165"></a><span > </span>
+<a id="L166"></a><span > </span>
+<a id="L167"></a><span > </span>
+<a id="L168"></a><span class="visited"> </span>
+<a id="L169"></a><span > </span>
+<a id="L170"></a><span > </span>
+<a id="L171"></a><span class="visited"> </span>
+<a id="L172"></a><span class="visited"> </span>
+<a id="L173"></a><span class="visited"> </span>
+<a id="L174"></a><span > </span>
+<a id="L175"></a><span class="visited"> </span>
+<a id="L176"></a><span class="visited"> </span>
+<a id="L177"></a><span > </span>
+<a id="L178"></a><span > </span>
+<a id="L179"></a><span > </span>
+<a id="L180"></a><span > </span>
+<a id="L181"></a><span class="visited"> </span>
+<a id="L182"></a><span > </span>
+<a id="L183"></a><span class="visited"> </span>
+<a id="L184"></a><span class="visited"> </span>
+<a id="L185"></a><span > </span>
+<a id="L186"></a><span class="visited"> </span>
+<a id="L187"></a><span > </span>
+<a id="L188"></a><span class="visited"> </span>
+<a id="L189"></a><span > </span>
+<a id="L190"></a><span > </span>
+<a id="L191"></a><span > </span>
+<a id="L192"></a><span > </span>
+<a id="L193"></a><span > </span>
+<a id="L194"></a><span class="visited"> </span>
+<a id="L195"></a><span class="visited"> </span>
+<a id="L196"></a><span > </span>
+<a id="L197"></a><span > </span>
+<a id="L198"></a><span > </span>
+<a id="L199"></a><span > </span>
+<a id="L200"></a><span > </span>
+<a id="L201"></a><span > </span>
+<a id="L202"></a><span > </span>
+<a id="L203"></a><span > </span>
+<a id="L204"></a><span > </span>
+<a id="L205"></a><span > </span>
+<a id="L206"></a><span class="visited"> </span>
+<a id="L207"></a><span class="visited"> </span>
+<a id="L208"></a><span class="visited"> </span>
+<a id="L209"></a><span class="visited"> </span>
+<a id="L210"></a><span > </span>
+<a id="L211"></a><span > </span>
+<a id="L212"></a><span > </span>
+<a id="L213"></a><span > </span>
+<a id="L214"></a><span > </span>
+<a id="L215"></a><span > </span>
+<a id="L216"></a><span > </span>
+<a id="L217"></a><span > </span>
+<a id="L218"></a><span > </span>
+<a id="L219"></a><span class="visited"> </span>
+<a id="L220"></a><span > </span>
+<a id="L221"></a><span > </span>
+<a id="L222"></a><span > </span>
+<a id="L223"></a><span > </span>
+<a id="L224"></a><span > </span>
+<a id="L225"></a><span class="visited"> </span>
+<a id="L226"></a><span > </span>
+<a id="L227"></a><span > </span>
+<a id="L228"></a><span > </span>
+<a id="L229"></a><span > </span>
+<a id="L230"></a><span > </span>
+<a id="L231"></a><span > </span>
+<a id="L232"></a><span > </span>
+<a id="L233"></a><span class="visited"> </span>
+<a id="L234"></a><span class="visited"> </span>
+<a id="L235"></a><span > </span>
+<a id="L236"></a><span > </span>
+<a id="L237"></a><span > </span>
+<a id="L238"></a><span > </span>
+<a id="L239"></a><span > </span>
+<a id="L240"></a><span > </span>
+<a id="L241"></a><span class="visited"> </span>
+<a id="L242"></a><span class="visited"> </span>
+<a id="L243"></a><span > </span>
+<a id="L244"></a><span > </span>
+<a id="L245"></a><span > </span>
+<a id="L246"></a><span > </span>
+<a id="L247"></a><span > </span>
+<a id="L248"></a><span > </span>
+<a id="L249"></a><span class="visited"> </span>
+<a id="L250"></a><span class="visited"> </span>
+<a id="L251"></a><span > </span>
+<a id="L252"></a><span > </span>
+<a id="L253"></a><span > </span>
+<a id="L254"></a><span > </span>
+<a id="L255"></a><span > </span>
+<a id="L256"></a><span > </span>
+<a id="L257"></a><span > </span>
+<a id="L258"></a><span > </span>
+<a id="L259"></a><span > </span>
+<a id="L260"></a><span class="visited"> </span>
+<a id="L261"></a><span class="visited"> </span>
+<a id="L262"></a><span > </span>
+<a id="L263"></a><span > </span>
+<a id="L264"></a><span > </span>
+<a id="L265"></a><span > </span>
+<a id="L266"></a><span > </span>
+<a id="L267"></a><span > </span>
+<a id="L268"></a><span > </span>
+<a id="L269"></a><span class="visited"> </span>
+<a id="L270"></a><span class="visited"> </span>
+<a id="L271"></a><span > </span>
+<a id="L272"></a><span > </span>
+<a id="L273"></a><span > </span>
+<a id="L274"></a><span > </span>
+<a id="L275"></a><span > </span>
+<a id="L276"></a><span > </span>
+<a id="L277"></a><span > </span>
+<a id="L278"></a><span > </span>
+<a id="L279"></a><span class="visited"> </span>
+<a id="L280"></a><span class="visited"> </span>
+<a id="L281"></a><span > </span>
+<a id="L282"></a><span > </span>
+<a id="L283"></a><span > </span>
+<a id="L284"></a><span > </span>
+<a id="L285"></a><span > </span>
+<a id="L286"></a><span > </span>
+<a id="L287"></a><span > </span>
+<a id="L288"></a><span > </span>
+<a id="L289"></a><span class="visited"> </span>
+<a id="L290"></a><span > </span>
+<a id="L291"></a><span > </span>
+<a id="L292"></a><span > </span>
+<a id="L293"></a><span > </span>
+<a id="L294"></a><span > </span>
+<a id="L295"></a><span class="visited"> </span>
+<a id="L296"></a><span class="visited"> </span>
+<a id="L297"></a><span > </span>
+<a id="L298"></a><span > </span>
+<a id="L299"></a><span > </span>
+<a id="L300"></a><span > </span>
+<a id="L301"></a><span > </span>
+<a id="L302"></a><span > </span>
+<a id="L303"></a><span > </span>
+<a id="L304"></a><span > </span>
+<a id="L305"></a><span > </span>
+<a id="L306"></a><span > </span>
+<a id="L307"></a><span > </span>
+<a id="L308"></a><span > </span>
+<a id="L309"></a><span class="visited"> </span>
+<a id="L310"></a><span class="visited"> </span>
+<a id="L311"></a><span > </span>
+<a id="L312"></a><span > </span>
+<a id="L313"></a><span > </span>
+<a id="L314"></a><span > </span>
+<a id="L315"></a><span > </span>
+<a id="L316"></a><span > </span>
+<a id="L317"></a><span > </span>
+<a id="L318"></a><span > </span>
+<a id="L319"></a><span > </span>
+<a id="L320"></a><span > </span>
+<a id="L321"></a><span class="visited"> </span>
+<a id="L322"></a><span class="visited"> </span>
+<a id="L323"></a><span > </span>
+<a id="L324"></a><span > </span>
+<a id="L325"></a><span > </span>
+<a id="L326"></a><span > </span>
+<a id="L327"></a><span > </span>
+<a id="L328"></a><span class="visited"> </span>
+<a id="L329"></a><span class="visited"> </span>
+<a id="L330"></a><span > </span>
+<a id="L331"></a><span > </span>
+<a id="L332"></a><span > </span>
+<a id="L333"></a><span > </span>
+<a id="L334"></a><span > </span>
+<a id="L335"></a><span > </span>
+<a id="L336"></a><span > </span>
+<a id="L337"></a><span class="visited"> </span>
+<a id="L338"></a><span > </span>
+<a id="L339"></a><span > </span>
+<a id="L340"></a><span > </span>
+<a id="L341"></a><span > </span>
+<a id="L342"></a><span > </span>
+<a id="L343"></a><span > </span>
+<a id="L344"></a><span > </span>
+<a id="L345"></a><span class="visited"> </span>
+<a id="L346"></a><span > </span>
+<a id="L347"></a><span > </span>
+<a id="L348"></a><span > </span>
+<a id="L349"></a><span > </span>
+<a id="L350"></a><span > </span>
+<a id="L351"></a><span > </span>
+<a id="L352"></a><span > </span>
+<a id="L353"></a><span > </span>
+<a id="L354"></a><span > </span>
+<a id="L355"></a><span > </span>
+<a id="L356"></a><span class="visited"> </span>
+<a id="L357"></a><span > </span>
+<a id="L358"></a><span > </span>
+<a id="L359"></a><span > </span>
+<a id="L360"></a><span > </span>
+<a id="L361"></a><span > </span>
+<a id="L362"></a><span > </span>
+<a id="L363"></a><span class="visited"> </span>
+<a id="L364"></a><span > </span>
+<a id="L365"></a><span > </span>
+<a id="L366"></a><span > </span>
+<a id="L367"></a><span > </span>
+<a id="L368"></a><span > </span>
+<a id="L369"></a><span > </span>
+<a id="L370"></a><span class="visited"> </span>
+<a id="L371"></a><span > </span>
+<a id="L372"></a><span > </span>
+<a id="L373"></a><span > </span>
+<a id="L374"></a><span > </span>
+<a id="L375"></a><span > </span>
+<a id="L376"></a><span > </span>
+<a id="L377"></a><span > </span>
+<a id="L378"></a><span > </span>
+<a id="L379"></a><span class="visited"> </span>
+<a id="L380"></a><span > </span>
+<a id="L381"></a><span > </span>
+<a id="L382"></a><span > </span>
+<a id="L383"></a><span > </span>
+<a id="L384"></a><span > </span>
+<a id="L385"></a><span > </span>
+<a id="L386"></a><span class="visited"> </span>
+<a id="L387"></a><span > </span>
+<a id="L388"></a><span > </span>
+<a id="L389"></a><span > </span>
+<a id="L390"></a><span > </span>
+<a id="L391"></a><span > </span>
+<a id="L392"></a><span > </span>
+<a id="L393"></a><span > </span>
+<a id="L394"></a><span > </span>
+<a id="L395"></a><span > </span>
+<a id="L396"></a><span > </span>
+<a id="L397"></a><span > </span>
+<a id="L398"></a><span class="visited"> </span>
+<a id="L399"></a><span > </span>
+<a id="L400"></a><span > </span>
+<a id="L401"></a><span > </span>
+<a id="L402"></a><span > </span>
+<a id="L403"></a><span > </span>
+<a id="L404"></a><span > </span>
+<a id="L405"></a><span > </span>
+<a id="L406"></a><span > </span>
+<a id="L407"></a><span class="visited"> </span>
+<a id="L408"></a><span class="visited"> </span>
+<a id="L409"></a><span class="visited"> </span>
+<a id="L410"></a><span class="visited"> </span>
+<a id="L411"></a><span class="visited"> </span>
+<a id="L412"></a><span class="visited"> </span>
+<a id="L413"></a><span class="visited"> </span>
+<a id="L414"></a><span > </span>
+<a id="L415"></a><span > </span>
+<a id="L416"></a><span > </span>
+<a id="L417"></a><span > </span>
+<a id="L418"></a><span > </span>
+<a id="L419"></a><span > </span>
+<a id="L420"></a><span > </span>
+<a id="L421"></a><span > </span>
+<a id="L422"></a><span class="visited"> </span>
+<a id="L423"></a><span class="visited"> </span>
+<a id="L424"></a><span class="visited"> </span>
+<a id="L425"></a><span class="visited"> </span>
+<a id="L426"></a><span > </span>
+<a id="L427"></a><span class="visited"> </span>
+<a id="L428"></a><span > </span>
+<a id="L429"></a><span > </span>
+<a id="L430"></a><span > </span>
+<a id="L431"></a><span > </span>
+<a id="L432"></a><span class="visited"> </span>
+<a id="L433"></a><span > </span>
+<a id="L434"></a><span class="visited"> </span>
+<a id="L435"></a><span > </span>
+<a id="L436"></a><span > </span>
+<a id="L437"></a><span > </span>
+<a id="L438"></a><span > </span>
+<a id="L439"></a><span > </span>
+<a id="L440"></a><span class="visited"> </span>
+<a id="L441"></a><span class="visited"> </span>
+<a id="L442"></a><span > </span>
+<a id="L443"></a><span > </span>
+<a id="L444"></a><span > </span>
+<a id="L445"></a><span > </span>
+<a id="L446"></a><span class="visited"> </span>
+<a id="L447"></a><span > </span>
+<a id="L448"></a><span class="visited"> </span>
+<a id="L449"></a><span > </span>
+<a id="L450"></a><span > </span>
+<a id="L451"></a><span class="visited"> </span>
+<a id="L452"></a><span > </span>
+<a id="L453"></a><span class="visited"> </span>
+<a id="L454"></a><span > </span>
+<a id="L455"></a><span class="visited"> </span>
+<a id="L456"></a><span > </span>
+<a id="L457"></a><span > </span>
+<a id="L458"></a><span > </span>
+<a id="L459"></a><span class="visited"> </span>
+<a id="L460"></a><span class="visited"> </span>
+<a id="L461"></a><span > </span>
+<a id="L462"></a><span > </span>
+<a id="L463"></a><span > </span>
+<a id="L464"></a><span > </span>
+<a id="L465"></a><span > </span>
+<a id="L466"></a><span > </span>
+<a id="L467"></a><span > </span>
+<a id="L468"></a><span > </span>
+<a id="L469"></a><span > </span>
+<a id="L470"></a><span > </span>
+<a id="L471"></a><span > </span>
+<a id="L472"></a><span class="visited"> </span>
+<a id="L473"></a><span class="visited"> </span>
+<a id="L474"></a><span > </span>
+<a id="L475"></a><span > </span>
+<a id="L476"></a><span class="visited"> </span>
+<a id="L477"></a><span > </span>
+<a id="L478"></a><span > </span>
+<a id="L479"></a><span > </span>
+<a id="L480"></a><span > </span>
+<a id="L481"></a><span > </span>
+<a id="L482"></a><span class="visited"> </span>
+<a id="L483"></a><span class="visited"> </span>
+<a id="L484"></a><span > </span>
+<a id="L485"></a><span class="visited"> </span>
+<a id="L486"></a><span > </span>
+<a id="L487"></a><span class="visited"> </span>
+<a id="L488"></a><span > </span>
+<a id="L489"></a><span > </span>
+<a id="L490"></a><span > </span>
+<a id="L491"></a><span class="visited"> </span>
+<a id="L492"></a><span class="visited"> </span>
+<a id="L493"></a><span > </span>
+<a id="L494"></a><span class="visited"> </span>
+<a id="L495"></a><span > </span>
+<a id="L496"></a><span > </span>
+<a id="L497"></a><span > </span>
+<a id="L498"></a><span > </span>
+<a id="L499"></a><span > </span>
+<a id="L500"></a><span > </span>
+<a id="L501"></a><span > </span>
+<a id="L502"></a><span > </span>
+<a id="L503"></a><span class="visited"> </span>
+<a id="L504"></a><span class="visited"> </span>
+<a id="L505"></a><span > </span>
+<a id="L506"></a><span > </span>
+<a id="L507"></a><span > </span>
+<a id="L508"></a><span > </span>
+<a id="L509"></a><span > </span>
+<a id="L510"></a><span > </span>
+<a id="L511"></a><span > </span>
+<a id="L512"></a><span > </span>
+<a id="L513"></a><span class="visited"> </span>
+<a id="L514"></a><span class="visited"> </span>
+<a id="L515"></a><span class="visited"> </span>
+<a id="L516"></a><span > </span>
+<a id="L517"></a><span class="visited"> </span>
+<a id="L518"></a><span class="visited"> </span>
+<a id="L519"></a><span class="visited"> </span>
+<a id="L520"></a><span > </span>
+<a id="L521"></a><span class="visited"> </span>
+<a id="L522"></a><span class="visited"> </span>
+<a id="L523"></a><span > </span>
+<a id="L524"></a><span class="visited"> </span>
+<a id="L525"></a><span class="visited"> </span>
+<a id="L526"></a><span > </span>
+<a id="L527"></a><span class="visited"> </span>
+<a id="L528"></a><span class="visited"> </span>
+<a id="L529"></a><span > </span>
+<a id="L530"></a><span class="visited"> </span>
+<a id="L531"></a><span class="visited"> </span>
+<a id="L532"></a><span > </span>
+<a id="L533"></a><span class="visited"> </span>
+<a id="L534"></a><span class="visited"> </span>
+<a id="L535"></a><span > </span>
+<a id="L536"></a><span > </span>
+<a id="L537"></a><span > </span>
+<a id="L538"></a><span > </span>
+<a id="L539"></a><span > </span>
+<a id="L540"></a><span > </span>
+<a id="L541"></a><span > </span>
+<a id="L542"></a><span > </span>
+<a id="L543"></a><span > </span>
+<a id="L544"></a><span > </span>
+<a id="L545"></a><span > </span>
+<a id="L546"></a><span class="visited"> </span>
+<a id="L547"></a><span class="visited"> </span>
+<a id="L548"></a><span > </span>
+<a id="L549"></a><span class="visited"> </span>
+<a id="L550"></a><span class="visited"> </span>
+<a id="L551"></a><span > </span>
+<a id="L552"></a><span > </span>
+<a id="L553"></a><span > </span>
+<a id="L554"></a><span > </span>
+<a id="L555"></a><span > </span>
+<a id="L556"></a><span > </span>
+<a id="L557"></a><span class="visited"> </span>
+<a id="L558"></a><span class="visited"> </span>
+<a id="L559"></a><span > </span>
+<a id="L560"></a><span > </span>
+<a id="L561"></a><span > </span>
+<a id="L562"></a><span > </span>
+<a id="L563"></a><span > </span>
+<a id="L564"></a><span > </span>
+<a id="L565"></a><span > </span>
+<a id="L566"></a><span > </span>
+<a id="L567"></a><span > </span>
+<a id="L568"></a><span class="visited"> </span>
+<a id="L569"></a><span class="visited"> </span>
+<a id="L570"></a><span > </span>
+<a id="L571"></a><span class="visited"> </span>
+<a id="L572"></a><span > </span>
+<a id="L573"></a><span class="visited"> </span>
+<a id="L574"></a><span class="visited"> </span>
+<a id="L575"></a><span > </span>
+<a id="L576"></a><span > </span>
+<a id="L577"></a><span > </span>
+<a id="L578"></a><span class="visited"> </span>
+<a id="L579"></a><span > </span>
+<a id="L580"></a><span > </span>
+<a id="L581"></a><span > </span>
+<a id="L582"></a><span > </span>
+<a id="L583"></a><span > </span>
+<a id="L584"></a><span > </span>
+<a id="L585"></a><span > </span>
+<a id="L586"></a><span > </span>
+<a id="L587"></a><span > </span>
+<a id="L588"></a><span > </span>
+<a id="L589"></a><span > </span>
+<a id="L590"></a><span > </span>
+<a id="L591"></a><span > </span>
+<a id="L592"></a><span > </span>
+<a id="L593"></a><span class="visited"> </span>
+<a id="L594"></a><span class="visited"> </span>
+<a id="L595"></a><span > </span>
+<a id="L596"></a><span class="visited"> </span>
+<a id="L597"></a><span > </span>
+<a id="L598"></a><span > </span>
+<a id="L599"></a><span > </span>
+<a id="L600"></a><span class="visited"> </span>
+<a id="L601"></a><span class="visited"> </span>
+<a id="L602"></a><span class="visited"> </span>
+<a id="L603"></a><span > </span>
+<a id="L604"></a><span > </span>
+<a id="L605"></a><span > </span>
+<a id="L606"></a><span > </span>
+<a id="L607"></a><span > </span>
+<a id="L608"></a><span > </span>
+<a id="L609"></a><span > </span>
+<a id="L610"></a><span > </span>
+<a id="L611"></a><span > </span>
+<a id="L612"></a><span > </span>
+<a id="L613"></a><span > </span>
+<a id="L614"></a><span class="visited"> </span>
+<a id="L615"></a><span > </span>
+<a id="L616"></a><span class="visited"> </span>
+<a id="L617"></a><span > </span>
+<a id="L618"></a><span > </span>
+<a id="L619"></a><span class="visited"> </span>
+<a id="L620"></a><span class="visited"> </span>
+<a id="L621"></a><span > </span>
+<a id="L622"></a><span > </span>
+<a id="L623"></a><span > </span>
+<a id="L624"></a><span > </span>
+<a id="L625"></a><span > </span>
+<a id="L626"></a><span class="visited"> </span>
+<a id="L627"></a><span > </span>
+<a id="L628"></a><span > </span>
+<a id="L629"></a><span > </span>
+<a id="L630"></a><span > </span>
+<a id="L631"></a><span > </span>
+<a id="L632"></a><span > </span>
+<a id="L633"></a><span > </span>
+<a id="L634"></a><span > </span>
+<a id="L635"></a><span > </span>
+<a id="L636"></a><span > </span>
+<a id="L637"></a><span class="visited"> </span>
+<a id="L638"></a><span class="visited"> </span>
+<a id="L639"></a><span class="visited"> </span>
+<a id="L640"></a><span > </span>
+<a id="L641"></a><span class="visited"> </span>
+<a id="L642"></a><span > </span>
+<a id="L643"></a><span > </span>
+<a id="L644"></a><span > </span>
+<a id="L645"></a><span class="visited"> </span>
+<a id="L646"></a><span class="visited"> </span>
+<a id="L647"></a><span > </span>
+<a id="L648"></a><span > </span>
+<a id="L649"></a><span > </span>
+</pre>
+      </div>
+      <div id="text-layer">
+        <pre id="line-numbers">
+<a href="#L1">  1</a>
+<a href="#L2">  2</a>
+<a href="#L3">  3</a>
+<a href="#L4">  4</a>
+<a href="#L5">  5</a>
+<a href="#L6">  6</a>
+<a href="#L7">  7</a>
+<a href="#L8">  8</a>
+<a href="#L9">  9</a>
+<a href="#L10"> 10</a>
+<a href="#L11"> 11</a>
+<a href="#L12"> 12</a>
+<a href="#L13"> 13</a>
+<a href="#L14"> 14</a>
+<a href="#L15"> 15</a>
+<a href="#L16"> 16</a>
+<a href="#L17"> 17</a>
+<a href="#L18"> 18</a>
+<a href="#L19"> 19</a>
+<a href="#L20"> 20</a>
+<a href="#L21"> 21</a>
+<a href="#L22"> 22</a>
+<a href="#L23"> 23</a>
+<a href="#L24"> 24</a>
+<a href="#L25"> 25</a>
+<a href="#L26"> 26</a>
+<a href="#L27"> 27</a>
+<a href="#L28"> 28</a>
+<a href="#L29"> 29</a>
+<a href="#L30"> 30</a>
+<a href="#L31"> 31</a>
+<a href="#L32"> 32</a>
+<a href="#L33"> 33</a>
+<a href="#L34"> 34</a>
+<a href="#L35"> 35</a>
+<a href="#L36"> 36</a>
+<a href="#L37"> 37</a>
+<a href="#L38"> 38</a>
+<a href="#L39"> 39</a>
+<a href="#L40"> 40</a>
+<a href="#L41"> 41</a>
+<a href="#L42"> 42</a>
+<a href="#L43"> 43</a>
+<a href="#L44"> 44</a>
+<a href="#L45"> 45</a>
+<a href="#L46"> 46</a>
+<a href="#L47"> 47</a>
+<a href="#L48"> 48</a>
+<a href="#L49"> 49</a>
+<a href="#L50"> 50</a>
+<a href="#L51"> 51</a>
+<a href="#L52"> 52</a>
+<a href="#L53"> 53</a>
+<a href="#L54"> 54</a>
+<a href="#L55"> 55</a>
+<a href="#L56"> 56</a>
+<a href="#L57"> 57</a>
+<a href="#L58"> 58</a>
+<a href="#L59"> 59</a>
+<a href="#L60"> 60</a>
+<a href="#L61"> 61</a>
+<a href="#L62"> 62</a>
+<a href="#L63"> 63</a>
+<a href="#L64"> 64</a>
+<a href="#L65"> 65</a>
+<a href="#L66"> 66</a>
+<a href="#L67"> 67</a>
+<a href="#L68"> 68</a>
+<a href="#L69"> 69</a>
+<a href="#L70"> 70</a>
+<a href="#L71"> 71</a>
+<a href="#L72"> 72</a>
+<a href="#L73"> 73</a>
+<a href="#L74"> 74</a>
+<a href="#L75"> 75</a>
+<a href="#L76"> 76</a>
+<a href="#L77"> 77</a>
+<a href="#L78"> 78</a>
+<a href="#L79"> 79</a>
+<a href="#L80"> 80</a>
+<a href="#L81"> 81</a>
+<a href="#L82"> 82</a>
+<a href="#L83"> 83</a>
+<a href="#L84"> 84</a>
+<a href="#L85"> 85</a>
+<a href="#L86"> 86</a>
+<a href="#L87"> 87</a>
+<a href="#L88"> 88</a>
+<a href="#L89"> 89</a>
+<a href="#L90"> 90</a>
+<a href="#L91"> 91</a>
+<a href="#L92"> 92</a>
+<a href="#L93"> 93</a>
+<a href="#L94"> 94</a>
+<a href="#L95"> 95</a>
+<a href="#L96"> 96</a>
+<a href="#L97"> 97</a>
+<a href="#L98"> 98</a>
+<a href="#L99"> 99</a>
+<a href="#L100">100</a>
+<a href="#L101">101</a>
+<a href="#L102">102</a>
+<a href="#L103">103</a>
+<a href="#L104">104</a>
+<a href="#L105">105</a>
+<a href="#L106">106</a>
+<a href="#L107">107</a>
+<a href="#L108">108</a>
+<a href="#L109">109</a>
+<a href="#L110">110</a>
+<a href="#L111">111</a>
+<a href="#L112">112</a>
+<a href="#L113">113</a>
+<a href="#L114">114</a>
+<a href="#L115">115</a>
+<a href="#L116">116</a>
+<a href="#L117">117</a>
+<a href="#L118">118</a>
+<a href="#L119">119</a>
+<a href="#L120">120</a>
+<a href="#L121">121</a>
+<a href="#L122">122</a>
+<a href="#L123">123</a>
+<a href="#L124">124</a>
+<a href="#L125">125</a>
+<a href="#L126">126</a>
+<a href="#L127">127</a>
+<a href="#L128">128</a>
+<a href="#L129">129</a>
+<a href="#L130">130</a>
+<a href="#L131">131</a>
+<a href="#L132">132</a>
+<a href="#L133">133</a>
+<a href="#L134">134</a>
+<a href="#L135">135</a>
+<a href="#L136">136</a>
+<a href="#L137">137</a>
+<a href="#L138">138</a>
+<a href="#L139">139</a>
+<a href="#L140">140</a>
+<a href="#L141">141</a>
+<a href="#L142">142</a>
+<a href="#L143">143</a>
+<a href="#L144">144</a>
+<a href="#L145">145</a>
+<a href="#L146">146</a>
+<a href="#L147">147</a>
+<a href="#L148">148</a>
+<a href="#L149">149</a>
+<a href="#L150">150</a>
+<a href="#L151">151</a>
+<a href="#L152">152</a>
+<a href="#L153">153</a>
+<a href="#L154">154</a>
+<a href="#L155">155</a>
+<a href="#L156">156</a>
+<a href="#L157">157</a>
+<a href="#L158">158</a>
+<a href="#L159">159</a>
+<a href="#L160">160</a>
+<a href="#L161">161</a>
+<a href="#L162">162</a>
+<a href="#L163">163</a>
+<a href="#L164">164</a>
+<a href="#L165">165</a>
+<a href="#L166">166</a>
+<a href="#L167">167</a>
+<a href="#L168">168</a>
+<a href="#L169">169</a>
+<a href="#L170">170</a>
+<a href="#L171">171</a>
+<a href="#L172">172</a>
+<a href="#L173">173</a>
+<a href="#L174">174</a>
+<a href="#L175">175</a>
+<a href="#L176">176</a>
+<a href="#L177">177</a>
+<a href="#L178">178</a>
+<a href="#L179">179</a>
+<a href="#L180">180</a>
+<a href="#L181">181</a>
+<a href="#L182">182</a>
+<a href="#L183">183</a>
+<a href="#L184">184</a>
+<a href="#L185">185</a>
+<a href="#L186">186</a>
+<a href="#L187">187</a>
+<a href="#L188">188</a>
+<a href="#L189">189</a>
+<a href="#L190">190</a>
+<a href="#L191">191</a>
+<a href="#L192">192</a>
+<a href="#L193">193</a>
+<a href="#L194">194</a>
+<a href="#L195">195</a>
+<a href="#L196">196</a>
+<a href="#L197">197</a>
+<a href="#L198">198</a>
+<a href="#L199">199</a>
+<a href="#L200">200</a>
+<a href="#L201">201</a>
+<a href="#L202">202</a>
+<a href="#L203">203</a>
+<a href="#L204">204</a>
+<a href="#L205">205</a>
+<a href="#L206">206</a>
+<a href="#L207">207</a>
+<a href="#L208">208</a>
+<a href="#L209">209</a>
+<a href="#L210">210</a>
+<a href="#L211">211</a>
+<a href="#L212">212</a>
+<a href="#L213">213</a>
+<a href="#L214">214</a>
+<a href="#L215">215</a>
+<a href="#L216">216</a>
+<a href="#L217">217</a>
+<a href="#L218">218</a>
+<a href="#L219">219</a>
+<a href="#L220">220</a>
+<a href="#L221">221</a>
+<a href="#L222">222</a>
+<a href="#L223">223</a>
+<a href="#L224">224</a>
+<a href="#L225">225</a>
+<a href="#L226">226</a>
+<a href="#L227">227</a>
+<a href="#L228">228</a>
+<a href="#L229">229</a>
+<a href="#L230">230</a>
+<a href="#L231">231</a>
+<a href="#L232">232</a>
+<a href="#L233">233</a>
+<a href="#L234">234</a>
+<a href="#L235">235</a>
+<a href="#L236">236</a>
+<a href="#L237">237</a>
+<a href="#L238">238</a>
+<a href="#L239">239</a>
+<a href="#L240">240</a>
+<a href="#L241">241</a>
+<a href="#L242">242</a>
+<a href="#L243">243</a>
+<a href="#L244">244</a>
+<a href="#L245">245</a>
+<a href="#L246">246</a>
+<a href="#L247">247</a>
+<a href="#L248">248</a>
+<a href="#L249">249</a>
+<a href="#L250">250</a>
+<a href="#L251">251</a>
+<a href="#L252">252</a>
+<a href="#L253">253</a>
+<a href="#L254">254</a>
+<a href="#L255">255</a>
+<a href="#L256">256</a>
+<a href="#L257">257</a>
+<a href="#L258">258</a>
+<a href="#L259">259</a>
+<a href="#L260">260</a>
+<a href="#L261">261</a>
+<a href="#L262">262</a>
+<a href="#L263">263</a>
+<a href="#L264">264</a>
+<a href="#L265">265</a>
+<a href="#L266">266</a>
+<a href="#L267">267</a>
+<a href="#L268">268</a>
+<a href="#L269">269</a>
+<a href="#L270">270</a>
+<a href="#L271">271</a>
+<a href="#L272">272</a>
+<a href="#L273">273</a>
+<a href="#L274">274</a>
+<a href="#L275">275</a>
+<a href="#L276">276</a>
+<a href="#L277">277</a>
+<a href="#L278">278</a>
+<a href="#L279">279</a>
+<a href="#L280">280</a>
+<a href="#L281">281</a>
+<a href="#L282">282</a>
+<a href="#L283">283</a>
+<a href="#L284">284</a>
+<a href="#L285">285</a>
+<a href="#L286">286</a>
+<a href="#L287">287</a>
+<a href="#L288">288</a>
+<a href="#L289">289</a>
+<a href="#L290">290</a>
+<a href="#L291">291</a>
+<a href="#L292">292</a>
+<a href="#L293">293</a>
+<a href="#L294">294</a>
+<a href="#L295">295</a>
+<a href="#L296">296</a>
+<a href="#L297">297</a>
+<a href="#L298">298</a>
+<a href="#L299">299</a>
+<a href="#L300">300</a>
+<a href="#L301">301</a>
+<a href="#L302">302</a>
+<a href="#L303">303</a>
+<a href="#L304">304</a>
+<a href="#L305">305</a>
+<a href="#L306">306</a>
+<a href="#L307">307</a>
+<a href="#L308">308</a>
+<a href="#L309">309</a>
+<a href="#L310">310</a>
+<a href="#L311">311</a>
+<a href="#L312">312</a>
+<a href="#L313">313</a>
+<a href="#L314">314</a>
+<a href="#L315">315</a>
+<a href="#L316">316</a>
+<a href="#L317">317</a>
+<a href="#L318">318</a>
+<a href="#L319">319</a>
+<a href="#L320">320</a>
+<a href="#L321">321</a>
+<a href="#L322">322</a>
+<a href="#L323">323</a>
+<a href="#L324">324</a>
+<a href="#L325">325</a>
+<a href="#L326">326</a>
+<a href="#L327">327</a>
+<a href="#L328">328</a>
+<a href="#L329">329</a>
+<a href="#L330">330</a>
+<a href="#L331">331</a>
+<a href="#L332">332</a>
+<a href="#L333">333</a>
+<a href="#L334">334</a>
+<a href="#L335">335</a>
+<a href="#L336">336</a>
+<a href="#L337">337</a>
+<a href="#L338">338</a>
+<a href="#L339">339</a>
+<a href="#L340">340</a>
+<a href="#L341">341</a>
+<a href="#L342">342</a>
+<a href="#L343">343</a>
+<a href="#L344">344</a>
+<a href="#L345">345</a>
+<a href="#L346">346</a>
+<a href="#L347">347</a>
+<a href="#L348">348</a>
+<a href="#L349">349</a>
+<a href="#L350">350</a>
+<a href="#L351">351</a>
+<a href="#L352">352</a>
+<a href="#L353">353</a>
+<a href="#L354">354</a>
+<a href="#L355">355</a>
+<a href="#L356">356</a>
+<a href="#L357">357</a>
+<a href="#L358">358</a>
+<a href="#L359">359</a>
+<a href="#L360">360</a>
+<a href="#L361">361</a>
+<a href="#L362">362</a>
+<a href="#L363">363</a>
+<a href="#L364">364</a>
+<a href="#L365">365</a>
+<a href="#L366">366</a>
+<a href="#L367">367</a>
+<a href="#L368">368</a>
+<a href="#L369">369</a>
+<a href="#L370">370</a>
+<a href="#L371">371</a>
+<a href="#L372">372</a>
+<a href="#L373">373</a>
+<a href="#L374">374</a>
+<a href="#L375">375</a>
+<a href="#L376">376</a>
+<a href="#L377">377</a>
+<a href="#L378">378</a>
+<a href="#L379">379</a>
+<a href="#L380">380</a>
+<a href="#L381">381</a>
+<a href="#L382">382</a>
+<a href="#L383">383</a>
+<a href="#L384">384</a>
+<a href="#L385">385</a>
+<a href="#L386">386</a>
+<a href="#L387">387</a>
+<a href="#L388">388</a>
+<a href="#L389">389</a>
+<a href="#L390">390</a>
+<a href="#L391">391</a>
+<a href="#L392">392</a>
+<a href="#L393">393</a>
+<a href="#L394">394</a>
+<a href="#L395">395</a>
+<a href="#L396">396</a>
+<a href="#L397">397</a>
+<a href="#L398">398</a>
+<a href="#L399">399</a>
+<a href="#L400">400</a>
+<a href="#L401">401</a>
+<a href="#L402">402</a>
+<a href="#L403">403</a>
+<a href="#L404">404</a>
+<a href="#L405">405</a>
+<a href="#L406">406</a>
+<a href="#L407">407</a>
+<a href="#L408">408</a>
+<a href="#L409">409</a>
+<a href="#L410">410</a>
+<a href="#L411">411</a>
+<a href="#L412">412</a>
+<a href="#L413">413</a>
+<a href="#L414">414</a>
+<a href="#L415">415</a>
+<a href="#L416">416</a>
+<a href="#L417">417</a>
+<a href="#L418">418</a>
+<a href="#L419">419</a>
+<a href="#L420">420</a>
+<a href="#L421">421</a>
+<a href="#L422">422</a>
+<a href="#L423">423</a>
+<a href="#L424">424</a>
+<a href="#L425">425</a>
+<a href="#L426">426</a>
+<a href="#L427">427</a>
+<a href="#L428">428</a>
+<a href="#L429">429</a>
+<a href="#L430">430</a>
+<a href="#L431">431</a>
+<a href="#L432">432</a>
+<a href="#L433">433</a>
+<a href="#L434">434</a>
+<a href="#L435">435</a>
+<a href="#L436">436</a>
+<a href="#L437">437</a>
+<a href="#L438">438</a>
+<a href="#L439">439</a>
+<a href="#L440">440</a>
+<a href="#L441">441</a>
+<a href="#L442">442</a>
+<a href="#L443">443</a>
+<a href="#L444">444</a>
+<a href="#L445">445</a>
+<a href="#L446">446</a>
+<a href="#L447">447</a>
+<a href="#L448">448</a>
+<a href="#L449">449</a>
+<a href="#L450">450</a>
+<a href="#L451">451</a>
+<a href="#L452">452</a>
+<a href="#L453">453</a>
+<a href="#L454">454</a>
+<a href="#L455">455</a>
+<a href="#L456">456</a>
+<a href="#L457">457</a>
+<a href="#L458">458</a>
+<a href="#L459">459</a>
+<a href="#L460">460</a>
+<a href="#L461">461</a>
+<a href="#L462">462</a>
+<a href="#L463">463</a>
+<a href="#L464">464</a>
+<a href="#L465">465</a>
+<a href="#L466">466</a>
+<a href="#L467">467</a>
+<a href="#L468">468</a>
+<a href="#L469">469</a>
+<a href="#L470">470</a>
+<a href="#L471">471</a>
+<a href="#L472">472</a>
+<a href="#L473">473</a>
+<a href="#L474">474</a>
+<a href="#L475">475</a>
+<a href="#L476">476</a>
+<a href="#L477">477</a>
+<a href="#L478">478</a>
+<a href="#L479">479</a>
+<a href="#L480">480</a>
+<a href="#L481">481</a>
+<a href="#L482">482</a>
+<a href="#L483">483</a>
+<a href="#L484">484</a>
+<a href="#L485">485</a>
+<a href="#L486">486</a>
+<a href="#L487">487</a>
+<a href="#L488">488</a>
+<a href="#L489">489</a>
+<a href="#L490">490</a>
+<a href="#L491">491</a>
+<a href="#L492">492</a>
+<a href="#L493">493</a>
+<a href="#L494">494</a>
+<a href="#L495">495</a>
+<a href="#L496">496</a>
+<a href="#L497">497</a>
+<a href="#L498">498</a>
+<a href="#L499">499</a>
+<a href="#L500">500</a>
+<a href="#L501">501</a>
+<a href="#L502">502</a>
+<a href="#L503">503</a>
+<a href="#L504">504</a>
+<a href="#L505">505</a>
+<a href="#L506">506</a>
+<a href="#L507">507</a>
+<a href="#L508">508</a>
+<a href="#L509">509</a>
+<a href="#L510">510</a>
+<a href="#L511">511</a>
+<a href="#L512">512</a>
+<a href="#L513">513</a>
+<a href="#L514">514</a>
+<a href="#L515">515</a>
+<a href="#L516">516</a>
+<a href="#L517">517</a>
+<a href="#L518">518</a>
+<a href="#L519">519</a>
+<a href="#L520">520</a>
+<a href="#L521">521</a>
+<a href="#L522">522</a>
+<a href="#L523">523</a>
+<a href="#L524">524</a>
+<a href="#L525">525</a>
+<a href="#L526">526</a>
+<a href="#L527">527</a>
+<a href="#L528">528</a>
+<a href="#L529">529</a>
+<a href="#L530">530</a>
+<a href="#L531">531</a>
+<a href="#L532">532</a>
+<a href="#L533">533</a>
+<a href="#L534">534</a>
+<a href="#L535">535</a>
+<a href="#L536">536</a>
+<a href="#L537">537</a>
+<a href="#L538">538</a>
+<a href="#L539">539</a>
+<a href="#L540">540</a>
+<a href="#L541">541</a>
+<a href="#L542">542</a>
+<a href="#L543">543</a>
+<a href="#L544">544</a>
+<a href="#L545">545</a>
+<a href="#L546">546</a>
+<a href="#L547">547</a>
+<a href="#L548">548</a>
+<a href="#L549">549</a>
+<a href="#L550">550</a>
+<a href="#L551">551</a>
+<a href="#L552">552</a>
+<a href="#L553">553</a>
+<a href="#L554">554</a>
+<a href="#L555">555</a>
+<a href="#L556">556</a>
+<a href="#L557">557</a>
+<a href="#L558">558</a>
+<a href="#L559">559</a>
+<a href="#L560">560</a>
+<a href="#L561">561</a>
+<a href="#L562">562</a>
+<a href="#L563">563</a>
+<a href="#L564">564</a>
+<a href="#L565">565</a>
+<a href="#L566">566</a>
+<a href="#L567">567</a>
+<a href="#L568">568</a>
+<a href="#L569">569</a>
+<a href="#L570">570</a>
+<a href="#L571">571</a>
+<a href="#L572">572</a>
+<a href="#L573">573</a>
+<a href="#L574">574</a>
+<a href="#L575">575</a>
+<a href="#L576">576</a>
+<a href="#L577">577</a>
+<a href="#L578">578</a>
+<a href="#L579">579</a>
+<a href="#L580">580</a>
+<a href="#L581">581</a>
+<a href="#L582">582</a>
+<a href="#L583">583</a>
+<a href="#L584">584</a>
+<a href="#L585">585</a>
+<a href="#L586">586</a>
+<a href="#L587">587</a>
+<a href="#L588">588</a>
+<a href="#L589">589</a>
+<a href="#L590">590</a>
+<a href="#L591">591</a>
+<a href="#L592">592</a>
+<a href="#L593">593</a>
+<a href="#L594">594</a>
+<a href="#L595">595</a>
+<a href="#L596">596</a>
+<a href="#L597">597</a>
+<a href="#L598">598</a>
+<a href="#L599">599</a>
+<a href="#L600">600</a>
+<a href="#L601">601</a>
+<a href="#L602">602</a>
+<a href="#L603">603</a>
+<a href="#L604">604</a>
+<a href="#L605">605</a>
+<a href="#L606">606</a>
+<a href="#L607">607</a>
+<a href="#L608">608</a>
+<a href="#L609">609</a>
+<a href="#L610">610</a>
+<a href="#L611">611</a>
+<a href="#L612">612</a>
+<a href="#L613">613</a>
+<a href="#L614">614</a>
+<a href="#L615">615</a>
+<a href="#L616">616</a>
+<a href="#L617">617</a>
+<a href="#L618">618</a>
+<a href="#L619">619</a>
+<a href="#L620">620</a>
+<a href="#L621">621</a>
+<a href="#L622">622</a>
+<a href="#L623">623</a>
+<a href="#L624">624</a>
+<a href="#L625">625</a>
+<a href="#L626">626</a>
+<a href="#L627">627</a>
+<a href="#L628">628</a>
+<a href="#L629">629</a>
+<a href="#L630">630</a>
+<a href="#L631">631</a>
+<a href="#L632">632</a>
+<a href="#L633">633</a>
+<a href="#L634">634</a>
+<a href="#L635">635</a>
+<a href="#L636">636</a>
+<a href="#L637">637</a>
+<a href="#L638">638</a>
+<a href="#L639">639</a>
+<a href="#L640">640</a>
+<a href="#L641">641</a>
+<a href="#L642">642</a>
+<a href="#L643">643</a>
+<a href="#L644">644</a>
+<a href="#L645">645</a>
+<a href="#L646">646</a>
+<a href="#L647">647</a>
+<a href="#L648">648</a>
+<a href="#L649">649</a>
+</pre>
+<pre><code class="ocaml">// Copyright 2015 The etcd Authors
+// Copyright 2026 Leo Cheng
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+///|
+/// This server's soft state — its known leader and current role (etcd's
+/// `raft.softState`). Reading it never disturbs the protocol.
+pub fn RaftNode::soft_state(self : RaftNode) -&gt; SoftState {
+  <span data-count="520">{</span> lead: self.<span data-count="520">l</span>eader(), state: self.<span data-count="520">r</span>ole() }
+}
+
+///|
+/// The goroutine-free driver of a Raft server (etcd's `RawNode`). The core
+/// `RaftNode` produces its output — messages to send, entries appended,
+/// commits — as return values of `tick`/`step`/`propose`; `RawNode` batches
+/// that output into the synchronous Ready/Advance cycle a real deployment runs:
+/// take a `Ready`, persist its entries and hard state, send its messages, apply
+/// its committed entries, then call `advance`.
+///
+/// It needs no language-level `async`: a `Ready` is a plain value and `advance`
+/// a plain call. The unstable-vs-stable split that separates entries still to be
+/// written (`entries`) from committed entries ready to apply
+/// (`committed_entries`) is kept by a real `RaftLog`: its `storage` holds what
+/// the application has persisted, its `unstable` tail holds what has not.
+pub struct RawNode {
+  raft : RaftNode
+  // Mirror of the core node's durable state, kept current by `sync_log`. Rebuilt
+  // when the core installs a snapshot (see `reflect_snapshot`), so it is mutable.
+  mut log : RaftLog
+  // The per-Ready committed-entry byte budget, retained so the log can be rebuilt
+  // with the same pagination after a snapshot install.
+  max_committed : UInt64
+  msgs : Array[Message]
+  read_states : Array[ReadState]
+  mut prev_soft : SoftState
+  mut prev_hard : HardState
+  // When set (etcd's AsyncStorageWrites), a Ready hands its entries and committed
+  // entries to local storage threads as directives rather than expecting the
+  // caller to persist/apply them inline before `advance`.
+  mut async_storage : Bool
+  // The snapshot baseline already reflected into `log`. When the core node's
+  // `snapshot_index` advances past this (a follower installed a leader-sent
+  // snapshot), `sync_log` rebuilds `log` on the new baseline and hands the
+  // snapshot to the unstable tail so it flows out through the next `Ready`.
+  mut reflected_snap : UInt64
+}
+
+///|
+/// Build a driver over `raft` (etcd's `NewRawNode`). The previous soft and hard
+/// states are seeded from the server as it stands, so the first `Ready` reports
+/// a change only if one genuinely happens afterwards. The `RaftLog` is recovered
+/// from the node's durable state: whatever is already in the node's log (and its
+/// snapshot baseline) is loaded into stable storage, so only entries appended
+/// afterwards land in the unstable tail and need writing.
+pub fn RawNode::new(raft : RaftNode) -&gt; RawNode {
+  <span data-count="77">R</span>awNode::new_sized(raft, no_limit)
+}
+
+///|
+/// Build a driver that paginates each Ready's committed entries to at most
+/// `max_committed_size` bytes (etcd's `MaxCommittedSizePerReady`). A burst of
+/// commits is then handed to the application over several `Ready`s instead of
+/// one unbounded batch.
+pub fn RawNode::new_sized(
+  raft : RaftNode,
+  max_committed_size : UInt64,
+) -&gt; RawNode {
+  <span data-count="80">l</span>et node = raft.<span data-count="80">n</span>ode()
+  let storage = <span data-count="80">M</span>emoryStorage::new()
+  if node.snapshot_index &gt; 0 {
+    // Seed the fresh storage's baseline directly: `apply_snapshot`'s out-of-date
+    // guard is meaningless against an empty baseline, and its raising signature
+    // would force a vacuous catch here.
+    <span data-count="2">s</span>torage.<span data-count="2">s</span>eed_snapshot({
+      last_index: node.snapshot_index,
+      last_term: node.snapshot_term,
+      data: b"",
+      conf_state: <span data-count="2">C</span>onfState::empty(),
+    })
+  }
+  storage.<span data-count="80">a</span>ppend(node.<span data-count="80">e</span>ntries_after(node.snapshot_index))
+  let log = <span data-count="80">R</span>aftLog::new_with_size(storage, max_committed_size)
+  log.<span data-count="80">s</span>eed(node.commit_index, node.last_applied)
+  {
+    raft,
+    log,
+    max_committed: max_committed_size,
+    msgs: [],
+    read_states: [],
+    prev_soft: raft.<span data-count="80">s</span>oft_state(),
+    prev_hard: node.<span data-count="80">h</span>ard_state(),
+    async_storage: false,
+    reflected_snap: node.snapshot_index,
+  }
+}
+
+///|
+/// View this server through the Ready/Advance contract, paginating committed
+/// entries to `max_committed_size` bytes per `Ready`.
+pub fn RaftNode::raw_with_max_committed_size(
+  self : RaftNode,
+  max_committed_size : UInt64,
+) -&gt; RawNode {
+  <span data-count="2">R</span>awNode::new_sized(self, max_committed_size)
+}
+
+///|
+/// View this server under AsyncStorageWrites (etcd's `Config.AsyncStorageWrites`):
+/// each `Ready` hands its entries and committed entries to local storage threads
+/// as `StorageAppend` / `StorageApply` directives, and the caller returns the
+/// paired responses through `step_append_resp` / `step_apply_resp` once the work
+/// is durable/applied. `advance` becomes a no-op; the responses drive the
+/// stable/applied cursors instead.
+pub fn RaftNode::raw_async(self : RaftNode) -&gt; RawNode {
+  <span data-count="7">l</span>et rn = self.<span data-count="7">r</span>aw()
+  rn.async_storage = true
+  rn
+}
+
+///|
+/// As `raw_async`, but also paginating each `StorageApply` batch to
+/// `max_committed_size` bytes (etcd's `AsyncStorageWrites` +
+/// `MaxCommittedSizePerReady`).
+pub fn RaftNode::raw_async_sized(
+  self : RaftNode,
+  max_committed_size : UInt64,
+) -&gt; RawNode {
+  <span data-count="1">l</span>et rn = <span data-count="1">R</span>awNode::new_sized(self, max_committed_size)
+  rn.async_storage = true
+  rn
+}
+
+///|
+/// Whether this driver is in AsyncStorageWrites mode.
+pub fn RawNode::is_async(self : RawNode) -&gt; Bool {
+  <span data-count="1">s</span>elf.async_storage
+}
+
+///|
+/// Reconcile the log with the consensus core: fold any entries the core has
+/// appended (or a divergent suffix it rewrote) into the unstable tail, and pull
+/// the commit index forward. The core keeps the authoritative log on `Node`;
+/// this is where that truth flows into the unstable/stable split the driver
+/// reports. Committed entries never change, so the scan starts just past them.
+fn RawNode::sync_log(self : RawNode) -&gt; Unit {
+  <span data-count="440">l</span>et node = self.raft.<span data-count="440">n</span>ode()
+  // A snapshot the core installed since the last sync (a follower digesting a
+  // leader-sent snapshot) has discarded the core's log below its baseline. Rebuild
+  // the mirror on that baseline and hand the snapshot to the unstable tail, so it
+  // surfaces once through `Ready.snapshot` — etcd's `raftLog.restore`, which the
+  // consumer persists and then acknowledges via `stable_snap_to`.
+  if node.snapshot_index &gt; self.reflected_snap {
+    <span data-count="4">s</span>elf.<span data-count="4">r</span>eflect_snapshot({
+      last_index: node.snapshot_index,
+      last_term: node.snapshot_term,
+      data: b"",
+      conf_state: self.raft.<span data-count="4">c</span>onf_state(),
+    })
+  }
+  let node_last = node.<span data-count="440">l</span>ast_log_index()
+  let mut i = self.log.<span data-count="440">c</span>ommitted() + 1
+  let known_last = self.log.<span data-count="440">l</span>ast_index()
+  while i &lt;= node_last &amp;&amp; i &lt;= known_last {
+    <span data-count="85">i</span>f node.<span data-count="85">t</span>erm_at(i) != self.log.<span data-count="85">z</span>ero_term_on_out_of_bounds(i) {
+      <span data-count="3">b</span>reak
+    }
+    i = i + 1
+  }
+  if i &lt;= node_last {
+    <span data-count="73">s</span>elf.log.<span data-count="73">a</span>ppend(node.<span data-count="73">e</span>ntries_after(i - 1)) |&gt; <span data-count="73">i</span>gnore
+  }
+  let last = self.log.<span data-count="440">l</span>ast_index()
+  self.log.<span data-count="440">c</span>ommit_to(
+    if node.commit_index &lt; last {
+      <span data-count="88">n</span>ode.commit_index
+    } else {
+      <span data-count="352">l</span>ast
+    },
+  )
+  // A read confirmed by the core (a lease read, or a safe read a heartbeat quorum
+  // has now acknowledged) lives in the core's read-state buffer; fold it into the
+  // driver's so it surfaces in the next Ready and is cleared on accept.
+  for rs in self.raft.<span data-count="440">t</span>ake_read_states() {
+    <span data-count="2">s</span>elf.read_states.<span data-count="2">p</span>ush(rs)
+  }
+}
+
+///|
+/// Rebuild the log mirror on a freshly installed snapshot baseline and place the
+/// snapshot in the unstable tail (etcd's `raftLog.restore`). Storage is reseeded
+/// to the baseline alone; any entries the core holds past it are folded back in by
+/// the caller (`sync_log`). The snapshot then flows out through one `Ready` and is
+/// cleared from the tail once the consumer persists it (`store` / `stable_snap_to`).
+fn RawNode::reflect_snapshot(self : RawNode, snap : Snapshot) -&gt; Unit {
+  <span data-count="4">l</span>et storage = <span data-count="4">M</span>emoryStorage::new()
+  storage.<span data-count="4">s</span>eed_snapshot(snap)
+  let log = <span data-count="4">R</span>aftLog::new_with_size(storage, self.max_committed)
+  log.<span data-count="4">r</span>estore(snap)
+  self.log = log
+  self.reflected_snap = snap.last_index
+}
+
+///|
+/// View this server through the Ready/Advance contract. The two are the same
+/// server; the `RawNode` only batches the core's output into the cycle a real
+/// deployment drives.
+pub fn RaftNode::raw(self : RaftNode) -&gt; RawNode {
+  <span data-count="77">R</span>awNode::new(self)
+}
+
+///|
+/// The underlying core server, for reading protocol state in tests and drivers.
+pub fn RawNode::node(self : RawNode) -&gt; RaftNode {
+  <span data-count="61">s</span>elf.raft
+}
+
+///|
+/// The snapshot available to be applied but not yet handed to a `Ready`, if any
+/// (etcd's `raftLog.nextUnstableSnapshot`). Reconciles with the core first, so a
+/// snapshot the core installed since the last poll is reflected into the mirror.
+pub fn RawNode::next_unstable_snapshot(self : RawNode) -&gt; Snapshot? {
+  <span data-count="3">s</span>elf.<span data-count="3">s</span>ync_log()
+  self.log.<span data-count="3">n</span>ext_unstable_snapshot()
+}
+
+///|
+/// Advance the logical clock by one tick, buffering any messages the tick emits
+/// (a leader's heartbeats, or a follower's campaign) for the next `Ready`.
+pub fn RawNode::tick(self : RawNode) -&gt; Unit {
+  <span data-count="32">f</span>or m in self.raft.<span data-count="32">t</span>ick() {
+    <span data-count="2">s</span>elf.msgs.<span data-count="2">p</span>ush(m)
+  }
+}
+
+///|
+/// Start a campaign, buffering the vote (or pre-vote) requests it emits.
+pub fn RawNode::campaign(self : RawNode) -&gt; Unit {
+  <span data-count="33">f</span>or m in self.raft.<span data-count="33">c</span>ampaign() {
+    <span data-count="14">s</span>elf.msgs.<span data-count="14">p</span>ush(m)
+  }
+}
+
+///|
+/// Propose a client command. On a leader it is appended and the resulting
+/// AppendEntries are buffered; on a follower it is forwarded to the known leader
+/// (etcd's MsgProp forwarding), or dropped if forwarding is disabled or no leader
+/// is known; a candidate drops it.
+pub fn RawNode::propose(self : RawNode, data : Bytes) -&gt; Unit {
+  <span data-count="1042">f</span>or m in self.raft.<span data-count="1042">p</span>ropose(data) {
+    <span data-count="2">s</span>elf.msgs.<span data-count="2">p</span>ush(m)
+  }
+}
+
+///|
+/// Propose a configuration change, appended and replicated like any entry so
+/// every server folds it in at the same log position once committed (§6).
+pub fn RawNode::propose_conf(self : RawNode, cc : ConfChange) -&gt; Unit {
+  <span data-count="9">f</span>or m in self.raft.<span data-count="9">p</span>ropose_conf(cc) {
+    <span data-count="4">s</span>elf.msgs.<span data-count="4">p</span>ush(m)
+  }
+}
+
+///|
+/// Propose a batch (joint) configuration change, appended and replicated like
+/// any entry so every server folds the same change in at the same log position
+/// once it commits (etcd's `ProposeConfChange` with a `ConfChangeV2`).
+pub fn RawNode::propose_conf_v2(self : RawNode, cc : ConfChangeV2) -&gt; Unit {
+  <span data-count="7">f</span>or m in self.raft.<span data-count="7">p</span>ropose_conf_v2(cc) {
+    <span data-count="9">s</span>elf.msgs.<span data-count="9">p</span>ush(m)
+  }
+}
+
+///|
+/// The current membership as a `ConfState` (etcd's `ApplyConfChange` return /
+/// `ConfState()`): the voters, learners, the outgoing half while joint, the
+/// staged-demotion `learners_next`, and whether an auto-leave is pending.
+pub fn RawNode::conf_state(self : RawNode) -&gt; ConfState {
+  <span data-count="8">s</span>elf.raft.<span data-count="8">c</span>onf_state()
+}
+
+///|
+/// Feed one received message to the core, buffering the replies it produces.
+pub fn RawNode::step(self : RawNode, msg : Message) -&gt; Unit {
+  <span data-count="94">f</span>or m in self.raft.<span data-count="94">s</span>tep(msg) {
+    <span data-count="76">s</span>elf.msgs.<span data-count="76">p</span>ush(m)
+  }
+}
+
+///|
+/// Request a linearizable read (etcd's `ReadIndex`, which steps a `MsgReadIndex`).
+/// Under `ReadOnlySafe` the read is not answered from the leader's lease but
+/// confirmed by a fresh heartbeat quorum, so the confirming heartbeats are
+/// buffered for the next `Ready`; the read surfaces once a quorum acknowledges the
+/// position (drained from the core in `sync_log`). The synchronous lease accessor
+/// `RaftNode::read_index` was wrong here: it returns an index without emitting the
+/// confirmation round, so under `ReadOnlySafe` the read was never confirmed.
+pub fn RawNode::read_index(self : RawNode, rctx : Bytes) -&gt; Unit {
+  <span data-count="4">f</span>or m in self.raft.<span data-count="4">r</span>equest_read_index(rctx) {
+    <span data-count="4">s</span>elf.msgs.<span data-count="4">p</span>ush(m)
+  }
+}
+
+///|
+/// Apply a committed configuration change to the local configuration and report
+/// the resulting voter set (etcd's `ApplyConfChange`).
+pub fn RawNode::apply_conf_change(
+  self : RawNode,
+  cc : ConfChange,
+) -&gt; Array[String] {
+  <span data-count="7">c</span>c.<span data-count="7">a</span>pply_to(self.raft.config)
+  self.raft.config.<span data-count="7">v</span>oters()
+}
+
+///|
+/// Begin transferring leadership to `target` (etcd's `TransferLeader`).
+pub fn RawNode::transfer_leader(self : RawNode, target : String) -&gt; Unit {
+  <span data-count="1">f</span>or m in self.raft.<span data-count="1">t</span>ransfer_leadership(target) {
+    <span data-count="1">s</span>elf.msgs.<span data-count="1">p</span>ush(m)
+  }
+}
+
+///|
+/// Voluntarily forget the current leader so this node can start an election
+/// without waiting out the election timeout (etcd's `ForgetLeader`).
+pub fn RawNode::forget_leader(self : RawNode) -&gt; Unit {
+  <span data-count="1">s</span>elf.raft.<span data-count="1">f</span>orget_leader()
+}
+
+///|
+/// Report that a message to `id` could not be delivered (etcd's
+/// `ReportUnreachable`): the leader stops streaming to that follower until it
+/// responds again.
+pub fn RawNode::report_unreachable(self : RawNode, id : String) -&gt; Unit {
+  <span data-count="1">s</span>elf.raft.<span data-count="1">r</span>eport_unreachable(id)
+}
+
+///|
+/// Report the outcome of a snapshot sent to `id` (etcd's `ReportSnapshot`):
+/// `reject` true means the follower could not apply it, so the leader retries.
+pub fn RawNode::report_snapshot(
+  self : RawNode,
+  id : String,
+  reject : Bool,
+) -&gt; Unit {
+  <span data-count="2">s</span>elf.raft.<span data-count="2">r</span>eport_snapshot(id, reject)
+}
+
+///|
+/// This server's basic status (etcd's `BasicStatus`): id, term, vote, commit,
+/// leader and role, without the per-follower progress map.
+pub fn RawNode::basic_status(self : RawNode) -&gt; RaftStatus {
+  <span data-count="1">s</span>elf.raft.<span data-count="1">s</span>tatus()
+}
+
+///|
+/// This server's full status (etcd's `Status`): basic status plus the
+/// per-follower progress view and the current configuration.
+pub fn RawNode::full_status(self : RawNode) -&gt; FullStatus {
+  <span data-count="1">s</span>elf.raft.<span data-count="1">f</span>ull_status()
+}
+
+///|
+/// Visit each follower's progress (etcd's `WithProgress`).
+pub fn RawNode::with_progress(
+  self : RawNode,
+  visit : (String, ProgressStatus) -&gt; Unit,
+) -&gt; Unit {
+  <span data-count="1">s</span>elf.raft.<span data-count="1">w</span>ith_progress(visit)
+}
+
+///|
+/// The entries appended but not yet persisted by the application (etcd's
+/// `nextUnstableEnts`): the unstable tail not already being written.
+fn RawNode::next_unstable(self : RawNode) -&gt; Array[Entry] {
+  <span data-count="346">s</span>elf.log.<span data-count="346">n</span>ext_unstable_ents()
+}
+
+///|
+/// The committed-but-unapplied entries ready to hand to the state machine
+/// (etcd's `nextCommittedEnts`). In the synchronous contract the caller persists
+/// `entries` before applying these, so committed entries need not be capped at
+/// the last stable index (etcd's `applyUnstableEntries` == `!asyncStorageWrites`):
+/// a freshly committed entry surfaces as both `entries` and `committed_entries` in
+/// the same `Ready`. Under async writes application waits for the append ack, so
+/// they are capped at the stable index.
+fn RawNode::next_committed(self : RawNode) -&gt; Array[Entry] {
+  <span data-count="345">s</span>elf.log.<span data-count="345">n</span>ext_committed_ents(!self.async_storage)
+}
+
+///|
+/// Assemble a `Ready` without committing to handle it (etcd's
+/// `readyWithoutAccept`): a pure read that leaves the buffered messages, read
+/// states, and cursors untouched, so a caller may inspect pending work and
+/// decide not to consume it.
+pub fn RawNode::ready_without_accept(self : RawNode) -&gt; Ready {
+  <span data-count="136">s</span>elf.<span data-count="136">s</span>ync_log()
+  let node = self.raft.<span data-count="136">n</span>ode()
+  let entries = self.<span data-count="136">n</span>ext_unstable()
+  let committed = self.<span data-count="136">n</span>ext_committed()
+  let snapshot = self.log.<span data-count="136">n</span>ext_unstable_snapshot()
+  let soft = self.raft.<span data-count="136">s</span>oft_state()
+  let hard = node.<span data-count="136">h</span>ard_state()
+  let hard_changed = hard != self.prev_hard
+  let mut storage_append : StorageAppend? = None
+  let mut storage_apply : StorageApply? = None
+  if self.async_storage {
+    // Hand the append (entries + any hard-state change) to the local append
+    // thread. The response attests the current last (index, term) — not the last
+    // of `entries` — so that a response arriving after a term change is dropped
+    // (see StorageAppendResp / newStorageAppendResp).
+    <span data-count="17">i</span>f !entries.<span data-count="17">i</span>s_empty() || hard_changed || snapshot is Some(_) {
+      <span data-count="13">l</span>et resp : StorageAppendResp = if self.log.<span data-count="13">h</span>as_next_or_in_progress_unstable_ents() {
+        <span data-count="11">l</span>et last = self.log.<span data-count="11">l</span>ast_entry_id()
+        { index: last.index, log_term: last.term, term: node.<span data-count="11">c</span>urrent_term() }
+      } else {
+        <span data-count="2">{</span> index: 0, log_term: 0, term: node.<span data-count="2">c</span>urrent_term() }
+      }
+      storage_append = Some({
+        entries,
+        hard_state: if hard_changed {
+          <span data-count="12">S</span>ome(hard)
+        } else {
+          <span data-count="1">N</span>one
+        },
+        snapshot,
+        resp,
+      })
+    }
+    if !committed.<span data-count="17">i</span>s_empty() {
+      <span data-count="5">s</span>torage_apply = Some({ entries: committed, resp: { entries: committed } })
+    }
+  }
+  {
+    soft_state: if soft == self.prev_soft {
+      <span data-count="78">N</span>one
+    } else {
+      <span data-count="58">S</span>ome(soft)
+    },
+    hard_state: if hard_changed {
+      <span data-count="92">S</span>ome(hard)
+    } else {
+      <span data-count="44">N</span>one
+    },
+    read_states: self.read_states.<span data-count="136">c</span>opy(),
+    entries,
+    snapshot,
+    committed_entries: committed,
+    messages: self.msgs.<span data-count="136">c</span>opy(),
+    must_sync: <span data-count="136">m</span>ust_sync(hard, self.prev_hard, entries.<span data-count="136">l</span>ength()),
+    storage_append,
+    storage_apply,
+  }
+}
+
+///|
+/// Record that the caller has taken the given `Ready` and will handle it
+/// (etcd's `acceptReady`): adopt the reported soft/hard states as the new
+/// baseline, drop the served read states, and clear the drained message buffer.
+/// The stable/applied watermarks move in `advance`, not here.
+fn RawNode::accept_ready(self : RawNode, rd : Ready) -&gt; Unit {
+  <span data-count="134">i</span>f rd.soft_state is Some(s) {
+    <span data-count="58">s</span>elf.prev_soft = s
+  }
+  if rd.hard_state is Some(h) {
+    <span data-count="92">s</span>elf.prev_hard = h
+  }
+  // Mark the reported entries and committed entries as being written / applied,
+  // so the next Ready does not re-offer them. `accept_unstable` is called
+  // unconditionally, as in etcd's `acceptReady` (a no-op when the unstable tail is
+  // empty or already in progress).
+  self.log.<span data-count="134">a</span>ccept_unstable()
+  let c = rd.committed_entries.<span data-count="134">l</span>ength()
+  if c &gt; 0 {
+    <span data-count="76">s</span>elf.log.<span data-count="76">a</span>ccept_applying(
+      rd.committed_entries[c - 1].index,
+      <span data-count="76">e</span>nts_size(rd.committed_entries[:]),
+      !self.async_storage,
+    )
+  }
+  if !rd.read_states.<span data-count="134">i</span>s_empty() {
+    <span data-count="3">s</span>elf.read_states.<span data-count="3">c</span>lear()
+  }
+  self.msgs.<span data-count="134">c</span>lear()
+}
+
+///|
+/// Take the outstanding work and commit to handling it (etcd's `Ready`): the
+/// same batch as `ready_without_accept`, but the messages are now drained and
+/// the soft/hard baseline advanced, so the next `Ready` reports only new work.
+/// The returned batch *must* be handled and passed back to `advance`.
+pub fn RawNode::ready(self : RawNode) -&gt; Ready {
+  <span data-count="134">l</span>et rd = self.<span data-count="134">r</span>eady_without_accept()
+  self.<span data-count="134">a</span>ccept_ready(rd)
+  rd
+}
+
+///|
+/// Whether any work is outstanding (etcd's `HasReady`): a soft- or hard-state
+/// change, buffered messages, entries to persist or apply, or pending read
+/// states. Lets a driver skip building a `Ready` when the node is idle.
+pub fn RawNode::has_ready(self : RawNode) -&gt; Bool {
+  <span data-count="301">s</span>elf.<span data-count="301">s</span>ync_log()
+  if self.raft.<span data-count="301">s</span>oft_state() != self.prev_soft {
+    <span data-count="44">r</span>eturn true
+  }
+  let hard = self.raft.<span data-count="257">n</span>ode().<span data-count="257">h</span>ard_state()
+  if !hard.<span data-count="257">i</span>s_empty() &amp;&amp; hard != self.prev_hard {
+    <span data-count="40">r</span>eturn true
+  }
+  if self.log.<span data-count="217">h</span>as_next_unstable_snapshot() {
+    <span data-count="1">r</span>eturn true
+  }
+  if !self.msgs.<span data-count="216">i</span>s_empty() {
+    <span data-count="6">r</span>eturn true
+  }
+  if !self.<span data-count="210">n</span>ext_unstable().<span data-count="210">i</span>s_empty() {
+    <span data-count="1">r</span>eturn true
+  }
+  if !self.<span data-count="209">n</span>ext_committed().<span data-count="209">i</span>s_empty() {
+    <span data-count="4">r</span>eturn true
+  }
+  if !self.read_states.<span data-count="205">i</span>s_empty() {
+    <span data-count="1">r</span>eturn true
+  }
+  false
+}
+
+///|
+/// Persist a `Ready`'s entries to stable storage (etcd's `storage.Append(rd.
+/// Entries)`, which the caller runs *before* applying `committed_entries`). This
+/// is the first half of handling a synchronous `Ready`: the caller `store`s, then
+/// applies `committed_entries`, then calls `advance`. A no-op under async writes,
+/// where the append is instead driven by `StorageAppend` + `step_append_resp`.
+pub fn RawNode::store(self : RawNode, rd : Ready) -&gt; Unit {
+  <span data-count="112">i</span>f self.async_storage {
+    <span data-count="1">r</span>eturn
+  }
+  if !rd.entries.<span data-count="111">i</span>s_empty() {
+    <span data-count="60">s</span>elf.log.<span data-count="60">c</span>ommit_stable(rd.entries)
+  }
+  // Persisting the snapshot to stable storage is acknowledged by dropping it from
+  // the unstable tail (etcd's `appliedSnap` -&gt; `stableSnapTo`); the mirror's
+  // storage already carries the baseline from `reflect_snapshot`, so the tail is
+  // simply cleared and the applied cursor caught up to the snapshot index.
+  if rd.snapshot is Some(s) {
+    <span data-count="2">s</span>elf.log.<span data-count="2">s</span>table_snap_to(s.last_index)
+    self.log.<span data-count="2">a</span>pplied_to(s.last_index, 0)
+  }
+}
+
+///|
+/// Notify the driver that the last `Ready` has been handled (etcd's `Advance`):
+/// its entries were persisted (by `store`) and its committed entries applied, so
+/// move the applied cursor past them. The stable watermark already moved in
+/// `store`. A no-op under async writes (the responses drive the cursors).
+pub fn RawNode::advance(self : RawNode, rd : Ready) -&gt; Unit {
+  <span data-count="121">i</span>f self.async_storage {
+    <span data-count="11">r</span>eturn
+  }
+  let c = rd.committed_entries.<span data-count="110">l</span>ength()
+  if c != 0 {
+    <span data-count="68">l</span>et last = rd.committed_entries[c - 1].index
+    self.log.<span data-count="68">a</span>pplied_to(last, <span data-count="68">e</span>nts_size(rd.committed_entries[:]))
+    // Applying the committed entries releases their uncommitted-tail quota
+    // (etcd releases at apply time, not commit time); this also advances the
+    // core's applied watermark.
+    self.raft.<span data-count="68">a</span>dvance_applied(last)
+  }
+}
+
+///|
+/// Return a `StorageAppend` acknowledgement: the entries have been made durable.
+/// The confirmed unstable prefix moves into stable storage and the unstable tail
+/// is truncated — but only if the response is not stale: a response whose term is
+/// below the node's current term (a later term has taken over) is ignored, and
+/// the ABA guard in `async_stabilize` further requires the unstable log to still
+/// hold that `(index, log_term)`.
+pub fn RawNode::step_append_resp(
+  self : RawNode,
+  resp : StorageAppendResp,
+) -&gt; Unit {
+  <span data-count="10">i</span>f resp.term &lt; self.raft.<span data-count="10">n</span>ode().<span data-count="10">c</span>urrent_term() {
+    <span data-count="2">r</span>eturn
+  }
+  self.log.<span data-count="8">a</span>sync_stabilize(resp.index, resp.log_term)
+  // etcd carries the snapshot on the MsgStorageAppendResp and stabilizes it there;
+  // our response does not name it, so a pending snapshot (guarded by the same
+  // non-stale term check above) is acknowledged on the append that carried it.
+  if self.log.<span data-count="8">p</span>ending_snapshot_index() is Some(idx) {
+    <span data-count="1">s</span>elf.log.<span data-count="1">s</span>table_snap_to(idx)
+    self.log.<span data-count="1">a</span>pplied_to(idx, 0)
+  }
+}
+
+///|
+/// Return a `StorageApply` acknowledgement: the committed entries have been
+/// applied. Advance the applied cursor and release the applied entries' quota.
+/// Committed entries are term-independent, so there is no staleness check.
+pub fn RawNode::step_apply_resp(
+  self : RawNode,
+  resp : StorageApplyResp,
+) -&gt; Unit {
+  <span data-count="5">l</span>et n = resp.entries.<span data-count="5">l</span>ength()
+  if n == 0 {
+    <span data-count="1">r</span>eturn
+  }
+  let last = resp.entries[n - 1].index
+  self.log.<span data-count="4">a</span>pplied_to(last, <span data-count="4">e</span>nts_size(resp.entries[:]))
+  self.raft.<span data-count="4">a</span>dvance_applied(last)
+}
+
+///|
+/// This server's status snapshot (etcd's `Status`/`BasicStatus`).
+pub fn RawNode::status(self : RawNode) -&gt; RaftStatus {
+  <span data-count="12">s</span>elf.raft.<span data-count="12">s</span>tatus()
+}
+
+///|
+/// Drive the node to quiescence for a caller that owns message delivery: keep
+/// taking a `Ready`, treat its entries as persisted and its committed entries as
+/// applied via `advance`, and collect every outbound message, until no work
+/// remains. Returns the messages a transport would deliver. This is the plain,
+/// synchronous read of the Ready/Advance loop that single-node drivers and the
+/// browser demo run in place of a goroutine.
+pub fn RawNode::stabilize(self : RawNode) -&gt; Array[Message] {
+  <span data-count="51">l</span>et out : Array[Message] = []
+  while self.<span data-count="73">h</span>as_ready() {
+    <span data-count="22">l</span>et rd = self.<span data-count="22">r</span>eady()
+    for m in rd.messages {
+      <span data-count="5">o</span>ut.<span data-count="5">p</span>ush(m)
+    }
+    // The full synchronous cycle in one place: persist, (implicitly apply), then
+    // advance. A caller with its own state machine runs the same three steps.
+    self.<span data-count="22">s</span>tore(rd)
+    self.<span data-count="22">a</span>dvance(rd)
+  }
+  out
+}
+</code></pre>
+      </div>
+    </div>
+    <script src="..\coverage.js"></script>
+  </body>
+</html>
