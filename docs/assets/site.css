@@ -287,6 +287,16 @@ nav.links a.active {
   padding-top: 4px;
   padding-bottom: 4px;
 }
+/* the GitHub link is the same pill as the other icon buttons; its mark is sized
+   to sit alongside the theme and menu glyphs */
+.iconbtn.ghlink {
+  padding: 6px 10px;
+}
+.iconbtn.ghlink svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
 /* the burger only does something once the nav collapses, so it is desktop-hidden
    (no dead button on PC) and its glyph is sized up where it does appear */
 .iconbtn[data-burger] {
@@ -739,7 +749,6 @@ body {
 .iconbtn,
 .brand,
 nav.links a,
-.badge,
 .chip,
 .eyebrow,
 .kicker,
@@ -757,6 +766,13 @@ button,
 .demo-head .tag {
   -webkit-user-select: none;
   user-select: none;
+}
+/* badges carry copy-worthy facts (the package name, counts, licence), so keep
+   them selectable even though they read as chrome */
+.badge,
+.badge * {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* a slim, theme-matched scrollbar instead of the chunky default */
@@ -780,6 +796,15 @@ button,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--ink-3);
   background-clip: content-box;
+}
+
+/* home / demo / design: the scrollbar stays invisible until the reader scrolls
+   off the very top. The track (gutter) is still there, so nothing shifts. */
+html.hide-bar-top:not(.is-scrolled) {
+  scrollbar-color: transparent transparent;
+}
+html.hide-bar-top:not(.is-scrolled)::-webkit-scrollbar-thumb {
+  background: transparent;
 }
 a,
 .btn,
@@ -858,9 +883,24 @@ table.api td a:hover {
   font-weight: 300;
 }
 
-/* a soft glow behind the hero's highlighted word */
+/* the hero's highlighted word. Dark mode: warm amber with a soft glow. Light
+   mode: a blue frosted-glass chip (translucent fill + backdrop blur). The box
+   geometry is shared so toggling the theme does not shift the layout. */
 h1.display .hl {
+  color: var(--leader);
+  display: inline-block;
+  padding: 0 0.1em;
+  border-radius: 12px;
   text-shadow: 0 0 34px color-mix(in oklab, var(--leader) 42%, transparent);
+}
+:root[data-theme="light"] h1.display .hl {
+  color: var(--follower);
+  background: color-mix(in oklab, var(--follower) 13%, transparent);
+  -webkit-backdrop-filter: blur(3px) saturate(1.5);
+  backdrop-filter: blur(3px) saturate(1.5);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--follower) 32%, transparent),
+    0 10px 30px -14px color-mix(in oklab, var(--follower) 55%, transparent);
+  text-shadow: none;
 }
 
 /* scroll-progress bar (created by nav.js) */

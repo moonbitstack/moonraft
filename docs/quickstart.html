@@ -6,7 +6,7 @@
     <title>Quickstart · raft-moonbit</title>
     <meta
       name="description"
-      content="Install raft-moonbit, run a five-node cluster, replicate a command, and read back the committed log — a copy-paste quickstart that matches the tested example transcript exactly."
+      content="Install raft-moonbit, run a five-node cluster, replicate a command, and read back the committed log - a copy-paste quickstart that matches the tested example transcript exactly."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
@@ -20,6 +20,7 @@
         <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
       </nav>
       <span class="spacer"></span>
+      <a class="iconbtn ghlink" href="https://github.com/Lfan-ke/raft-moonbit" target="_blank" rel="noopener" aria-label="View source on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 00-2.53 15.6c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 008 .2z"/></svg></a>
       <button class="iconbtn" data-theme-toggle></button>
       <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
     </div></header>
@@ -32,7 +33,7 @@
         </h1>
         <p class="lede" style="font-size: 16px">
           Every command and every line of output on this page is copied from the
-          tested example. The run is deterministic — the same seed always prints
+          tested example. The run is deterministic - the same seed always prints
           the same transcript.
         </p>
       </section>
@@ -59,12 +60,12 @@ moon add Lfan-ke/raft-moonbit</pre>
             <h2 class="sec" style="font-size: 20px">Run the worked example</h2>
             <p class="sub" style="margin-bottom: 14px">
               Clone the repo and run the bundled five-node scenario: it elects a
-              leader, replicates a command, crashes the leader, and re-elects —
+              leader, replicates a command, crashes the leader, and re-elects -
               printing the safety invariants at each step.
             </p>
             <pre class="code">git clone https://github.com/Lfan-ke/raft-moonbit &amp;&amp; cd raft-moonbit
 moon run cmd/example</pre>
-            <p class="tag" style="margin: 14px 0 6px">Output — verbatim</p>
+            <p class="tag" style="margin: 14px 0 6px">Output - verbatim</p>
             <pre class="code out">cluster of 5 nodes, seed 1
 elected leader: b
 committed 'set x = 1' on a majority
@@ -106,7 +107,7 @@ assert_true(cluster.committed_agrees())</pre>
             <p class="sub" style="margin-bottom: 14px">
               For a real transport, drive a
               <a href="api.html#t-RaftNode">RaftNode</a> through the
-              <a href="api.html#t-RawNode">RawNode</a> Ready/Advance loop — take a
+              <a href="api.html#t-RawNode">RawNode</a> Ready/Advance loop - take a
               <code>Ready</code>, persist its entries, send its messages, apply
               its committed entries, then <code>advance</code>.
             </p>
@@ -128,7 +129,7 @@ raw.campaign()                       <span class="c">// stand for election</span
         <p class="sub">
           The interactive demo builds from the same consensus core. Compile to
           WebAssembly, drop the artifact next to the page, and serve
-          <code>docs/</code> over http — an ES-module / <code>fetch</code> of
+          <code>docs/</code> over http - an ES-module / <code>fetch</code> of
           <code>.wasm</code> needs <code>http(s)</code>, not <code>file://</code>.
         </p>
         <pre class="code">moon build --target wasm --release

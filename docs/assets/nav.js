@@ -21,6 +21,15 @@
   // always visible if either is missing. Set here (pre-paint) to avoid a flash.
   if (!mqReduce.matches) root.classList.add("reveal-ready");
 
+  // Home / Demo / Design keep the scrollbar hidden until the reader scrolls off
+  // the top (set pre-paint so it never flashes in). Other pages behave normally.
+  {
+    const page = location.pathname.split("/").pop() || "index.html";
+    if (["", "index.html", "demo.html", "design.html"].includes(page)) {
+      root.classList.add("hide-bar-top");
+    }
+  }
+
   const setMeta = () => {
     let m = document.querySelector('meta[name="theme-color"]');
     if (!m) {
@@ -102,6 +111,7 @@
       const max = root.scrollHeight - root.clientHeight;
       prog.style.transform = `scaleX(${max > 0 ? root.scrollTop / max : 0})`;
       if (bar) bar.classList.toggle("scrolled", root.scrollTop > 8);
+      root.classList.toggle("is-scrolled", root.scrollTop > 0);
     };
     addEventListener("scroll", onScroll, { passive: true });
     addEventListener("resize", onScroll, { passive: true });
