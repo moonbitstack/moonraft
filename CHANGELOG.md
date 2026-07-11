@@ -3,6 +3,46 @@
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project
 adheres to semantic versioning.
 
+## [0.5.0]
+
+Closes the transliteration of `etcd-io/raft@26647d5`: the porting census
+(`PORTING.md`) has no `PARTIAL` / `TODO` / `PORT-pending` rows left — only `DONE`
+and the three acceptable `N/A` kinds (Go-concurrency shells, benchmarks, Go
+struct-memory-layout asserts), each with a named equivalent. 723 tests pass on
+all four backends; line and branch coverage are both 100% (3094/3094). The
+differential trace against upstream was re-verified with no MATCH→DIVERGE
+regression, and the `reject_index` fix is now positively reproduced (reverting it
+diverges, restoring it returns to a frame-identical trace).
+
+Includes the `0.4.1` `reject_index` change below.
+
+### Added
+
+- **Snapshot delivery through `Ready`.** A leader-installed snapshot now surfaces
+  through the driver's `Ready`/advance cycle: `RawNode::next_unstable_snapshot`
+  fills `Ready.snapshot` (etcd's `rawnode.go` `nextUnstableSnapshot`), and it is
+  acknowledged with `stable_snap_to` on store/advance. Closes the port of
+  `TestSlowNodeRestore` (#79) and `TestLeaderTransferAfterSnapshot` (#97).
+- **`RawNode::set_pre_vote`.** `pre_vote` is now a runtime-mutable field, so a
+  mixed-version cluster can enable pre-vote node by node (etcd's
+  `newPreVoteMigrationCluster`). Ports `TestPreVoteMigration*` (#113/#114).
+- **The leader now appears in its own progress map** with a synchronous self-ack,
+  matching etcd's `reset()`/`becomeLeader`. Ports `TestProgressLeader` (#1).
+
+### Fixed
+
+- **Same-term pre-votes are now granted per etcd `canVote`.** `handle_pre_vote`
+  granted only on a strictly-higher term, silently rejecting every same-term
+  pre-vote; it now also grants when it has already voted for the candidate, or
+  when it has neither voted nor recognised a leader this term (`raft.go:1214`).
+  Ports `TestRecvMsgPreVote` (FINDINGS_LEDGER #23).
+- **A lone voter no longer stalls a read on a down learner.** The read-index
+  singleton fast path was gated on the peer count rather than etcd's voters-only
+  `IsSingleton`, so a single voter with a learner would, under `ReadOnlySafe`,
+  broadcast a heartbeat and wait for the learner to ack. It now takes the fast
+  path whenever the voter set is a singleton. Ports `TestReadOnlyWithLearner` and
+  `TestReadOnlyDuplicateRequest` (#57 / #60; FINDINGS_LEDGER #24).
+
 ## [0.4.1]
 
 A single breaking wire change that completes the port of the AppendEntries
@@ -34,7 +74,7 @@ deviations from `etcd-io/raft` are removed so the behaviour matches upstream.
 
 ### Changed
 
-- **Directory layout.** The flat source tree is split into nine packages that
+- **Directory layout.** The flat source tree is split into eight packages that
   mirror the upstream `etcd-io/raft` layout (`quorum`, `tracker`, `raftpb`,
   `confchange`, `storage`, `log`, `core`, `demo`) behind a root `raft.mbt`
   facade. Consumers are unaffected: `moon add Lfan-ke/raft-moonbit` and the
