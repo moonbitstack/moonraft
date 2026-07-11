@@ -53,11 +53,23 @@ jobs:
 
       # The demo's worker driver is exercised by the differential harness on the
       # difftest branch, not by the unit tests, so it drags the total down here.
-      - name: coverage
+      - name: coverage must be 100%
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           moon test --enable-coverage
-          moon coverage report -f summary
+          echo "--- line coverage ---"
+          moon coverage analyze | tee analyze.txt
+          grep -q "All source files are fully covered" analyze.txt \
+            || { echo "::error::line coverage is below 100%"; exit 1; }
+          echo "--- branch coverage ---"
+          moon coverage report -f summary | tee summary.txt
+          line="$(grep -oE 'Total: [0-9]+/[0-9]+' summary.txt | tail -n1)"
+          covered="$(echo "$line" | grep -oE '[0-9]+' | head -n1)"
+          total="$(echo "$line" | grep -oE '[0-9]+' | tail -n1)"
+          echo "branch points: covered=$covered total=$total"
+          if [ -z "$total" ] || [ "$covered" != "$total" ]; then
+            echo "::error::branch coverage is below 100% ($line)"; exit 1
+          fi
 
       - name: runnable example
         run: |
