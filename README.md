@@ -12,7 +12,9 @@
 
 **[▶ Live demo](https://lfan-ke.github.io/raft-moonbit/demo.html)** · **[Docs](https://lfan-ke.github.io/raft-moonbit/)** · **[API](https://lfan-ke.github.io/raft-moonbit/api.html)** · **[Quickstart](https://lfan-ke.github.io/raft-moonbit/quickstart.html)**
 
-<a href="https://lfan-ke.github.io/raft-moonbit/"><img src="docs/site-home.png" alt="raft-moonbit" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-partition.png" alt="raft-moonbit — under a partition, S1 leads term 1 and S3 leads term 2 at once, and Election Safety still holds" width="860"></a>
+
+<sub><em>Under a partition, <code>S1</code> leads term 1 and <code>S3</code> leads term 2 at once — and Election Safety still holds.</em></sub>
 
 </div>
 
@@ -86,11 +88,11 @@ Together they surfaced **24 correctness defects** in the consensus, log and stor
 
 ### ▶ https://lfan-ke.github.io/raft-moonbit/demo.html
 
-Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to **WebAssembly**, ticks on its own wall-clock timer, and talks to peers only by `postMessage`. The main thread is the network — it can drop, delay and partition messages, and `terminate()` a worker to crash a node — and holds no Raft state of its own. Elections race, messages reorder, nothing about the schedule is deterministic.
+Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to **WebAssembly**, ticks on its own wall-clock timer, and talks to peers only by `postMessage`. The main thread is the network — drop packets, add delay, **split** the cluster, **isolate** or **crash** the leader — and it holds no Raft state of its own. Elections race, messages reorder, nothing about the schedule is deterministic; a panel re-checks the safety invariants (*one leader per term*, *committed prefixes agree*) on every frame.
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-demo-partition.png" alt="Two leaders in different terms under a partition — Election Safety still holds" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
 
-That snapshot is the whole point: under a partition, `S2` leads term 1 and `S5` leads term 2 **at the same time**, and **Election Safety still holds**. Two leaders are only a contradiction if they share a term; the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
+The two-leaders snapshot at the top is the whole point: under a partition two nodes can lead *different* terms at once, and **Election Safety still holds** — two leaders only contradict Raft if they share a term, and the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
 It is not a JavaScript re-implementation — messages cross the boundary as flat integers, node state is a JSON string read straight out of the wasm module's linear memory, and every transition happens inside the same MoonBit code the tests exercise (`worker_driver.mbt`). Honest scope: five workers on one machine model *concurrency*, not a distributed deployment, and a restarted node catches up from the leader since the workers have no persistent storage.
 
