@@ -117,27 +117,31 @@
     addEventListener("resize", onScroll, { passive: true });
     onScroll();
 
-    // Motion-safe scroll reveal: cards fade up as they enter, staggered within
-    // their row. Above-the-fold cards resolve immediately.
-    if (!mqReduce.matches && "IntersectionObserver" in window) {
-      const io = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((e) => {
-            if (e.isIntersecting) {
-              e.target.classList.add("in");
-              io.unobserve(e.target);
-            }
-          });
-        },
-        { rootMargin: "0px 0px -6% 0px", threshold: 0.06 }
-      );
-      document.querySelectorAll("section.band .card").forEach((card) => {
+    // Motion-safe scroll reveal: cards fade up once their top passes into the
+    // lower viewport, staggered within their row. This runs on every scroll (not
+    // a one-shot observer) so no card can get stuck hidden, and above-the-fold
+    // cards resolve on the first pass.
+    if (!mqReduce.matches) {
+      let pending = [...document.querySelectorAll("section.band .card")];
+      pending.forEach((card) => {
         const sibs = [...card.parentElement.children].filter((c) =>
           c.classList.contains("card")
         );
         card.style.transitionDelay = Math.max(0, sibs.indexOf(card)) * 70 + "ms";
-        io.observe(card);
       });
+      const reveal = () => {
+        const trigger = innerHeight * 0.92;
+        pending = pending.filter((card) => {
+          if (card.getBoundingClientRect().top < trigger) {
+            card.classList.add("in");
+            return false;
+          }
+          return true;
+        });
+        if (!pending.length) removeEventListener("scroll", reveal);
+      };
+      addEventListener("scroll", reveal, { passive: true });
+      reveal();
     }
   });
 })();

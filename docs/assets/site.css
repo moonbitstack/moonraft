@@ -287,16 +287,6 @@ nav.links a.active {
   padding-top: 4px;
   padding-bottom: 4px;
 }
-/* the GitHub link is the same pill as the other icon buttons; its mark is sized
-   to sit alongside the theme and menu glyphs */
-.iconbtn.ghlink {
-  padding: 6px 10px;
-}
-.iconbtn.ghlink svg {
-  display: block;
-  width: 20px;
-  height: 20px;
-}
 /* the burger only does something once the nav collapses, so it is desktop-hidden
    (no dead button on PC) and its glyph is sized up where it does appear */
 .iconbtn[data-burger] {
@@ -875,6 +865,18 @@ table.api td a:hover {
   background-size: 100% 1.5px;
 }
 
+/* an inline GitHub link that reads as plain body text and grows a green (theme)
+   underline from left to right on hover */
+.lede a.ghtext {
+  color: inherit;
+  background-image: linear-gradient(var(--replicate), var(--replicate));
+  background-size: 0% 2px;
+}
+.lede a.ghtext:hover {
+  color: inherit;
+  background-size: 100% 2px;
+}
+
 /* light-reading register — the prominent intros are set in Microsoft YaHei UI
    Light where the viewer has it, otherwise HarmonyOS Sans SC Light */
 .lede,
@@ -895,11 +897,14 @@ h1.display .hl {
 }
 :root[data-theme="light"] h1.display .hl {
   color: var(--follower);
-  background: color-mix(in oklab, var(--follower) 13%, transparent);
-  -webkit-backdrop-filter: blur(3px) saturate(1.5);
-  backdrop-filter: blur(3px) saturate(1.5);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--follower) 32%, transparent),
-    0 10px 30px -14px color-mix(in oklab, var(--follower) 55%, transparent);
+  background: linear-gradient(
+    155deg,
+    color-mix(in oklab, var(--follower) 22%, transparent),
+    color-mix(in oklab, var(--follower) 10%, transparent)
+  );
+  -webkit-backdrop-filter: blur(7px) saturate(1.7);
+  backdrop-filter: blur(7px) saturate(1.7);
+  box-shadow: 0 12px 28px -16px color-mix(in oklab, var(--follower) 55%, transparent);
   text-shadow: none;
 }
 
