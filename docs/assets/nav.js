@@ -77,6 +77,23 @@
       burger.addEventListener("click", () => bar.classList.toggle("open"));
     }
 
+    // One caret at a time: on the home page the logo shows a bare "raft-moonbit"
+    // while the hero caret is on screen, then smoothly grows back "~/…▊" (blinking)
+    // once the hero scrolls away. Other pages always show the full blinking form.
+    const heroCaret = document.querySelector("h1.display .caret");
+    const brandLink = document.querySelector(".brand");
+    if (heroCaret && brandLink && "IntersectionObserver" in window) {
+      brandLink.classList.add("minimal");
+      new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) =>
+            brandLink.classList.toggle("minimal", e.isIntersecting)
+          );
+        },
+        { threshold: 0 }
+      ).observe(heroCaret);
+    }
+
     // Scroll-progress bar + topbar depth on scroll.
     const prog = document.createElement("div");
     prog.className = "scroll-progress";

@@ -25,6 +25,14 @@
   src: url("fonts/HarmonyOSSansSC-Regular.woff2") format("woff2");
 }
 @font-face {
+  /* the Light face ships under its own family name, so declare it by that name */
+  font-family: "Microsoft YaHei UI Light";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("fonts/MicrosoftYaHeiUILight.woff2") format("woff2");
+}
+@font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 400;
@@ -202,6 +210,26 @@ a:hover {
   color: var(--caret);
   animation: blink 1.1s steps(1) infinite;
 }
+/* On the home page the logo reads simply "raft-moonbit" while the hero (with its
+   own blinking caret) is on screen — one caret at a time, and a lone motionless
+   caret in the corner would read as frozen. Once the hero scrolls away, the "~/"
+   prompt and the blinking caret smoothly grow back in. */
+.brand .prompt,
+.brand .caret {
+  display: inline-block;
+  overflow: hidden;
+  max-width: 3ch;
+  vertical-align: bottom;
+  transition: max-width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.4s ease;
+}
+.brand.minimal .prompt,
+.brand.minimal .caret {
+  max-width: 0;
+  opacity: 0;
+}
+.brand.minimal .caret {
+  animation: none;
+}
 @keyframes blink {
   50% {
     opacity: 0;
@@ -247,6 +275,15 @@ nav.links a.active {
 .iconbtn:hover {
   color: var(--ink);
   border-color: var(--border-strong);
+}
+/* the burger is icon-only, so the glyph is sized up to fill the same button */
+.iconbtn[data-burger] {
+  font-size: 21px;
+  line-height: 1;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---- badges --------------------------------------------------------------- */
@@ -599,6 +636,76 @@ footer.site .mono {
   }
 }
 
+/* tablets / large phones */
+@media (max-width: 620px) {
+  .wrap {
+    padding: 0 16px;
+  }
+  /* the base clamp floors at 34px — too wide for the fixed hero lines on a
+     phone — so scale it down here to keep the display from overflowing */
+  h1.display {
+    font-size: clamp(24px, 5.5vw, 34px);
+  }
+  .hero {
+    padding: 46px 0 28px;
+  }
+  section.band {
+    padding: 32px 0;
+  }
+  .topbar .row {
+    height: 54px;
+    gap: 10px;
+  }
+  .topbar.open nav.links {
+    top: 54px;
+    padding: 10px 16px;
+  }
+  .cta {
+    gap: 8px;
+  }
+  .btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  footer.site .row {
+    justify-content: flex-start;
+  }
+}
+
+/* small phones */
+@media (max-width: 430px) {
+  .brand {
+    font-size: 13px;
+  }
+  h1.display {
+    font-size: clamp(20px, 6vw, 28px);
+  }
+  .lede {
+    font-size: 15px;
+  }
+  .eyebrow {
+    font-size: 11.5px;
+  }
+  .cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn {
+    justify-content: center;
+  }
+}
+
+/* wide desktops — let the shell breathe a little more */
+@media (min-width: 1500px) {
+  :root {
+    --maxw: 1260px;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--caret);
   outline-offset: 2px;
@@ -607,6 +714,30 @@ footer.site .mono {
 /* ---- motion & depth polish ------------------------------------------------ */
 body {
   transition: background-color 0.35s ease, color 0.35s ease;
+  overflow-x: hidden; /* belt-and-suspenders against any stray horizontal scroll */
+}
+
+/* a slim, theme-matched scrollbar instead of the chunky default */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: content-box;
 }
 a,
 .btn,
