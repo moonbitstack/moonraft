@@ -70,6 +70,16 @@ Source: [`cmd/example/main.mbt`](cmd/example/main.mbt). The lower-level `Node` /
 
 </details>
 
+New to the library? [`examples/`](examples/) is a guided tour in five short, runnable programs - from a first election up to a replicated key-value store:
+
+```
+moon run examples/00-helloworld     # elect a leader
+moon run examples/01-replicate      # propose commands, confirm every node commits
+moon run examples/02-fault-tolerance # crash, partition, drop packets - safety holds
+moon run examples/03-operations     # progress, leadership transfer, compaction
+moon run examples/04-kvstore        # a replicated key-value store on a StateMachine
+```
+
 ## Correctness
 
 This is a line-by-line port, and it is verified as one. The porting census ([`PORTING.md`](PORTING.md)) tracks every upstream `Test*` function and has **no `PARTIAL` or `TODO` rows left** — every test that does not depend on Go's runtime is ported assertion-for-assertion, with no simplified cases, no skipped table rows and no weakened assertions; each remaining `N/A` (a goroutine/channel shell, a benchmark, or a Go struct-memory-layout assert) states its MoonBit equivalent.

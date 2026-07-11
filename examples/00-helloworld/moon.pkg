@@ -1,0 +1,7 @@
+import {
+  "Lfan-ke/raft-moonbit" @raft,
+}
+
+options(
+  "is-main": true,
+)
