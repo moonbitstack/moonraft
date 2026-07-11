@@ -304,6 +304,7 @@ nav.links a.active {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
 }
 .badge {
   font-family: var(--mono);
@@ -362,7 +363,7 @@ h1.display .caret {
   margin: 24px 0 0;
   font-size: clamp(16px, 1.9vw, 20px);
   color: var(--ink-2);
-  max-width: 60ch;
+  max-width: 84ch;
 }
 .cta {
   display: flex;
@@ -452,7 +453,7 @@ h2.sec {
 }
 .sub {
   color: var(--ink-2);
-  max-width: 68ch;
+  max-width: 94ch;
   margin: 0 0 26px;
 }
 .grid {
@@ -739,6 +740,7 @@ body {
 .iconbtn,
 .brand,
 nav.links a,
+h1.display,
 .chip,
 .eyebrow,
 .kicker,
@@ -817,6 +819,10 @@ footer.site a {
 .topbar.scrolled {
   box-shadow: 0 10px 30px -22px rgba(0, 0, 0, 0.8);
   background: color-mix(in oklab, var(--bg) 88%, transparent);
+}
+/* light mode wants a tighter, more discreet shadow than the dark one */
+:root[data-theme="light"] .topbar.scrolled {
+  box-shadow: 0 2px 9px -4px rgba(20, 40, 80, 0.16);
 }
 
 .card:hover {
@@ -898,13 +904,13 @@ h1.display .hl {
 :root[data-theme="light"] h1.display .hl {
   color: var(--follower);
   background: linear-gradient(
-    155deg,
-    color-mix(in oklab, var(--follower) 22%, transparent),
-    color-mix(in oklab, var(--follower) 10%, transparent)
+    135deg,
+    color-mix(in oklab, var(--follower) 5%, transparent),
+    color-mix(in oklab, var(--follower) 16%, transparent)
   );
   -webkit-backdrop-filter: blur(7px) saturate(1.7);
   backdrop-filter: blur(7px) saturate(1.7);
-  box-shadow: 0 12px 28px -16px color-mix(in oklab, var(--follower) 55%, transparent);
+  box-shadow: 0 12px 28px -16px color-mix(in oklab, var(--follower) 45%, transparent);
   text-shadow: none;
 }
 
