@@ -913,7 +913,7 @@ h1.display .hl {
 :root[data-theme="light"] h1.display .hl {
   color: var(--follower);
   background: linear-gradient(
-    135deg,
+    175deg,
     color-mix(in oklab, var(--follower) 5%, transparent),
     color-mix(in oklab, var(--follower) 16%, transparent)
   );
