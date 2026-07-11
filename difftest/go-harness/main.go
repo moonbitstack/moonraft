@@ -198,6 +198,20 @@ func (e *env) drop(from, to uint64) {
 	e.bus = rest
 }
 
+// dup re-queues a copy of every from->to message currently in flight, modelling
+// a duplicated/reordered delivery. The copies land after the originals, so a
+// later `deliver` steps the stale duplicate once the original has already moved
+// the follower's progress.
+func (e *env) dup(from, to uint64) {
+	var extra []busMsg
+	for _, bm := range e.bus {
+		if bm.from == from && bm.to == to {
+			extra = append(extra, bm)
+		}
+	}
+	e.bus = append(e.bus, extra...)
+}
+
 // ---- normalized schema ----
 
 func roleName(s string) string {
@@ -441,6 +455,9 @@ func (e *env) run(lines []string) {
 			e.emit(line, e.stabilize())
 		case "drop":
 			e.drop(u(args[0]), u(args[1]))
+			e.emit(line, nil)
+		case "dup":
+			e.dup(u(args[0]), u(args[1]))
 			e.emit(line, nil)
 		case "partition":
 			e.partition(args)

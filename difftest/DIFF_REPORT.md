@@ -105,6 +105,108 @@ carried. None is new; none is a safety difference; final state converges on ever
 deterministic scenario. The harness proved it is still sensitive — it flags these
 4 in the very same run in which 5 others became MATCH.
 
+## 0.05 Re-verification on master `430b050` (0.4.1 — reject_index, snapshot-via-Ready, canVote, singleton read gate)
+
+The `difftest/` subtree was merged forward onto **master `430b050`** (`git merge
+--no-ff master`). The merge had **zero consensus-code conflicts** — the branch is
+master's consensus source plus the additive `difftest/` overlay — so every core
+file (`core/*`, `tracker/*`, `raftpb/*`, `log/*`, `quorum/*`, `storage/*`,
+`confchange/*`, `raft.mbt`) took master verbatim. Gate after merge:
+**`moon check --deny-warn --target all` clean on all four backends, `moon test`
+723 / 723**. The etcd submodule stays pinned at `26647d5` with only the untracked
+`harness_export.go` overlay.
+
+`430b050` brings the four fixes this pass targets: **reject_index in the append
+reply (#22)**, **installed snapshots delivered through `Ready`**, **pre-vote
+authorization aligned to etcd `canVote` (#23)**, and the **voters-only singleton
+read gate (#24)**.
+
+**Schema alignment (harness-only, no consensus change).** #22 makes
+`reject_index` a live wire field: on a rejected `AppendEntries` the follower now
+echoes the rejected probe point, exactly etcd's `MsgAppResp.Index` on a rejection
+(`Index: m.GetIndex()`). etcd's `Index` field is *unified* — the new match index
+on success, the rejected probe point on a rejection — and the Go harness already
+emits it (`m.GetIndex()`). The MoonBit harness, however, still read only
+`match_index` (0 on a rejection), so the two sides reported the *same* rejection
+with different `index` (Go 257, mb 0). This was a **harness under-read, not a
+consensus difference**: the fix is one line in `mbt-harness/main.mbt` —
+`index = if a.success { a.match_index } else { a.reject_index }` — so both sides
+now emit the same etcd-native `Index`. No assertion was weakened; a field the
+MoonBit side was dropping is now compared.
+
+**Result: 10 scenarios MATCH, 4 diverge — the prior MATCH set (01/02/04/05/08/10/
+11/12) plus the two new positive controls (13/14). No scenario regressed from
+MATCH to DIVERGE.** The DIVERGE set is byte-for-byte the same four standing causes
+as `ac443c5` (§0.2): 03 (heartbeat-resp Map order), 06 (256 `msg.commit` ordering
+artifacts), 07 / 09 (conf-change append shape). Scenario 06 *improved*: the
+reject-`Index` diff at step 308 that `ac443c5` newly unmasked is now **gone** (257
+→ 256 field diffs), leaving only the pre-existing step-305 ordering artifact.
+
+| # | Scenario | `ac443c5` | `430b050` | Change |
+|---|----------|-----------|-----------|--------|
+| 01 | elect + commit | MATCH | **MATCH** | — |
+| 02 | pre-vote on | MATCH | **MATCH** | — |
+| 03 | partition → heal | DIVERGE | **DIVERGE** | unchanged (heartbeat-resp Map order) |
+| 04 | leader crash | MATCH | **MATCH** | — |
+| 05 | divergent-log truncation | MATCH | **MATCH** | — |
+| 06 | flow control / batching | DIVERGE (257) | **DIVERGE (256)** | **reject-`Index` step-308 diff eliminated** by harness alignment; only step-305 ordering artifact remains |
+| 07 | add voter | DIVERGE ×1 | **DIVERGE ×1** | unchanged (conf-change append shape) |
+| 08 | remove voter | MATCH | **MATCH** | — |
+| 09 | add learner | DIVERGE ×1 | **DIVERGE ×1** | unchanged (conf-change append shape) |
+| 10 | ReadIndex (safe) | MATCH | **MATCH** | — |
+| 11 | leadership transfer | MATCH | **MATCH** | — |
+| 12 | repeated campaigns / stale | MATCH | **MATCH** | — |
+| 13 | **reordered stale reject** (new) | — | **MATCH** | **new positive control for #22** (see below) |
+| 14 | **singleton read gate** (new) | — | **MATCH** | **new coverage for #24** (see below) |
+
+**Positive control for #22 — reproduced (previously an open gap).** The prior
+report (§5 control #1, §7) could not surface the reject-`Index` staleness guard
+because the network model delivers in-order per pair, so a reordered/duplicate
+stale reject could not be constructed. This pass adds a **`dup from to` DSL
+primitive** (symmetric on both harnesses: it re-queues a copy of every in-flight
+`from→to` message so a later `deliver` steps the stale duplicate *after* the
+original moved the follower's progress) and **scenario 13**. The scenario drives a
+lagging follower whose `next` was advanced optimistically, so the leader probes at
+`idx4`, the follower rejects (`reject_index=4, hint=2`), the reject is `dup`-ed,
+and both copies are delivered together. The leader backs off once to probe `idx2`;
+the stale duplicate (`reject_index=4`) is discarded by `maybe_decr_to`'s guard
+(`next_index-1 = 2 ≠ 4`), emitting a single `Append 1→3 idx2` — **frame-identical
+to etcd**. The control is genuine: temporarily reverting the one-line #22 leader
+change (`let rejected = reply.reject_index` → `p.next_index - 1`) makes the guard
+dead again, and MoonBit emits a **second spurious `Append 1→3 idx2` probe** at
+step 16 → **DIVERGE (7 field diffs)**; restoring the fix returns it to MATCH. This
+is the "old DIVERGE → fixed MATCH" evidence the reject_index fix required.
+
+**Singleton read gate (#24) — covered by scenario 14.** Scenario 10 is a 3-node
+cluster and never takes the `IsSingleton` fast path. Scenario 14 is a one-voter
+cluster: `read_index` at step 6 emits **zero messages** on both sides — the lone
+voter confirms its own leadership trivially and answers against the commit index
+with no heartbeat round. MATCH. (This covers the singleton fast path; the
+voters-only-*with-learner* nuance of #24 — a lone voter plus a learner still
+qualifying as singleton — is not separately distinguished here and remains
+exercised by the library's ported unit tests.)
+
+**Snapshot-via-Ready and same-term `canVote` — coverage notes (honest gaps).**
+The snapshot-through-`Ready` fix is **not trace-reachable**: as §5 control #2 / §7
+note, the RawNode harness has no leader-side log-compaction hook, so no `MsgSnap`
+is ever emitted and no scenario installs a snapshot; the fix is confirmed
+structurally (723 tests, ported `TestSlowNodeRestore`/`TestLeaderTransferAfterSnapshot`)
+but cannot be surfaced by the present scripts. The `canVote` #23 fix grants
+pre-votes at the *same* term (voted-for-candidate or no-vote-and-no-leader
+clauses); scenario 02's fresh-cluster pre-vote passes via the *future-term* clause
+(a pre-candidate solicits `current+1 > voters' term`), which the pre-fix code also
+satisfied, so 02 does not distinctively exercise the same-term nuance. Building a
+same-term pre-vote in the DSL requires a voter parked at a higher term with no
+vote and no leader — a fragile multi-step construction — so the same-term `canVote`
+path is left to the library's ported `TestRecvMsgPreVote`/`TestPreVoteMigration`
+(723 green); flagged here as a harness gap rather than claimed as covered.
+
+**No new consensus bug.** Every field diff in this run was already present on
+`ac443c5` (03/06/07/09) or is the newly-*aligned* reject_index field; the only
+change made to make 06 stricter was the harness under-read fix. No `FINDINGS`
+entry was added (no consensus-code change on this branch); the standing
+`reject_index` positive-control gap in the audit ledger is now recorded as closed.
+
 ## 0.2 Re-verification on master `ac443c5` (0.4.0 breaking changes)
 
 The framework (its 4 commits) was rebased from `5fce34a` onto **`ac443c5`**, which

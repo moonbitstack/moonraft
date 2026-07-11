@@ -1,0 +1,11 @@
+# Scenario 14: singleton read gate (#24). A one-voter leader confirms its own
+# leadership trivially (etcd IsSingleton, voters-only), so read_index is answered
+# at once against the commit index with no heartbeat round.
+config prevote=false electiontick=10 heartbeattick=1
+cluster 1
+campaign 1
+stabilize
+propose 1 data
+stabilize
+read_index 1 ctx1
+stabilize

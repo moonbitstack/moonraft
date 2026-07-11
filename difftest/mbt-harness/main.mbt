@@ -241,7 +241,10 @@ fn msg_row(m : @raft.Message) -> MsgRow {
       mtype = "AppendResp"
       term = a.term
       reject = !(a.success)
-      index = a.match_index
+      // etcd's `MsgAppResp.Index` is unified: the new match index on success,
+      // the rejected probe point (`reject_index`) on a rejection. The Go side
+      // emits `m.GetIndex()` for both, so read the same field here.
+      index = if a.success { a.match_index } else { a.reject_index }
       logterm = a.conflict_term
       rejecthint = a.conflict_index
     }
@@ -555,6 +558,22 @@ fn Env::drop_msgs(self : Env, from : String, to : String) -> Unit {
 }
 
 ///|
+// Re-queue a copy of every from->to message in flight, modelling a duplicated /
+// reordered delivery: the copies trail the originals so a later `deliver` steps
+// the stale duplicate after the original has moved the follower's progress.
+fn Env::dup_msgs(self : Env, from : String, to : String) -> Unit {
+  let extra = []
+  for bm in self.bus {
+    if bm.from == from && bm.to == to {
+      extra.push(bm)
+    }
+  }
+  for bm in extra {
+    self.bus.push(bm)
+  }
+}
+
+///|
 fn Env::partition(self : Env, g1 : Array[String], g2 : Array[String]) -> Unit {
   for a in g1 {
     for b in g2 {
@@ -718,6 +737,10 @@ fn Env::run(self : Env, text : String) -> Unit {
       "stabilize" => self.emit(line, self.stabilize())
       "drop" => {
         self.drop_msgs(args[0], args[1])
+        self.emit(line, [])
+      }
+      "dup" => {
+        self.dup_msgs(args[0], args[1])
         self.emit(line, [])
       }
       "partition" => {
