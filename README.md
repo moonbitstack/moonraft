@@ -12,9 +12,9 @@
 
 **[▶ Live demo](https://lfan-ke.github.io/raft-moonbit/demo.html)** · **[Docs](https://lfan-ke.github.io/raft-moonbit/)** · **[API](https://lfan-ke.github.io/raft-moonbit/api.html)** · **[Quickstart](https://lfan-ke.github.io/raft-moonbit/quickstart.html)**
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-partition.png" alt="raft-moonbit — under a partition, S1 leads term 1 and S3 leads term 2 at once, and Election Safety still holds" width="860"></a>
+<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-home.png" alt="raft-moonbit live demo — a real Raft cluster in the browser; split-brain, S1 leads term 1 and S4 leads term 2 at once, and every safety invariant still holds" width="860"></a>
 
-<sub><em>Under a partition, <code>S1</code> leads term 1 and <code>S3</code> leads term 2 at once — and Election Safety still holds.</em></sub>
+<sub><em>Split-brain, live in the browser: <code>S1</code> leads term 1 and <code>S4</code> leads term 2 at once — and every safety invariant still holds.</em></sub>
 
 </div>
 
