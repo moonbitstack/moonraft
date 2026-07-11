@@ -50,7 +50,7 @@
     const other = () =>
       root.getAttribute("data-theme") === "light" ? "dark" : "light";
     paintToggle = () => {
-      if (btn) btn.textContent = "◐ " + other();
+      if (btn) btn.innerHTML = '<span class="tgl-icon">◐</span> ' + other();
     };
     paintToggle();
     if (btn) {

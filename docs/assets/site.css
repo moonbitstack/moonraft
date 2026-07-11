@@ -276,12 +276,18 @@ nav.links a.active {
   color: var(--ink);
   border-color: var(--border-strong);
 }
-/* the burger is icon-only, so the glyph is sized up to fill the same button */
-.iconbtn[data-burger] {
-  font-size: 21px;
+/* the theme-toggle glyph, enlarged to ~1.3x without growing the button */
+.iconbtn .tgl-icon {
+  font-size: 1.3em;
   line-height: 1;
-  padding: 6px 12px;
-  display: inline-flex;
+}
+/* the burger only does something once the nav collapses, so it is desktop-hidden
+   (no dead button on PC) and its glyph is sized up where it does appear */
+.iconbtn[data-burger] {
+  display: none;
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 12px;
   align-items: center;
   justify-content: center;
 }
@@ -622,6 +628,10 @@ footer.site .mono {
   }
   nav.links {
     display: none;
+  }
+  /* the nav has collapsed, so the burger is now useful — show it here */
+  .iconbtn[data-burger] {
+    display: inline-flex;
   }
   .topbar.open nav.links {
     display: flex;
