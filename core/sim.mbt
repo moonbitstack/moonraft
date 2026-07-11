@@ -322,7 +322,7 @@ pub fn Cluster::run_until_leader(self : Cluster, max_ticks : Int) -> String? {
   for _ in 0..<max_ticks {
     self.tick()
     let ls = self.leaders()
-    if ls.length() > 0 {
+    if !ls.is_empty() {
       return Some(ls[0])
     }
   }

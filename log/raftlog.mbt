@@ -115,7 +115,7 @@ pub fn RaftLog::seed(
 /// Move `entries` from the unstable tail into stable storage, then mark them
 /// stable — the persist half of a driver's Ready/Advance cycle.
 pub fn RaftLog::commit_stable(self : RaftLog, entries : Array[Entry]) -> Unit {
-  if entries.length() == 0 {
+  if entries.is_empty() {
     return
   }
   self.storage.append(entries)
@@ -267,7 +267,7 @@ pub fn RaftLog::maybe_append(
 /// Append `ents` to the unstable tail and return the new last index. Appending
 /// at or before the commit index is a corruption and aborts.
 pub fn RaftLog::append(self : RaftLog, ents : Array[Entry]) -> UInt64 {
-  if ents.length() == 0 {
+  if ents.is_empty() {
     return self.last_index()
   }
   let after = ents[0].index - 1
@@ -425,13 +425,13 @@ pub fn RaftLog::next_unstable_ents(self : RaftLog) -> Array[Entry] {
 ///|
 /// Whether any unstable entries are ready to be written.
 pub fn RaftLog::has_next_unstable_ents(self : RaftLog) -> Bool {
-  self.next_unstable_ents().length() > 0
+  !self.next_unstable_ents().is_empty()
 }
 
 ///|
 /// Whether there are any unstable entries, whether or not already in progress.
 pub fn RaftLog::has_next_or_in_progress_unstable_ents(self : RaftLog) -> Bool {
-  self.unstable.entries.length() > 0
+  !self.unstable.entries.is_empty()
 }
 
 ///|
@@ -553,7 +553,7 @@ pub fn RaftLog::scan(
     // etcd's `scan` panics if `slice` hands back an empty page, which would leave
     // `lo` unadvanced and loop forever; a `MemoryStorage` never does, but a broken
     // backend could, so the guard stands.
-    if ents.length() == 0 {
+    if ents.is_empty() {
       abort("scan got 0 entries")
     }
     v(ents[:])

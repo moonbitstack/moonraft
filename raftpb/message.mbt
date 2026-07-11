@@ -113,7 +113,7 @@ pub fn Message::kind(self : Message) -> String {
     PreVoteResp(_) => "PreVoteResp"
     Vote(_) => "Vote"
     VoteResp(_) => "VoteResp"
-    Append(a) => if a.entries.length() == 0 { "Probe" } else { "Append" }
+    Append(a) => if a.entries.is_empty() { "Probe" } else { "Append" }
     AppendResp(_) => "AppendResp"
     Heartbeat(_) => "Heartbeat"
     HeartbeatResp(_) => "HeartbeatResp"

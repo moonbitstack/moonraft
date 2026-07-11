@@ -39,10 +39,10 @@ pub fn ConfState::empty() -> ConfState {
 ///|
 /// Whether this conf state records no membership at all.
 pub fn ConfState::is_empty(self : ConfState) -> Bool {
-  self.voters.length() == 0 &&
-  self.learners.length() == 0 &&
-  self.voters_outgoing.length() == 0 &&
-  self.learners_next.length() == 0
+  self.voters.is_empty() &&
+  self.learners.is_empty() &&
+  self.voters_outgoing.is_empty() &&
+  self.learners_next.is_empty()
 }
 
 ///|

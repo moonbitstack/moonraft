@@ -419,7 +419,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     // thread. The response attests the current last (index, term) — not the last
     // of `entries` — so that a response arriving after a term change is dropped
     // (see StorageAppendResp / newStorageAppendResp).
-    if entries.length() > 0 || hard_changed || snapshot is Some(_) {
+    if !entries.is_empty() || hard_changed || snapshot is Some(_) {
       let resp : StorageAppendResp = if self.log.has_next_or_in_progress_unstable_ents() {
         let last = self.log.last_entry_id()
         { index: last.index, log_term: last.term, term: node.current_term() }
@@ -437,7 +437,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
         resp,
       })
     }
-    if committed.length() > 0 {
+    if !committed.is_empty() {
       storage_apply = Some({ entries: committed, resp: { entries: committed } })
     }
   }
@@ -488,7 +488,7 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
       !self.async_storage,
     )
   }
-  if rd.read_states.length() != 0 {
+  if !rd.read_states.is_empty() {
     self.read_states.clear()
   }
   self.msgs.clear()
@@ -521,16 +521,16 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
   if self.log.has_next_unstable_snapshot() {
     return true
   }
-  if self.msgs.length() > 0 {
+  if !self.msgs.is_empty() {
     return true
   }
-  if self.next_unstable().length() > 0 {
+  if !self.next_unstable().is_empty() {
     return true
   }
-  if self.next_committed().length() > 0 {
+  if !self.next_committed().is_empty() {
     return true
   }
-  if self.read_states.length() > 0 {
+  if !self.read_states.is_empty() {
     return true
   }
   false
@@ -546,7 +546,7 @@ pub fn RawNode::store(self : RawNode, rd : Ready) -> Unit {
   if self.async_storage {
     return
   }
-  if rd.entries.length() != 0 {
+  if !rd.entries.is_empty() {
     self.log.commit_stable(rd.entries)
   }
   // Persisting the snapshot to stable storage is acknowledged by dropping it from
