@@ -26,8 +26,8 @@ The demo is not a JavaScript re-implementation. Messages cross the boundary as f
 ### Build and run the site locally
 
 ```
-moon build --target wasm --release              # -> _build/wasm/release/build/raft-moonbit.wasm
-cp _build/wasm/release/build/raft-moonbit.wasm docs/raft-moonbit.wasm
+moon build --target wasm --release              # -> _build/wasm/release/build/demo/demo.wasm
+cp _build/wasm/release/build/demo/demo.wasm docs/raft-moonbit.wasm
 python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 

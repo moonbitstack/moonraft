@@ -733,6 +733,32 @@ body {
   overflow-x: hidden; /* belt-and-suspenders against any stray horizontal scroll */
 }
 
+/* interactive chrome and decorative labels never show a text (I-beam) cursor or
+   select on drag; prose, code and tables stay selectable so they can be copied */
+.btn,
+.iconbtn,
+.brand,
+nav.links a,
+.badge,
+.chip,
+.eyebrow,
+.kicker,
+.tag,
+.cell,
+.caret,
+.prompt,
+.rule-accent,
+button,
+[role="button"],
+.controls,
+.ring-panel,
+.legend,
+.invs,
+.demo-head .tag {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* a slim, theme-matched scrollbar instead of the chunky default */
 * {
   scrollbar-width: thin;
