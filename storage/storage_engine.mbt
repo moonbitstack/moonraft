@@ -232,7 +232,7 @@ pub fn MemoryStorage::append(
   self : MemoryStorage,
   entries : Array[Entry],
 ) -> Unit {
-  if entries.length() == 0 {
+  if entries.is_empty() {
     return
   }
   let first = self.first_index()

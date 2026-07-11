@@ -70,7 +70,7 @@ pub fn limit_size(
   entries : ArrayView[Entry],
   max_size : UInt64,
 ) -> Array[Entry] {
-  if entries.length() == 0 {
+  if entries.is_empty() {
     return []
   }
   let out : Array[Entry] = [entries[0]]

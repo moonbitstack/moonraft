@@ -513,7 +513,7 @@ fn RaftNode::handle_heartbeat_resp(
   // the leader still commands a quorum for that read (§6.4). A confirmed read is
   // delivered to its originator — recorded locally, or answered to the follower
   // that forwarded it with a ReadIndexResp.
-  if reply.context.length() > 0 {
+  if !reply.context.is_empty() {
     self.read_only.recv_ack(from, reply.context)
     for req in self.read_only.maybe_advance(self.config) {
       for m in self.deliver_read(req) {

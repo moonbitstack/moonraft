@@ -93,7 +93,7 @@ fn ReadOnly::new() -> ReadOnly {
 /// (etcd's `heartbeatCtx`), so a quorum ack confirms every currently-unconfirmed
 /// read at once. Empty when there is nothing to confirm.
 fn ReadOnly::heartbeat_ctx(self : ReadOnly) -> Bytes {
-  if self.unconfirmed.length() == 0 {
+  if self.unconfirmed.is_empty() {
     return b""
   }
   encode_u64_le(self.confirmed + self.unconfirmed.length().to_uint64())
@@ -115,7 +115,7 @@ fn ReadOnly::add_request(
 /// Record that voter `id` acknowledged a heartbeat carrying position `ctx`
 /// (etcd's `recvAck`): keep the highest position each voter has confirmed.
 fn ReadOnly::recv_ack(self : ReadOnly, id : String, ctx : Bytes) -> Unit {
-  if ctx.length() != 0 {
+  if !ctx.is_empty() {
     let pos = decode_u64_le(ctx)
     let cur = self.acks.get(id).unwrap_or(0)
     if pos > cur {
@@ -284,7 +284,7 @@ fn RaftNode::deliver_read(self : RaftNode, req : ReadReq) -> Array[Message] {
 /// produce (heartbeats to confirm leadership under `ReadOnlySafe`). A no-op
 /// while the queue is empty or the leader still has no in-term commit.
 fn RaftNode::release_pending_read_index(self : RaftNode) -> Array[Message] {
-  if self.pending_read_index.length() == 0 {
+  if self.pending_read_index.is_empty() {
     return []
   }
   // The sole caller runs this immediately after `maybe_commit` reported a fresh

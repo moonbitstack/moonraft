@@ -740,7 +740,7 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
     // always keeps at least one entry.
     limit_size(self.core.entries_after(prev)[:], self.max_msg_bytes)
   }
-  let has = entries.length() > 0
+  let has = !entries.is_empty()
   let last = if has { entries[entries.length() - 1].index } else { prev }
   // Total payload bytes in this batch, for the in-flight byte budget
   // (etcd's payloadsSize). Inert unless MaxInflightBytes is set.
@@ -1153,7 +1153,7 @@ fn RaftNode::restore_conf_state(self : RaftNode, cs : ConfState) -> Unit {
   for v in cs.voters_outgoing {
     self.config.outgoing.push(v)
   }
-  self.config.joint = cs.voters_outgoing.length() > 0
+  self.config.joint = !cs.voters_outgoing.is_empty()
   self.config.learners.clear()
   for l in cs.learners {
     self.config.learners.push(l)

@@ -168,7 +168,7 @@ pub fn ConfChangeV2::leave_joint() -> ConfChangeV2 {
 /// *enters* an (empty) joint config and must not be mistaken for a leave, which
 /// is exactly the complement of `enters_joint`.
 pub fn ConfChangeV2::is_leave(self : ConfChangeV2) -> Bool {
-  self.transition == Auto && self.changes.length() == 0
+  self.transition == Auto && self.changes.is_empty()
 }
 
 ///|

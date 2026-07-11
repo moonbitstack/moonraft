@@ -57,7 +57,7 @@ pub fn RaftNode::read_index(self : RaftNode) -> UInt64? {
   if self.core.term_at(self.core.commit_index) != self.core.current_term() {
     return None
   }
-  if self.peers.length() == 0 || self.quorum_active() {
+  if self.peers.is_empty() || self.quorum_active() {
     Some(self.core.commit_index)
   } else {
     None
@@ -68,6 +68,5 @@ pub fn RaftNode::read_index(self : RaftNode) -> UInt64? {
 /// Whether this leader currently holds a valid lease — a quorum has confirmed it
 /// this window — and may therefore serve reads without a fresh round trip.
 pub fn RaftNode::has_lease(self : RaftNode) -> Bool {
-  self.core.role() == Leader &&
-  (self.peers.length() == 0 || self.quorum_active())
+  self.core.role() == Leader && (self.peers.is_empty() || self.quorum_active())
 }

@@ -37,7 +37,7 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 
 - **Leader election** with the Follower / Candidate / Leader roles and the up-to-date-log voting restriction (§5.2, §5.4.1).
 - **Pre-vote** so a partitioned node cannot inflate the cluster term, plus randomized election timeouts and heartbeats off a per-node deterministic PRNG.
-- **Log replication** through AppendEntries: the log-matching check, conflicting-suffix truncation, and majority commit within the current term (§5.3, §5.4.2). Replies carry a `conflict_index` hint for one-jump backoff, and per-follower `Progress` (probe / replicate / snapshot) drives repair — including from heartbeat acks.
+- **Log replication** through AppendEntries: the log-matching check, conflicting-suffix truncation, and majority commit within the current term (§5.3, §5.4.2). Replies carry a `conflict_index` hint for one-jump backoff and a `reject_index` that keeps a reordered rejection from driving a spurious back-off, and per-follower `Progress` (probe / replicate / snapshot) drives repair — including from heartbeat acks.
 - **Snapshots and log compaction** (§7): `compact`, the `InstallSnapshot` RPC, and automatic snapshot fallback for a follower whose next entry has already been compacted away.
 - **Membership changes** (§4, §6): single-server add/remove and full **joint consensus** with `ConfChangeV2` and auto-leave — the C(old,new) transition needs a majority of *both* halves, and the leader appends the leave entry itself once it commits. A committed change reconfigures the running node: quorums resize, a leader that removed itself steps down, and an in-flight leadership transfer to a removed target aborts.
 - **Learners** (§4.2.1): non-voting members that receive the log, never campaign and never count toward a quorum, with promotion to voter and — through `learners_next` — demotion that is staged across a joint change so the demoted voter keeps voting in the outgoing half until the transition leaves.
@@ -49,6 +49,18 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 - **Leadership transfer** (`TimeoutNow`, §3.10): the target is caught up first, proposals are blocked while a transfer is in flight, and the transfer aborts on timeout, step-down or removal of the target.
 - **Pluggable `StateMachine`, `Transport`, `LogStore` and `RaftStorage`** traits, with a replicated key-value store as the worked example.
 - **Deterministic simulation harness** (`Cluster`): a single-seed, discrete-time network that drops, delays, reorders, partitions and crashes/restarts nodes, with built-in safety-invariant checks (one leader per term, an agreeing committed prefix, log matching) and a suite of scenario and chaos tests.
+
+## Correctness
+
+This is a line-by-line port, and it is verified as one. The porting census ([`PORTING.md`](PORTING.md)) tracks every upstream `Test*` function; after this round it has **no `PARTIAL` or `TODO` rows left**. Every test that does not depend on Go's runtime is ported assertion-for-assertion — no simplified cases, no skipped table rows, no weakened assertions — and each remaining `N/A` (a goroutine/channel shell, a benchmark, or a Go struct-memory-layout assert) states its MoonBit equivalent.
+
+Three independent methods cross-check behaviour against `etcd-io/raft@26647d5`:
+
+- **Transliteration** of the 258 upstream tests: **723 tests** pass on the wasm, wasm-gc and js backends, with **100% line and branch coverage** (3094/3094 coverage points) and zero warnings under `moon check --deny-warn`.
+- **An adversarial audit** whose sole instruction is to falsify — to find implemented-but-unwired code: a field nobody fills, a parameter forever left default, a method with no caller, an ADT variant never constructed.
+- **A Go-versus-MoonBit differential trace** ([`difftest/`](difftest)): the same scenarios drive etcd's `RawNode` and this port, compared event by event, with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to zero trace drift.
+
+Together they surfaced **24 correctness defects** in the consensus, log and storage layers — safety, liveness, behavioural and accounting — plus 2 default-configuration mismatches, each fixed under a red-then-green regression test that is still in the suite. Several defect classes were then made unrepresentable: narrowing a storage error to a single-variant type turned a whole class of mistaken `catch` into a compile error, and exhaustive matching flags any never-constructed variant at build time.
 
 ## Install
 

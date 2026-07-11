@@ -56,7 +56,7 @@ fn ChangerConfig::clone(self : ChangerConfig) -> ChangerConfig {
 
 ///|
 fn ChangerConfig::is_joint(self : ChangerConfig) -> Bool {
-  self.outgoing.length() > 0
+  !self.outgoing.is_empty()
 }
 
 ///|
@@ -208,7 +208,7 @@ fn Changer::apply(self : Changer, changes : Array[(String, String)]) -> String? 
       _ => return Some("unexpected conf type " + op)
     }
   }
-  if self.cfg.incoming.length() == 0 {
+  if self.cfg.incoming.is_empty() {
     return Some("removed all voters")
   }
   None
@@ -364,7 +364,7 @@ pub fn Changer::enter_joint(
   if self.cfg.is_joint() {
     return rollback("config is already joint")
   }
-  if self.cfg.incoming.length() == 0 {
+  if self.cfg.incoming.is_empty() {
     return rollback("can't make a zero-voter config joint")
   }
   self.cfg.outgoing.clear()
@@ -441,7 +441,7 @@ pub fn Changer::restore(self : Changer, cs : ConfState) -> String? {
   for id in cs.learners_next {
     incoming.push(("l", id))
   }
-  if outgoing.length() == 0 {
+  if outgoing.is_empty() {
     // A non-joint config: apply the incoming changes one at a time.
     for c in incoming {
       if self.simple([c]) is Some(e) {
@@ -477,10 +477,10 @@ pub fn Changer::describe(self : Changer) -> String {
   if self.cfg.is_joint() {
     out = out + "&&" + majority_str(self.cfg.outgoing)
   }
-  if self.cfg.learners.length() > 0 {
+  if !self.cfg.learners.is_empty() {
     out = out + " learners=" + majority_str(self.cfg.learners)
   }
-  if self.cfg.learners_next.length() > 0 {
+  if !self.cfg.learners_next.is_empty() {
     out = out + " learners_next=" + majority_str(self.cfg.learners_next)
   }
   if self.cfg.auto_leave {
