@@ -908,11 +908,38 @@ snapshot rides the `StorageAppend` directive. Ported in
   `rd.snapshot is Some(_)`; with the wiring it carries the installed snapshot and is
   withdrawn after `store`/`advance`.
 
-### Still PORT/PARTIAL after this batch (with reasons)
-- #60 TestReadOnlyDuplicateRequest: requires a message-delay/duplicate hook the
-  FIFO harness does not model.
-- #57 TestReadOnlyWithLearner: portable but needs a read-index injection harness;
-  not built this batch.
+## Batch (read-only close-out): #60 / #57 now DONE — PARTIAL count is zero
+
+The two remaining read-only PARTIALs are closed; the census has no PORT/PARTIAL
+rows left.
+
+- #57 TestReadOnlyWithLearner — DONE, source bug fixed (FINDINGS_LEDGER.md #24).
+  The read-index singleton fast path gated on `self.peers.length() == 0`, but
+  etcd's `IsSingleton` counts *voters only* (`len(Voters[0]) == 1 &&
+  len(Voters[1]) == 0`). A lone voter with a learner therefore missed the fast
+  path and, in ReadOnlySafe mode, broadcast a heartbeat and waited for the
+  learner to ack before confirming the read — a liveness bug, since a down
+  learner could stall a read the sole voter can serve itself. Fixed to
+  `self.config.size() == 1 && not(self.config.is_joint())` (etcd's IsSingleton).
+  Red→green witness: `port_read_only_learner_wbtest.mbt` — pre-fix the single
+  voter + learner confirms no read (0 read states); post-fix it answers at once at
+  the commit index. The "read-index injection harness" the prior note called for
+  was unnecessary: `propose_conf(add_learner)` builds the voter+learner config
+  directly and `request_read_index` drives the read, no harness.
+- #60 TestReadOnlyDuplicateRequest — DONE, no source change. The prior note said
+  it "requires a message-delay/duplicate hook the FIFO harness does not model";
+  that reason is obsolete — the `Net` harness gained `msg_hook` in the
+  snapshot-through-Ready batch, which models exactly the delay-and-replay this
+  test needs, and duplication is just re-injecting the saved message. Ported in
+  `port_read_only_duplicate_wbtest.mbt` over `Net`: elect r1, forward a follower's
+  ReadIndex(A) while holding its heartbeat responses back (and duplicating the
+  request), isolate r1, elect r2 and commit, read B on the stale r1, then recover
+  and replay the duplicate + delayed heartbeats. The linearizability invariant —
+  no confirmed read index below the commit index it was issued against — holds
+  green, which is what the position-counter `readOnly` design was introduced to
+  guarantee. The test asserts A is actually confirmed (non-vacuity). The earlier
+  context-collision defect that motivated etcd's refactor already has its own
+  red→green witness (`read_only_rewrite_wbtest.mbt`, FINDINGS-tracked).
 
 ## Breaking change (0.4.0): log-read error narrowed to `LogCompacted`
 
