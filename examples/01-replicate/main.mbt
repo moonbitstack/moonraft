@@ -39,5 +39,7 @@ fn main {
   for id in ids {
     println("  \{id}: commit_index = \{cluster.node(id).commit_index()}")
   }
-  println("committed logs agree across the cluster: \{cluster.committed_agrees()}")
+  println(
+    "committed logs agree across the cluster: \{cluster.committed_agrees()}",
+  )
 }

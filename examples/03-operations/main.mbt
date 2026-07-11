@@ -34,12 +34,16 @@ fn main {
   // The leader's view of every follower's replication progress.
   println("replication progress seen by \{leader}:")
   for p in cluster.node(leader).progress_status() {
-    println("  \{p.id}: match=\{p.match_index} next=\{p.next_index} learner=\{p.is_learner}")
+    println(
+      "  \{p.id}: match=\{p.match_index} next=\{p.next_index} learner=\{p.is_learner}",
+    )
   }
 
   // Hand leadership to a specific peer and let it settle.
   let target = if leader == "a" { "b" } else { "a" }
-  println("request transfer to \{target}: \{cluster.transfer_leadership(target)}")
+  println(
+    "request transfer to \{target}: \{cluster.transfer_leadership(target)}",
+  )
   cluster.run(200)
   match cluster.leader() {
     Some(l) => println("leader after transfer: \{l}")

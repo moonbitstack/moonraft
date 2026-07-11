@@ -127,7 +127,9 @@ fn main {
   for id in ids {
     let kv = KVStore::new()
     cluster.node(id).node().apply_committed(kv)
-    println("  \{id}: service=\{show(kv.get("service"))}, lang=\{show(kv.get("lang"))}")
+    println(
+      "  \{id}: service=\{show(kv.get("service"))}, lang=\{show(kv.get("lang"))}",
+    )
   }
   println(
     "replicas hold identical committed commands: \{cluster.same_committed_commands()}",

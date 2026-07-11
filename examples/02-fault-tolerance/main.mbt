@@ -46,7 +46,9 @@ fn main {
       cluster.run(400)
       cluster.heal()
       cluster.run(300)
-      println("isolated \{cur}, then healed; live leaders now = \{cluster.leaders().length()}")
+      println(
+        "isolated \{cur}, then healed; live leaders now = \{cluster.leaders().length()}",
+      )
     }
     None => println("no stable leader to isolate")
   }

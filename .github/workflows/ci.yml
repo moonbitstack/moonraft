@@ -71,9 +71,14 @@ jobs:
             echo "::error::branch coverage is below 100% ($line)"; exit 1
           fi
 
-      - name: runnable example
+      - name: runnable examples
         run: |
           moon run cmd/example
+          moon run examples/00-helloworld
+          moon run examples/01-replicate
+          moon run examples/02-fault-tolerance
+          moon run examples/03-operations
+          moon run examples/04-kvstore
 
       - name: lint
         run: |
