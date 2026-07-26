@@ -29,7 +29,7 @@ struct KVStore {
 
 ///|
 fn KVStore::new() -> KVStore {
-  { data: {} }
+  { data: Map([]) }
 }
 
 ///|
@@ -95,13 +95,13 @@ fn show(v : String?) -> String {
 /// covered by `moon test` without having to invoke `main`.
 test "the replicated store applies sets and deletes, and ignores anything else" {
   let kv = KVStore::new()
-  kv.apply(kv_set("name", "raft"))
+  @raft.StateMachine::apply(kv, kv_set("name", "raft"))
   assert_true(kv.get("name") == Some("raft"))
-  kv.apply(kv_set("name", "echelon"))
+  @raft.StateMachine::apply(kv, kv_set("name", "echelon"))
   assert_true(kv.get("name") == Some("echelon"))
-  kv.apply(kv_delete("name"))
+  @raft.StateMachine::apply(kv, kv_delete("name"))
   assert_true(kv.get("name") == None)
-  kv.apply(to_wire("noop")) // neither "s" nor "d" - applied as a no-op
+  @raft.StateMachine::apply(kv, to_wire("noop")) // neither "s" nor "d" - applied as a no-op
   assert_true(show(kv.get("name")) == "<none>")
   assert_true(show(Some("value")) == "value")
 }

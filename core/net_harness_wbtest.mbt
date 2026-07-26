@@ -32,12 +32,12 @@ struct Net {
 
 ///|
 fn Net::new(ids : Array[String], pre_vote? : Bool = false) -> Net {
-  let nodes : Map[String, RaftNode] = {}
+  let nodes : Map[String, RaftNode] = Map([])
   for i, id in ids {
     let peers = ids.filter(fn(x) { x != id })
     nodes[id] = RaftNode::new(id, peers, seed=(i + 1).to_uint64(), pre_vote~)
   }
-  { nodes, cuts: {}, ignored: {}, msg_hook: None }
+  { nodes, cuts: Map([]), ignored: Map([]), msg_hook: None }
 }
 
 ///|

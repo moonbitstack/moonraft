@@ -95,7 +95,7 @@ pub fn Changer::new(
 ) -> Changer {
   {
     cfg: ChangerConfig::empty(),
-    prs: {},
+    prs: Map([]),
     last_index,
     max_inflight,
     max_inflight_bytes,
@@ -113,7 +113,7 @@ pub fn Changer::advance_index(self : Changer) -> Unit {
 
 ///|
 fn clone_prs(prs : Map[String, Progress]) -> Map[String, Progress] {
-  let m : Map[String, Progress] = {}
+  let m : Map[String, Progress] = Map([])
   for k, v in prs {
     m[k] = v.copy()
   }

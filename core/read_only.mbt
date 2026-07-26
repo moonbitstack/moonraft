@@ -85,7 +85,7 @@ struct ReadOnly {
 ///|
 /// A fresh, lease-based read tracker (matching etcd's default).
 fn ReadOnly::new() -> ReadOnly {
-  { safe: false, acks: {}, unconfirmed: [], confirmed: 0, ready: [] }
+  { safe: false, acks: Map([]), unconfirmed: [], confirmed: 0, ready: [] }
 }
 
 ///|

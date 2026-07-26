@@ -37,7 +37,7 @@ struct InteractionCluster {
 ///|
 /// Build a fresh cluster of `ids`, each a voter that knows all the others.
 fn InteractionCluster::new(ids : Array[String]) -> InteractionCluster {
-  let nodes : Map[String, RawNode] = {}
+  let nodes : Map[String, RawNode] = Map([])
   for id in ids {
     let peers : Array[String] = []
     for other in ids {

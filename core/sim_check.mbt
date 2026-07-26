@@ -23,7 +23,7 @@ pub fn Cluster::one_leader_per_term(self : Cluster) -> Bool {
 ///
 /// Returns whether every term is distinct.
 fn terms_are_distinct(terms : Array[UInt64]) -> Bool {
-  let seen : Map[UInt64, Unit] = {}
+  let seen : Map[UInt64, Unit] = Map([])
   for t in terms {
     match seen.get(t) {
       Some(_) => return false

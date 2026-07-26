@@ -77,7 +77,7 @@ test "TestQuick: committed_index matches a brute-force reference" {
     for i in 0..<n {
       voters.push((i + 1).to_string())
     }
-    let acked : Map[String, UInt64] = {}
+    let acked : Map[String, UInt64] = Map([])
     for v in voters {
       if next() % 4 != 0 {
         acked[v] = next() % 16

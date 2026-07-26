@@ -60,7 +60,7 @@ test "restore of a ConfState with no voters is refused" {
 
 ///|
 fn cov_prs(entries : Array[(String, Bool)]) -> Map[String, Progress] {
-  let m : Map[String, Progress] = {}
+  let m : Map[String, Progress] = Map([])
   for e in entries {
     let (id, learner) = e
     let p = Progress::new(1)
@@ -95,7 +95,7 @@ test "check_invariants catches each malformed configuration" {
       learners_next: [],
       auto_leave: false,
     },
-    {},
+    Map([]),
     Some("no progress for 1"),
   )
   // A staged learner that is not in the outgoing half.
@@ -239,7 +239,7 @@ test "Progress renders the Replicate state" {
 ///|
 /// MajorityConfig.Describe on an empty quorum, and its wide-index padding.
 test "describe: empty quorum and wide index" {
-  assert_eq(@quorum.describe([], {}), "<empty majority quorum>")
+  assert_eq(@quorum.describe([], Map([])), "<empty majority quorum>")
   // An index wider than the 5-column field is printed in full (pad5 pass-through).
   let out = @quorum.describe(["1"], { "1": 123456UL })
   assert_true(out.contains("123456"))

@@ -33,9 +33,9 @@ pub struct Cluster {
 /// network's PRNG; per-node election jitter is seeded from each id so a run is
 /// fully reproducible.
 pub fn Cluster::new(ids : Array[String], seed? : UInt64 = 42) -> Cluster {
-  let nodes : Map[String, RaftNode] = {}
-  let part : Map[String, Int] = {}
-  let down : Map[String, Bool] = {}
+  let nodes : Map[String, RaftNode] = Map([])
+  let part : Map[String, Int] = Map([])
+  let down : Map[String, Bool] = Map([])
   let mut s = seed
   for id in ids {
     let peers : Array[String] = []

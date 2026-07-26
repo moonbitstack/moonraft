@@ -102,7 +102,7 @@ test "replaying a write-ahead log twice yields the same state" {
   a.advance_commit(2)
   let wal = MemWal::new()
   a.save_to(wal)
-  let records = wal.load()
+  let records = @storage.WalStore::load(wal)
   let b = Node::new("a")
   b.replay(records)
   b.replay(records)

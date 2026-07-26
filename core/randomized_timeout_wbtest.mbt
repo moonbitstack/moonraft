@@ -23,7 +23,7 @@
 fn nonleader_timeout_randomized(candidate : Bool) -> Unit raise {
   let et = 10
   let r = RaftNode::new("1", ["2", "3"], pre_vote=false, election_timeout=et)
-  let seen : Map[Int, Bool] = {}
+  let seen : Map[Int, Bool] = Map([])
   for _round in 0..<(50 * et) {
     if candidate {
       r.become_candidate()

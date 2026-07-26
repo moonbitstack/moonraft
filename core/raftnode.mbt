@@ -160,8 +160,8 @@ pub fn RaftNode::new(
     id,
     peers: peers.copy(),
     config: Membership::new(all),
-    progress: {},
-    votes: {},
+    progress: Map([]),
+    votes: Map([]),
     pre_vote,
     check_quorum,
     in_pre_campaign: false,
@@ -843,7 +843,7 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     // The highest index a quorum of the configuration has stored (the leader
     // itself included, at its last index). In a joint configuration this is the
     // smaller of the two halves' agreed indices.
-    let acked : Map[String, UInt64] = {}
+    let acked : Map[String, UInt64] = Map([])
     for peer, p in self.progress {
       acked[peer] = p.match_index
     }

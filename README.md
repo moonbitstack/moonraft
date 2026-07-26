@@ -158,4 +158,4 @@ The code follows the upstream `etcd-io/raft` package layout so a reader can audi
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors); the protocol core, storage model and test suite are derived from it. What this port adds is the MoonBit data model — algebraic data types and exhaustive matching in place of Go structs and switches — a deterministic simulation harness with built-in safety-invariant checks, and a WebAssembly browser demo that runs each node in its own Web Worker.
 
-> Mirrored on [GitLink](https://gitlink.org.cn/heke1228/raft-moonbit) (`heke1228/raft-moonbit`) — same author, same history. The differential-testing harness lives on the [`difftest`](https://github.com/Lfan-ke/raft-moonbit/tree/difftest) branch.
+> The differential-testing harness lives on the [`difftest`](https://github.com/Lfan-ke/raft-moonbit/tree/difftest) branch.

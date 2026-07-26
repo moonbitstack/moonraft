@@ -18,13 +18,13 @@
 
 ///|
 test "quorum committed #1: committed" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index([], [], acked), 18446744073709551615UL)
 }
 
 ///|
 test "quorum committed #2: committed cfg=(1) idx=(_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1"], [], acked), 0UL)
 }
 
@@ -36,7 +36,7 @@ test "quorum committed #3: committed cfg=(1) idx=(12)" {
 
 ///|
 test "quorum committed #4: committed cfg=(1, 2) idx=(_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2"], [], acked), 0UL)
 }
 
@@ -54,7 +54,7 @@ test "quorum committed #6: committed cfg=(1,2) idx=(12,5)" {
 
 ///|
 test "quorum committed #7: committed cfg=(1,2,3) idx=(_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2", "3"], [], acked), 0UL)
 }
 
@@ -130,7 +130,7 @@ test "quorum committed #17: committed cfg=(1,2,3) cfgj=zero idx=(100,101,99)" {
 
 ///|
 test "quorum committed #18: committed cfg=(1) cfgj=(2) idx=(_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1"], ["2"], acked), 0UL)
 }
 
@@ -148,7 +148,7 @@ test "quorum committed #20: committed cfg=(1) cfgj=(2) idx=(13, 100)" {
 
 ///|
 test "quorum committed #21: committed cfg=(1) cfgj=(1) idx=(_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1"], ["1"], acked), 0UL)
 }
 
@@ -160,7 +160,7 @@ test "quorum committed #22: committed cfg=(1) cfgj=(1) idx=(100)" {
 
 ///|
 test "quorum committed #23: committed cfg=(1,3) cfgj=(2) idx=(_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "3"], ["2"], acked), 0UL)
 }
 
@@ -184,7 +184,7 @@ test "quorum committed #26: committed cfg=(1,3) cfgj=(2) idx=(100,45,50)" {
 
 ///|
 test "quorum committed #27: committed cfg=(1,2) cfgj=(2) idx=(_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2"], ["2"], acked), 0UL)
 }
 
@@ -243,7 +243,7 @@ test "quorum committed #35: committed cfg=(1,2) cfgj=(3,4) idx=(50,48,49,47)" {
 
 ///|
 test "quorum committed #36: committed cfg=(1,2) cfgj=(2,3) idx=(_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2"], ["2", "3"], acked), 0UL)
 }
 
@@ -273,7 +273,7 @@ test "quorum committed #40: committed cfg=(1,2) cfgj=(2,3) idx=(101,100,99)" {
 
 ///|
 test "quorum committed #41: committed cfg=(1,2) cfgj=(1,2) idx=(_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2"], ["1", "2"], acked), 0UL)
 }
 
@@ -291,7 +291,7 @@ test "quorum committed #43: committed cfg=(1,2) cfgj=(1,2) idx=(41,40)" {
 
 ///|
 test "quorum committed #44: committed cfg=(1,2,3) cfgj=(4,5,6) idx=(_,_,_,_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2", "3"], ["4", "5", "6"], acked), 0UL)
 }
 
@@ -351,7 +351,7 @@ test "quorum committed #50: committed cfg=(1,2,3) cfgj=(4,5,6) idx=(92,99,90,97,
 
 ///|
 test "quorum committed #51: committed cfg=(1,2,3) cfgj=(1,4,5) idx=(_,_,_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2", "3"], ["1", "4", "5"], acked), 0UL)
 }
 
@@ -416,7 +416,7 @@ test "quorum committed #58: committed cfg=(1,2,3) cfgj=(1,4,5) idx=(100,100,99,9
 
 ///|
 test "quorum committed #59: committed cfg=(1,2,3) cfgj=(2,3,4) idx=(_,_,_,_)" {
-  let acked : Map[String, UInt64] = {}
+  let acked : Map[String, UInt64] = Map([])
   assert_eq(committed_index(["1", "2", "3"], ["2", "3", "4"], acked), 0UL)
 }
 
@@ -469,13 +469,13 @@ test "quorum committed #66: committed cfg=(1,2,3) cfgj=(1,2,3) idx=(50,45,_)" {
 
 ///|
 test "quorum vote #1: vote" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result([], [], votes) == VoteWon)
 }
 
 ///|
 test "quorum vote #2: vote cfg=(1) votes=(_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1"], [], votes) == VotePending)
 }
 
@@ -493,7 +493,7 @@ test "quorum vote #4: vote cfg=(123) votes=(y)" {
 
 ///|
 test "quorum vote #5: vote cfg=(4,8) votes=(_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["4", "8"], [], votes) == VotePending)
 }
 
@@ -523,7 +523,7 @@ test "quorum vote #9: vote cfg=(4,8) votes=(y,y)" {
 
 ///|
 test "quorum vote #10: vote cfg=(2,4,7) votes=(_,_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["2", "4", "7"], [], votes) == VotePending)
 }
 
@@ -644,13 +644,13 @@ test "quorum vote #22: vote cfg=(1,2,3,4,5,6,7) votes=(y,y,n,y,n,n,n)" {
 
 ///|
 test "quorum vote #23: vote cfgj=zero" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result([], [], votes) == VoteWon)
 }
 
 ///|
 test "quorum vote #24: vote cfg=(1) cfgj=zero votes=(_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1"], [], votes) == VotePending)
 }
 
@@ -668,7 +668,7 @@ test "quorum vote #26: vote cfg=(1) cfgj=zero votes=(n)" {
 
 ///|
 test "quorum vote #27: vote cfg=(1) cfgj=(1) votes=(_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1"], ["1"], votes) == VotePending)
 }
 
@@ -686,7 +686,7 @@ test "quorum vote #29: vote cfg=(1) cfgj=(1) votes=(n)" {
 
 ///|
 test "quorum vote #30: vote cfg=(1) cfgj=(2) votes=(_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1"], ["2"], votes) == VotePending)
 }
 
@@ -728,7 +728,7 @@ test "quorum vote #36: vote cfg=(1) cfgj=(2) votes=(n,y)" {
 
 ///|
 test "quorum vote #37: vote cfg=(1,2) cfgj=(3,4) votes=(_,_,_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1", "2"], ["3", "4"], votes) == VotePending)
 }
 
@@ -780,7 +780,7 @@ test "quorum vote #43: vote cfg=(1,2) cfgj=(3,4) votes=(y,y,y,y)" {
 
 ///|
 test "quorum vote #44: vote cfg=(1,2) cfgj=(2,3) votes=(_,_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1", "2"], ["2", "3"], votes) == VotePending)
 }
 
@@ -810,7 +810,7 @@ test "quorum vote #48: vote cfg=(1,2) cfgj=(2,3) votes=(y,y,y)" {
 
 ///|
 test "quorum vote #49: vote cfg=(1,2) cfgj=(1,2) votes=(_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(vote_result(["1", "2"], ["1", "2"], votes) == VotePending)
 }
 
@@ -840,7 +840,7 @@ test "quorum vote #53: vote cfg=(1,2) cfgj=(1,2) votes=(n,n)" {
 
 ///|
 test "quorum vote #54: vote cfg=(1,2,3) cfgj=(2,3,4) votes=(_,_,_,_)" {
-  let votes : Map[String, Bool] = {}
+  let votes : Map[String, Bool] = Map([])
   assert_true(
     vote_result(["1", "2", "3"], ["2", "3", "4"], votes) == VotePending,
   )

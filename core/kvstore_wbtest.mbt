@@ -10,7 +10,7 @@ struct KVStore {
 
 ///|
 fn KVStore::new() -> KVStore {
-  { data: {} }
+  { data: Map([]) }
 }
 
 ///|
@@ -73,13 +73,13 @@ impl StateMachine for KVStore with fn apply(self, command) {
 ///|
 test "the key-value store applies set and delete commands" {
   let kv = KVStore::new()
-  kv.apply(kv_set("name", "raft"))
-  kv.apply(kv_set("lang", "moonbit"))
+  StateMachine::apply(kv, kv_set("name", "raft"))
+  StateMachine::apply(kv, kv_set("lang", "moonbit"))
   assert_true(kv.get("name") == Some("raft"))
   assert_true(kv.get("lang") == Some("moonbit"))
-  kv.apply(kv_set("name", "echelon"))
+  StateMachine::apply(kv, kv_set("name", "echelon"))
   assert_true(kv.get("name") == Some("echelon"))
-  kv.apply(kv_delete("lang"))
+  StateMachine::apply(kv, kv_delete("lang"))
   assert_true(kv.get("lang") == None)
   assert_eq(kv.len(), 1)
 }
