@@ -2,7 +2,7 @@
 
 # raft-moonbit
 
-**A production-grade Raft consensus library in MoonBit — a faithful, line-by-line port of [`etcd-io/raft`](https://github.com/etcd-io/raft).**
+**A production-grade Raft consensus library in MoonBit — a faithful, line-by-line port of [`etcd-io/raft`](https://github.com/etcd-io/raft)<!-- and openraft(rust) -->.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Lfan-ke/raft-moonbit/ci.yml?branch=master&label=CI&logo=github)](https://github.com/Lfan-ke/raft-moonbit/actions)
 [![tests](https://img.shields.io/badge/tests-723%20passing-2ea44f)](#correctness)
