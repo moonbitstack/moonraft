@@ -1,10 +1,10 @@
-# Differential Trace Report — raft-moonbit vs etcd-io/raft
+# Differential Trace Report — moonraft vs etcd-io/raft
 
 ## Headline
 
 Against **etcd-io/raft @ `26647d5`** (pinned as a git submodule), a 12-scenario
 self-authored suite was driven through **two independent harnesses** — one over
-etcd's real `RawNode` (Go), one over raft-moonbit's `RawNode` (MoonBit) — using
+etcd's real `RawNode` (Go), one over moonraft's `RawNode` (MoonBit) — using
 one shared DSL and one shared normalized JSON schema. Across **397 event frames**
 (each carrying every node's authoritative state + the sorted set of messages it
 emitted), the two traces were compared **field by field**.
@@ -17,7 +17,7 @@ reproduced by trace (the 256-entry MsgApp cap), 1 confirmed structurally
 harness lacks the leader-side log compaction and the specific Replicate-state
 stale-reject construction they require (see §5). The suite also independently
 surfaced **several differences not on the prior list** — most notably that
-raft-moonbit's `ReadIndex` under `ReadOnlySafe` performs **no leadership-
+moonraft's `ReadIndex` under `ReadOnlySafe` performs **no leadership-
 confirmation heartbeat round**.
 
 This is a regression alarm, not a one-off: `run.sh` rebuilds both sides and
@@ -49,12 +49,12 @@ confirmation heartbeat under `ReadOnlySafe`" — is imprecise. The `lead_read_in
 → `bcast_heartbeat` path exists. The *observable* fact the trace shows is narrower
 and still real: calling `read_index` on the leader produces **no outbound messages
 in the resulting `Ready`** (step 6: etcd emits 2 confirmation `Heartbeat`s in-step,
-raft-moonbit emits 0); a later `tick` produces only ordinary heartbeats, never the
+moonraft emits 0); a later `tick` produces only ordinary heartbeats, never the
 same confirmation round. The maintainer traced the root cause to a deeper bug in
 `read_only.mbt`: the ack map is keyed by **user context** and `add_request`
 **overwrites instead of merges**, so two reads sharing a context erase each
 other's acks. etcd long ago switched to an internal 8-byte position context
-(`heartbeatCtx()`) with batched release; raft-moonbit copied the pre-refactor
+(`heartbeatCtx()`) with batched release; moonraft copied the pre-refactor
 design. Being pointed to the right file is the value here — the exact wording was
 not.
 
@@ -271,7 +271,7 @@ What *remains* at 06 resolves to two causes, **neither of which is the 256-cap**
 2. **Reject-response `Index` field (1 field diff, step 308) — newly *unmasked*,
    not newly *introduced*.** On a rejected `AppendEntries`, etcd echoes
    `Index: m.Index` (the rejected probe's `prev_log_index`, here 257);
-   raft-moonbit's `handle_append_entries` reject path (`core/replication.mbt`,
+   moonraft's `handle_append_entries` reject path (`core/replication.mbt`,
    `match_index: 0`) reports 0. Both are rejects with `RejectHint = 1`; both
    followers still converge to `commit = 301`. This lives in code **untouched by
    0.4.0** — §0.1 could not see it because the 06 traces were length-mismatched and
@@ -316,18 +316,18 @@ IDs are decimal strings on both sides.
 
 **Normalization decisions (and why each field is still "behavior"):**
 
-- **Role.** etcd has `StatePreCandidate`; raft-moonbit has no such role (it stays
+- **Role.** etcd has `StatePreCandidate`; moonraft has no such role (it stays
   `Follower` with an internal `in_pre_campaign` flag). Go's `PreCandidate` is
   mapped to `Candidate`. This is the one place the two role models genuinely
   differ (see 02_prevote); it is flagged, not hidden.
-- **Message type.** etcd's `raftpb.MessageType` and raft-moonbit's `Payload`
+- **Message type.** etcd's `raftpb.MessageType` and moonraft's `Payload`
   variants are mapped onto one tag set (`Append`,`AppendResp`,`Vote`,`VoteResp`,
   `PreVote`,`PreVoteResp`,`Heartbeat`,`HeartbeatResp`,`Snapshot`,`SnapshotResp`,
-  `TimeoutNow`,`ReadIndex`,`ReadIndexResp`,`TransferLeader`,…). raft-moonbit's
+  `TimeoutNow`,`ReadIndex`,`ReadIndexResp`,`TransferLeader`,…). moonraft's
   `kind()` returns `"Probe"` for an empty `Append`; that is normalized back to
   `Append` so a wording difference cannot masquerade as a behavior difference.
 - **AppendResp field mapping.** etcd's flat `Index`/`Reject`/`RejectHint`/`LogTerm`
-  map to raft-moonbit's `match_index`/`!success`/`conflict_index`/`conflict_term`.
+  map to moonraft's `match_index`/`!success`/`conflict_index`/`conflict_term`.
   These are the *same* wire concepts; comparing them is comparing behavior.
 - **Snapshot messages** carry the snapshot's metadata index/term in `index`/
   `logterm` on both sides so they are comparable (etcd's `MsgSnap` puts 0 in the
@@ -377,19 +377,19 @@ ASCII on both sides so `uncommitted` byte-accounting is comparable.
 |----------|------|-------|----|---------|---------|
 | 02_prevote | 2 | n1.role | Candidate | Follower | **representation** — etcd `StatePreCandidate` vs mb `Follower`+`in_pre_campaign`. Messages are identical (both send `PreVote`); no safety impact. |
 | 03_partition | 15 | msgs (set) | 4 | 6 (2 extra `HeartbeatResp`) | **traversal/timing** — heartbeat responses surface in a different stabilize round; final state converges identically. |
-| 05_log_conflict | 16 | n1.uncommitted | 0 | 2 | **REAL** — after the ex-leader truncates its 2 conflicting tail entries and becomes a follower, etcd resets the uncommitted-size accumulator; raft-moonbit leaves it at 2. |
-| 06_flowcontrol | * | msg.entries (max) | **300** | **256** | **REAL — known DIVERGENT #3.** etcd batches all 300 missing entries into one `MsgApp` (bounded only by `MaxSizePerMsg` bytes); raft-moonbit caps each `MsgApp` at 256 entries. Positive control **reproduced**. |
+| 05_log_conflict | 16 | n1.uncommitted | 0 | 2 | **REAL** — after the ex-leader truncates its 2 conflicting tail entries and becomes a follower, etcd resets the uncommitted-size accumulator; moonraft leaves it at 2. |
+| 06_flowcontrol | * | msg.entries (max) | **300** | **256** | **REAL — known DIVERGENT #3.** etcd batches all 300 missing entries into one `MsgApp` (bounded only by `MaxSizePerMsg` bytes); moonraft caps each `MsgApp` at 256 entries. Positive control **reproduced**. |
 | 06_flowcontrol | 305 | msg.commit (many) | varies | varies | **traversal/timing** — 300 pipelined `Append`s interleave with acks differently, so per-message `commit` snapshots differ. Same multiset of entries; converges identically. |
-| 07_conf_add | 4 | n1.uncommitted | 4 | 0 | **REAL** — etcd counts the pending conf-change entry toward uncommitted size; raft-moonbit does not (so `MaxUncommittedEntriesSize` would gate differently for conf changes). |
-| 07_conf_add | 5 | msg[2].index / entries | 1 / 1 | 2 / 0 | **REAL (candidate)** — the append that carries the committed conf change differs: etcd replicates it as a 1-entry append at prev-index 1; raft-moonbit sends an empty append at index 2. Timing/representation of conf-change replication. |
+| 07_conf_add | 4 | n1.uncommitted | 4 | 0 | **REAL** — etcd counts the pending conf-change entry toward uncommitted size; moonraft does not (so `MaxUncommittedEntriesSize` would gate differently for conf changes). |
+| 07_conf_add | 5 | msg[2].index / entries | 1 / 1 | 2 / 0 | **REAL (candidate)** — the append that carries the committed conf change differs: etcd replicates it as a 1-entry append at prev-index 1; moonraft sends an empty append at index 2. Timing/representation of conf-change replication. |
 | 08_conf_remove | 4 | n1.uncommitted | 4 | 0 | **REAL** — same accounting difference as 07. |
-| 08_conf_remove | 5 | n3.commit / applied / voters | 2 / 2 / [1,2] | 1 / 1 / [1,2,3] | **REAL** — the removed node 3: etcd still replicates the commit that removes it, so node 3 learns `commit=2` and `voters=[1,2]`; raft-moonbit drops node 3 from replication *before* propagating that commit, so node 3 is stuck at `commit=1` and still believes it is a voter. |
-| 08_conf_remove | 5 | msgs (set) | 6 (incl. `Append 1→3`, `AppendResp 3→1`) | 4 (no traffic to 3) | **REAL** — corollary of the above: raft-moonbit exchanges no messages with the removed node. |
+| 08_conf_remove | 5 | n3.commit / applied / voters | 2 / 2 / [1,2] | 1 / 1 / [1,2,3] | **REAL** — the removed node 3: etcd still replicates the commit that removes it, so node 3 learns `commit=2` and `voters=[1,2]`; moonraft drops node 3 from replication *before* propagating that commit, so node 3 is stuck at `commit=1` and still believes it is a voter. |
+| 08_conf_remove | 5 | msgs (set) | 6 (incl. `Append 1→3`, `AppendResp 3→1`) | 4 (no traffic to 3) | **REAL** — corollary of the above: moonraft exchanges no messages with the removed node. |
 | 09_learner | 4 | n1.uncommitted | 4 | 0 | **REAL** — same accounting difference as 07. |
 | 09_learner | 5 | msg[2].index / entries | 1 / 1 | 2 / 0 | **REAL (candidate)** — same conf-change-replication difference as 07. |
-| 10_readindex | 6 | msgs | 2 × `Heartbeat` (1→2, 1→3) | **0** | **REAL** — under `ReadOnlySafe`, etcd broadcasts a confirmation heartbeat before answering a `ReadIndex`; raft-moonbit emits nothing. |
+| 10_readindex | 6 | msgs | 2 × `Heartbeat` (1→2, 1→3) | **0** | **REAL** — under `ReadOnlySafe`, etcd broadcasts a confirmation heartbeat before answering a `ReadIndex`; moonraft emits nothing. |
 | 10_readindex | 7 | msgs | 2 × `HeartbeatResp` | **0** | **REAL** — corollary: no confirmation round-trip at all. See §5 note — this affects read linearizability. |
-| 11_transfer | 7 | n1.lead_transferee | "" | "2" | **REAL — FIXED on `b10b66f`** (master #15); on the old base raft-moonbit left `leadTransferee` set on the now-follower. Now MATCH. |
+| 11_transfer | 7 | n1.lead_transferee | "" | "2" | **REAL — FIXED on `b10b66f`** (master #15); on the old base moonraft left `leadTransferee` set on the now-follower. Now MATCH. |
 | 12_stale_msg | 7–9 | n2.pending_conf_index | 0 | 1 | **REAL — FIXED on `b10b66f`**; now MATCH. |
 
 *(The table above is measured on base `aa501b3`; rows 11 and 12 are MATCH on
@@ -403,9 +403,9 @@ seeing real differences. **Honest status:**
 | # | Known DIVERGENT | Status | Evidence / why |
 |---|-----------------|--------|----------------|
 | 1 | `reject_index` not returned (Replicate branch substitutes `next-1`) | **NOT reproduced by trace** | 05_log_conflict creates divergent logs but converges during `stabilize` without surfacing a rejecting `AppendResp` in a frame. Triggering the *Replicate-branch* stale reject needs a leader that is already streaming (StateReplicate) to a follower when an out-of-order stale reject arrives; the current network model delivers in-order per pair, so this exact ordering was not constructed. Coverage gap, not a clean bill of health. |
-| 2 | self-invented `SnapshotResp` (etcd replies `MsgAppResp` to `MsgSnap`) | **Confirmed structurally, NOT by trace** | The `Payload::SnapshotResp(InstallSnapshotReply)` variant exists in raft-moonbit's message type; a `MsgSnap` is only ever sent when the leader's log is compacted below a follower's `next`. The RawNode-based harness has **no leader-side compaction hook**, so no `MsgSnap`/`SnapshotResp` is emitted. Reproducing it needs the snapshot/compaction DSL primitive (see §7 gaps). |
+| 2 | self-invented `SnapshotResp` (etcd replies `MsgAppResp` to `MsgSnap`) | **Confirmed structurally, NOT by trace** | The `Payload::SnapshotResp(InstallSnapshotReply)` variant exists in moonraft's message type; a `MsgSnap` is only ever sent when the leader's log is compacted below a follower's `next`. The RawNode-based harness has **no leader-side compaction hook**, so no `MsgSnap`/`SnapshotResp` is emitted. Reproducing it needs the snapshot/compaction DSL primitive (see §7 gaps). |
 | 3 | per-`MsgApp` 256-entry cap (etcd caps by bytes only) | **REPRODUCED** ✓ | 06_flowcontrol: Go `entries=300` in one append, MoonBit `entries=256`. |
-| 4 | `AsyncStorageWrites` / `MaxCommittedSizePerReady` absent from `Config` | **Confirmed by API inspection, not a runtime event** | raft-moonbit's `Config` has no `async_storage_writes` / `max_committed_size_per_ready` fields (its async mode is reached via `RaftNode::raw_async`, not `Config`). This is a config-surface absence, not something a state trace emits. |
+| 4 | `AsyncStorageWrites` / `MaxCommittedSizePerReady` absent from `Config` | **Confirmed by API inspection, not a runtime event** | moonraft's `Config` has no `async_storage_writes` / `max_committed_size_per_ready` fields (its async mode is reached via `RaftNode::raw_async`, not `Config`). This is a config-surface absence, not something a state trace emits. |
 
 **Discipline note:** 3 of 4 controls did not surface as green-by-accident — each
 un-reproduced one has a concrete, stated reason tied to a missing harness
@@ -441,7 +441,7 @@ Go 1.26.x is fetched automatically. Local Go is 1.25.5.
   primitive respectively. Neither is implemented in the DSL yet.
 - **`snapshot` / `crash+restart` DSL primitives are minimal.** `crash` marks a
   node dead; there is no `restart` (etcd would reload from `MemoryStorage`;
-  raft-moonbit's RawNode has no injected storage — restart would need
+  moonraft's RawNode has no injected storage — restart would need
   `Node::save_into`/`load_from`). Snapshot install (family 6) is therefore not
   exercised.
 - **Partition model optimistically drops.** Messages across a partition are
@@ -460,7 +460,7 @@ Go 1.26.x is fetched automatically. Local Go is 1.25.5.
 ## 8. wazero harness (priority 2) — status and required wasm exports
 
 Not implemented in this pass. Design is settled: a Go re-implementation of
-`rafttest.InteractionEnv` whose handlers forward to raft-moonbit compiled to
+`rafttest.InteractionEnv` whose handlers forward to moonraft compiled to
 `wasm` (`moon build --target wasm --release`), driven by `wazero` (pure Go, no
 cgo), asserting against etcd's own `testdata/*.txt` expected output rendered with
 etcd's `DescribeReady`/`DescribeMessage`.

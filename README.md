@@ -1,10 +1,10 @@
 <div align="center">
 
-# raft-moonbit — porting report & differential testing
+# moonraft — porting report & differential testing
 
 **`difftest` branch** — the full consensus source plus the **Go-versus-MoonBit differential-test harness**, the porting report, and the coverage evidence.
 
-The library and its docs live on **[`master`](https://github.com/Lfan-ke/raft-moonbit/tree/master)**; everything on this branch is the *proof of fidelity*.
+The library and its docs live on **[`master`](https://github.com/moonbitstack/moonraft/tree/master)**; everything on this branch is the *proof of fidelity*.
 
 [![tests](https://img.shields.io/badge/tests-723%20passing-2ea44f)](#tests--coverage)
 [![coverage](https://img.shields.io/badge/coverage-100%25%20line%20%26%20branch-2ea44f)](#tests--coverage)
@@ -43,7 +43,7 @@ Total: 3094/3094
 
 Coverage has **two denominators, both 100%**: `analyze` counts uncovered **source lines**; `summary` counts **coverage points** — each `if`/`else` arm, each `||`/`&&` operand, and each `match` arm counts as one point. 100% line coverage does *not* imply 100% branch coverage; both are achieved. **CI enforces both** — the build fails if either regresses.
 
-A **browsable per-file HTML report** (every `.mbt` at 100%) is published at **https://lfan-ke.github.io/raft-moonbit/coverage/**, and a Cobertura XML (`line-rate="1.0"`) can be regenerated with `moon coverage report -f cobertura`.
+A **browsable per-file HTML report** (every `.mbt` at 100%) is published at **https://moonbitstack.github.io/moonraft/coverage/**, and a Cobertura XML (`line-rate="1.0"`) can be regenerated with `moon coverage report -f cobertura`.
 
 `abort`-expressed panic contracts (illegal `Config`, out-of-bounds `commit_to`, etc.) are covered with MoonBit's panic tests (a test named `panic …` must abort or it fails), the same facility `moonbitlang/core` uses.
 
@@ -92,16 +92,16 @@ The `docs/` folder is a static site plus a **WebAssembly** demo (five nodes, fiv
 
 ```bash
 moon build --target wasm --release              # -> _build/wasm/release/build/demo/demo.wasm
-cp _build/wasm/release/build/demo/demo.wasm docs/raft-moonbit.wasm
+cp _build/wasm/release/build/demo/demo.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 
 Workers `fetch` the wasm, so a `file://` URL will not work. Live:
 
-- **Home** — https://lfan-ke.github.io/raft-moonbit/
-- **Live demo** — https://lfan-ke.github.io/raft-moonbit/demo.html
-- **API reference** — https://lfan-ke.github.io/raft-moonbit/api.html
+- **Home** — https://moonbitstack.github.io/moonraft/
+- **Live demo** — https://moonbitstack.github.io/moonraft/demo.html
+- **API reference** — https://moonbitstack.github.io/moonraft/api.html
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors). Mirrored on [GitLink](https://gitlink.org.cn/heke1228/raft-moonbit) — same author, same history.
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors).

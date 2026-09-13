@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/cmd/example"
+package "Lfan-ke/moonraft/cmd/example"
 
 // Values
 

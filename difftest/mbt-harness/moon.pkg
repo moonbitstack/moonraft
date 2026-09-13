@@ -1,5 +1,5 @@
 import {
-  "Lfan-ke/raft-moonbit" @raft,
+  "Lfan-ke/moonraft" @raft,
 }
 
 options(

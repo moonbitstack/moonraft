@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/storage"
+package "Lfan-ke/moonraft/storage"
 
 import {
-  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/moonraft/raftpb",
 }
 
 // Values

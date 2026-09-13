@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/quorum"
+package "Lfan-ke/moonraft/quorum"
 
 // Values
 pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UInt64
