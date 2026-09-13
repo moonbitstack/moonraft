@@ -100,7 +100,7 @@ test "TestPreVoteMigrationWithFreeStuckPreCandidate" {
     Message::new(
       "1",
       "3",
-      Heartbeat({ term: lead_term, leader_id: "1", commit: 0, context: b"" }),
+      Heartbeat({ term: lead_term, leader_id: "1", commit: 0, context: b"", }),
     ),
   )
 

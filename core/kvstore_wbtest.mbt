@@ -10,7 +10,7 @@ struct KVStore {
 
 ///|
 fn KVStore::new() -> KVStore {
-  { data: Map([]) }
+  { data: Map([]), }
 }
 
 ///|

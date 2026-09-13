@@ -45,7 +45,7 @@ test "ReadOnlySafe: a read is confirmed only by a fresh heartbeat quorum" {
     Message::new(
       "2",
       "1",
-      HeartbeatResp({ term: r.term(), context: b"read-1" }),
+      HeartbeatResp({ term: r.term(), context: b"read-1", }),
     ),
   )
   |> ignore
@@ -65,7 +65,7 @@ test "ReadOnlySafe: an ack for the latest context confirms earlier reads too" {
   r.request_read_index(b"r2") |> ignore
   // A quorum ack on the later context confirms both reads, in order.
   r.step(
-    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"r2" })),
+    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"r2", })),
   )
   |> ignore
   let rs = r.take_read_states()

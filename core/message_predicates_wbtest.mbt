@@ -65,7 +65,7 @@ test "TestIsLocalMsg (equivalent: every transportable Payload is non-local)" {
     last_log_index: 0,
     last_log_term: 0,
   }
-  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true }
+  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true, }
   let app_args : AppendEntriesArgs = {
     term: 1,
     leader_id: "a",
@@ -116,7 +116,7 @@ test "TestIsResponseMsg" {
     last_log_index: 0,
     last_log_term: 0,
   }
-  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true }
+  let vote_reply : RequestVoteReply = { term: 1, vote_granted: true, }
   let app_args : AppendEntriesArgs = {
     term: 1,
     leader_id: "a",
@@ -167,7 +167,7 @@ test "TestDescribeEntry" {
   let entry = Entry::normal(1, 2, data)
   assert_eq(describe_entry(entry, None), "1/2 EntryNormal \"hello\\x00world\"")
   let upper : (Bytes) -> String = fn(bs) {
-    let buf = StringBuilder::new()
+    let buf = StringBuilder()
     for i in 0..<bs.length() {
       let b = bs[i].to_int()
       let c = if b >= 0x61 && b <= 0x7a { b - 32 } else { b }

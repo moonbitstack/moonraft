@@ -15,7 +15,7 @@ pub(all) struct Snapshot {
 ///|
 /// The empty snapshot: no state captured, baseline at index 0.
 pub fn Snapshot::empty() -> Snapshot {
-  { last_index: 0, last_term: 0, data: b"", conf_state: ConfState::empty() }
+  { last_index: 0, last_term: 0, data: b"", conf_state: ConfState::empty(), }
 }
 
 ///|

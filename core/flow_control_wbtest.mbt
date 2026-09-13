@@ -115,7 +115,7 @@ test "TestMsgAppFlowControlRecvHeartbeat" {
     for _i in 0..<tt {
       assert_true(pr2.is_paused())
       let ms = r.step(
-        Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+        Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
       )
       assert_eq(ms.length(), 1)
       match ms[0].payload {
@@ -129,7 +129,7 @@ test "TestMsgAppFlowControlRecvHeartbeat" {
       assert_eq(r.propose(b"somedata").length(), 0)
     }
     r.step(
-      Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+      Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
     )
     |> ignore
     tt = tt + 1

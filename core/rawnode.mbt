@@ -17,7 +17,7 @@
 /// This server's soft state — its known leader and current role (etcd's
 /// `raft.softState`). Reading it never disturbs the protocol.
 pub fn RaftNode::soft_state(self : RaftNode) -> SoftState {
-  { lead: self.leader(), state: self.role() }
+  { lead: self.leader(), state: self.role(), }
 }
 
 ///|
@@ -422,9 +422,9 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     if !entries.is_empty() || hard_changed || snapshot is Some(_) {
       let resp : StorageAppendResp = if self.log.has_next_or_in_progress_unstable_ents() {
         let last = self.log.last_entry_id()
-        { index: last.index, log_term: last.term, term: node.current_term() }
+        { index: last.index, log_term: last.term, term: node.current_term(), }
       } else {
-        { index: 0, log_term: 0, term: node.current_term() }
+        { index: 0, log_term: 0, term: node.current_term(), }
       }
       storage_append = Some({
         entries,
@@ -438,7 +438,10 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
       })
     }
     if !committed.is_empty() {
-      storage_apply = Some({ entries: committed, resp: { entries: committed } })
+      storage_apply = Some({
+        entries: committed,
+        resp: { entries: committed, },
+      })
     }
   }
   {

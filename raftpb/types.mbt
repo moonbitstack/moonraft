@@ -28,13 +28,13 @@ pub(all) struct Entry {
 ///|
 /// Build a normal application entry.
 pub fn Entry::normal(term : UInt64, index : UInt64, command : Bytes) -> Entry {
-  { term, index, entry_type: Normal, command }
+  { term, index, entry_type: Normal, command, }
 }
 
 ///|
 /// Build a configuration-change entry.
 pub fn Entry::conf(term : UInt64, index : UInt64, command : Bytes) -> Entry {
-  { term, index, entry_type: ConfChange, command }
+  { term, index, entry_type: ConfChange, command, }
 }
 
 ///|
@@ -56,5 +56,5 @@ pub(all) struct EntryId {
 ///|
 /// The identity `(term, index)` of this entry.
 pub fn Entry::id(self : Entry) -> EntryId {
-  { term: self.term, index: self.index }
+  { term: self.term, index: self.index, }
 }

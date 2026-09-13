@@ -43,7 +43,7 @@ fn check_commit(
   // etcd's raft.maybeCommit: raftLog.maybeCommit(entryID{term: r.Term, index:
   // quorum-committed}). Commit advances only if that index's entry is from the
   // current term (§5.4.2).
-  l.maybe_commit({ term: sm_term, index: quorum_mci(matches) }) |> ignore
+  l.maybe_commit({ term: sm_term, index: quorum_mci(matches), }) |> ignore
   assert_eq(l.committed, w)
 }
 
@@ -185,7 +185,7 @@ fn fast_next_append(
   }
   r
   .node()
-  .apply_hard_state({ term: leader_term - 1, vote: None, commit: probe_index })
+  .apply_hard_state({ term: leader_term - 1, vote: None, commit: probe_index, })
   r.node().become_candidate()
   r.become_leader()
   r.progress["2"].next_index = probe_index + 1

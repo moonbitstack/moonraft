@@ -9,7 +9,7 @@ struct MemWal {
 
 ///|
 fn MemWal::new() -> MemWal {
-  { records: [] }
+  { records: [], }
 }
 
 ///|
@@ -70,7 +70,7 @@ test "replaying a conflicting entry overwrites the tail" {
   let node = Node::new("n")
   let _ = node.append(1, b"old")
   node.replay([
-    WalHardState({ term: 2, vote: None, commit: 0 }),
+    WalHardState({ term: 2, vote: None, commit: 0, }),
     WalEntry(Entry::normal(2, 1, b"new")),
   ])
   assert_eq(node.current_term(), 2)

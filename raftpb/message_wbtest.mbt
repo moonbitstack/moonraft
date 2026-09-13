@@ -3,7 +3,7 @@ test "a message exposes its route, term and kind" {
   let m = Message::new(
     "a",
     "b",
-    Vote({ term: 3, candidate_id: "a", last_log_index: 2, last_log_term: 1 }),
+    Vote({ term: 3, candidate_id: "a", last_log_index: 2, last_log_term: 1, }),
   )
   assert_eq(m.from, "a")
   assert_eq(m.to, "b")
@@ -17,7 +17,7 @@ test "a heartbeat and an empty-append probe are distinct kinds" {
   let hb = Message::new(
     "L",
     "f",
-    Heartbeat({ term: 4, leader_id: "L", commit: 1, context: b"" }),
+    Heartbeat({ term: 4, leader_id: "L", commit: 1, context: b"", }),
   )
   assert_eq(hb.kind(), "Heartbeat")
   assert_false(hb.is_response())
@@ -62,7 +62,7 @@ test "a read-index response reports its kind" {
   let m = Message::new(
     "L",
     "f",
-    ReadIndexResp({ term: 1, index: 3, context: b"ctx" }),
+    ReadIndexResp({ term: 1, index: 3, context: b"ctx", }),
   )
   assert_eq(m.kind(), "ReadIndexResp")
 }

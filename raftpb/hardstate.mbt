@@ -12,7 +12,7 @@ pub(all) struct HardState {
 ///|
 /// The HardState a fresh node starts from: term 0, no vote, nothing committed.
 pub fn HardState::initial() -> HardState {
-  { term: 0, vote: None, commit: 0 }
+  { term: 0, vote: None, commit: 0, }
 }
 
 ///|

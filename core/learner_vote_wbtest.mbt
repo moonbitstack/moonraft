@@ -29,7 +29,12 @@ test "TestLearnerCanVote" {
     Message::new(
       "1",
       "2",
-      Vote({ term: 2, candidate_id: "1", last_log_index: 11, last_log_term: 11 }),
+      Vote({
+        term: 2,
+        candidate_id: "1",
+        last_log_index: 11,
+        last_log_term: 11,
+      }),
     ),
   )
   assert_eq(out.length(), 1)

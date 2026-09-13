@@ -29,7 +29,7 @@ struct KVStore {
 
 ///|
 fn KVStore::new() -> KVStore {
-  { data: Map([]) }
+  { data: Map([]), }
 }
 
 ///|
@@ -117,7 +117,7 @@ fn main {
   // Replicate a short history of writes as consensus commands.
   let _ = cluster.propose(kv_set("service", "echelon"))
   let _ = cluster.propose(kv_set("lang", "moonbit"))
-  let _ = cluster.propose(kv_set("service", "raft-moonbit"))
+  let _ = cluster.propose(kv_set("service", "moonraft"))
   let _ = cluster.propose(kv_delete("lang"))
   println("all four writes committed: \{cluster.run_until_committed(5, 300)}")
 

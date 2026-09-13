@@ -86,7 +86,7 @@
       burger.addEventListener("click", () => bar.classList.toggle("open"));
     }
 
-    // One caret at a time: on the home page the logo shows a bare "raft-moonbit"
+    // One caret at a time: on the home page the logo shows a bare "moonraft"
     // while the hero caret is on screen, then smoothly grows back "~/…▊" (blinking)
     // once the hero scrolls away. Other pages always show the full blinking form.
     const heroCaret = document.querySelector("h1.display .caret");

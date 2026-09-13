@@ -21,7 +21,7 @@ test "chaos: random faults never break the safety invariants" {
   let ids = ["a", "b", "c", "d", "e"]
   let c = Cluster::new(ids, seed=77)
   let _ = c.run_until_leader(300)
-  let chaos : Chaos = { state: 0x9e3779b97f4a7c15 }
+  let chaos : Chaos = { state: 0x9e3779b97f4a7c15, }
   let mut down : String? = None
   let mut split = false
   let mut step = 0

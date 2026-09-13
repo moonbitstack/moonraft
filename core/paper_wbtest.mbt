@@ -126,14 +126,14 @@ test "TestLeaderElectionInOneRoundRPC" {
   ]
   for tc in cases {
     let (size, granters, want) = tc
-    let peers = Array::new()
+    let peers = []
     for i in 2..<(size + 1) {
       peers.push(i.to_string())
     }
     let r = paper_node(peers)
     r.campaign() |> ignore
     for g in granters {
-      r.step(Message::new(g, "1", VoteResp({ term: 1, vote_granted: true })))
+      r.step(Message::new(g, "1", VoteResp({ term: 1, vote_granted: true, })))
       |> ignore
     }
     let got = if r.is_leader() {
@@ -153,14 +153,14 @@ test "TestLeaderElectionInOneRoundRPC" {
   ]
   for tc in denials {
     let (size, deniers) = tc
-    let peers = Array::new()
+    let peers = []
     for i in 2..<(size + 1) {
       peers.push(i.to_string())
     }
     let r = paper_node(peers)
     r.campaign() |> ignore
     for d in deniers {
-      r.step(Message::new(d, "1", VoteResp({ term: 1, vote_granted: false })))
+      r.step(Message::new(d, "1", VoteResp({ term: 1, vote_granted: false, })))
       |> ignore
     }
     assert_true(r.role() == Follower)
@@ -314,7 +314,7 @@ test "TestLeaderAcknowledgeCommit" {
   ]
   for tc in cases {
     let (size, acceptors, wack) = tc
-    let peers = Array::new()
+    let peers = []
     for i in 2..<(size + 1) {
       peers.push(i.to_string())
     }
@@ -426,7 +426,7 @@ test "TestFollowerAppendEntries" {
     let _ = r.node().append(1, b"")
     let _ = r.node().append(2, b"")
     r.node().become_follower(2)
-    let entries = Array::new()
+    let entries = []
     let mut idx = pindex
     for t in new_terms {
       idx = idx + 1
@@ -463,7 +463,7 @@ test "TestVoteRequest" {
   for tc in cases {
     let (ent_terms, wterm) = tc
     let r = paper_node(["2", "3"])
-    let entries = Array::new()
+    let entries = []
     let mut i = 0
     for t in ent_terms {
       i = i + 1

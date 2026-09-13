@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/log"
+package "Lfan-ke/moonraft/log"
 
 import {
-  "Lfan-ke/raft-moonbit/raftpb",
-  "Lfan-ke/raft-moonbit/storage",
+  "Lfan-ke/moonraft/raftpb",
+  "Lfan-ke/moonraft/storage",
 }
 
 // Values
@@ -104,4 +104,3 @@ pub fn Unstable::truncate_and_append(Self, Array[@raftpb.Entry]) -> Unit
 // Type aliases
 
 // Traits
-

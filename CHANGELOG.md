@@ -3,6 +3,18 @@
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project
 adheres to semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **Renamed to `moonraft`.** The module is now `Lfan-ke/moonraft` (was `Lfan-ke/raft-moonbit`) and the repository lives at `moonbitstack/moonraft`. Import paths change accordingly; the `@raft` alias used in the examples is unchanged.
+- The docs site ships the demo module as `moonraft.wasm`.
+- Deprecated `StringBuilder::new()` and `Array::new(capacity=)` calls moved to `StringBuilder()` and `Array(capacity=)`.
+
+### Removed
+
+- References to the GitLink mirror.
+
 ## [0.5.0]
 
 Closes the transliteration of `etcd-io/raft@26647d5`: the porting census

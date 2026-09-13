@@ -46,7 +46,7 @@ test "scenario: a long stream of proposals commits in order" {
 ///|
 test "hard state round-trips through the storage engine" {
   let s = MemoryStorage::new()
-  s.set_hard_state({ term: 9, vote: Some("n3"), commit: 4 })
+  s.set_hard_state({ term: 9, vote: Some("n3"), commit: 4, })
   let n = Node::new("n")
   n.apply_hard_state(s.initial_state())
   assert_eq(n.current_term(), 9)

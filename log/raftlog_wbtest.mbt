@@ -133,15 +133,15 @@ test "TestFindConflictByTerm" {
 test "TestIsUpToDate" {
   let l = log_appended(ents_at(1, [1, 2, 3]))
   let last = l.last_index()
-  assert_true(l.is_up_to_date({ term: 4, index: last - 1 }))
-  assert_true(l.is_up_to_date({ term: 4, index: last }))
-  assert_true(l.is_up_to_date({ term: 4, index: last + 1 }))
-  assert_false(l.is_up_to_date({ term: 2, index: last - 1 }))
-  assert_false(l.is_up_to_date({ term: 2, index: last }))
-  assert_false(l.is_up_to_date({ term: 2, index: last + 1 }))
-  assert_false(l.is_up_to_date({ term: 3, index: last - 1 }))
-  assert_true(l.is_up_to_date({ term: 3, index: last }))
-  assert_true(l.is_up_to_date({ term: 3, index: last + 1 }))
+  assert_true(l.is_up_to_date({ term: 4, index: last - 1, }))
+  assert_true(l.is_up_to_date({ term: 4, index: last, }))
+  assert_true(l.is_up_to_date({ term: 4, index: last + 1, }))
+  assert_false(l.is_up_to_date({ term: 2, index: last - 1, }))
+  assert_false(l.is_up_to_date({ term: 2, index: last, }))
+  assert_false(l.is_up_to_date({ term: 2, index: last + 1, }))
+  assert_false(l.is_up_to_date({ term: 3, index: last - 1, }))
+  assert_true(l.is_up_to_date({ term: 3, index: last, }))
+  assert_true(l.is_up_to_date({ term: 3, index: last + 1, }))
 }
 
 ///|
@@ -178,7 +178,7 @@ fn check_maybe_append(
 ) -> Unit raise {
   let l = log_appended(ents_at(1, [1, 2, 3]))
   l.commit_to(1)
-  let app : LogSlice = { term: 100, prev, entries: ents }
+  let app : LogSlice = { term: 100, prev, entries: ents, }
   assert_true(app.valid())
   match l.maybe_append(app, committed) {
     Some(i) => {
@@ -203,20 +203,20 @@ test "TestLogMaybeAppend" {
   // lastindex=3, lastterm=3, commit=1. The etcd wpanic case (prev={0,0}, a
   // conflict with the committed entry at index 1) aborts and cannot be trapped,
   // so it is omitted; all 14 non-panic cases run.
-  check_maybe_append({ term: 2, index: 3 }, 3, ents_at(4, [4]), 0, false, 1)
-  check_maybe_append({ term: 3, index: 4 }, 3, ents_at(5, [4]), 0, false, 1)
-  check_maybe_append({ term: 3, index: 3 }, 3, [], 3, true, 3)
-  check_maybe_append({ term: 3, index: 3 }, 4, [], 3, true, 3)
-  check_maybe_append({ term: 3, index: 3 }, 2, [], 3, true, 2)
-  check_maybe_append({ term: 3, index: 3 }, 0, [], 3, true, 1)
-  check_maybe_append({ term: 0, index: 0 }, 3, [], 0, true, 1)
-  check_maybe_append({ term: 3, index: 3 }, 3, ents_at(4, [4]), 4, true, 3)
-  check_maybe_append({ term: 3, index: 3 }, 4, ents_at(4, [4]), 4, true, 4)
-  check_maybe_append({ term: 3, index: 3 }, 5, ents_at(4, [4]), 4, true, 4)
-  check_maybe_append({ term: 3, index: 3 }, 5, ents_at(4, [4, 4]), 5, true, 5)
-  check_maybe_append({ term: 2, index: 2 }, 3, ents_at(3, [4]), 3, true, 3)
-  check_maybe_append({ term: 1, index: 1 }, 3, ents_at(2, [4]), 2, true, 2)
-  check_maybe_append({ term: 1, index: 1 }, 3, ents_at(2, [4, 4]), 3, true, 3)
+  check_maybe_append({ term: 2, index: 3, }, 3, ents_at(4, [4]), 0, false, 1)
+  check_maybe_append({ term: 3, index: 4, }, 3, ents_at(5, [4]), 0, false, 1)
+  check_maybe_append({ term: 3, index: 3, }, 3, [], 3, true, 3)
+  check_maybe_append({ term: 3, index: 3, }, 4, [], 3, true, 3)
+  check_maybe_append({ term: 3, index: 3, }, 2, [], 3, true, 2)
+  check_maybe_append({ term: 3, index: 3, }, 0, [], 3, true, 1)
+  check_maybe_append({ term: 0, index: 0, }, 3, [], 0, true, 1)
+  check_maybe_append({ term: 3, index: 3, }, 3, ents_at(4, [4]), 4, true, 3)
+  check_maybe_append({ term: 3, index: 3, }, 4, ents_at(4, [4]), 4, true, 4)
+  check_maybe_append({ term: 3, index: 3, }, 5, ents_at(4, [4]), 4, true, 4)
+  check_maybe_append({ term: 3, index: 3, }, 5, ents_at(4, [4, 4]), 5, true, 5)
+  check_maybe_append({ term: 2, index: 2, }, 3, ents_at(3, [4]), 3, true, 3)
+  check_maybe_append({ term: 1, index: 1, }, 3, ents_at(2, [4]), 2, true, 2)
+  check_maybe_append({ term: 1, index: 1, }, 3, ents_at(2, [4, 4]), 3, true, 3)
 }
 
 ///|
@@ -240,7 +240,7 @@ test "TestCompactionSideEffects" {
   }
   j = offset
   while j <= l.last_index() {
-    assert_true(l.match_term({ term: j, index: j }))
+    assert_true(l.match_term({ term: j, index: j, }))
     j = j + 1
   }
   let unstable_ents = l.next_unstable_ents()
@@ -270,8 +270,8 @@ fn apply_log(max_size : UInt64) -> RaftLog raise {
   storage.append(ents[0:1].to_owned())
   let l = RaftLog::new_with_size(storage, max_size)
   l.append(ents) |> ignore
-  l.stable_to({ term: 1, index: 4 })
-  l.maybe_commit({ term: 1, index: 5 }) |> ignore
+  l.stable_to({ term: 1, index: 4, })
+  l.maybe_commit({ term: 1, index: 5, }) |> ignore
   l
 }
 
@@ -471,7 +471,7 @@ fn check_stable_to_log(
   wunstable : UInt64,
 ) -> Unit raise {
   let l = log_appended(ents_at(1, [1, 2]))
-  l.stable_to({ term: stablet, index: stablei })
+  l.stable_to({ term: stablet, index: stablei, })
   assert_eq(l.unstable.offset, wunstable)
 }
 
@@ -501,7 +501,7 @@ fn check_stable_to_snap(
   })
   let l = RaftLog::new(s)
   l.append(new_ents) |> ignore
-  l.stable_to({ term: stablet, index: stablei })
+  l.stable_to({ term: stablet, index: stablei, })
   assert_eq(l.unstable.offset, wunstable)
 }
 
@@ -541,7 +541,7 @@ test "TestCompaction" {
   let storage = MemoryStorage::new()
   storage.append(ents_range(1, 1, 1001))
   let l = RaftLog::new(storage)
-  l.maybe_commit({ term: 0, index: 1000 }) |> ignore
+  l.maybe_commit({ term: 0, index: 1000, }) |> ignore
   l.applied_to(l.committed, 0)
   let compacts = [300UL, 500UL, 800UL, 900UL]
   let wleft = [700, 500, 200, 100]
@@ -555,7 +555,7 @@ test "TestCompaction" {
   let s2 = MemoryStorage::new()
   s2.append(ents_range(1, 1, 1001))
   let l2 = RaftLog::new(s2)
-  l2.maybe_commit({ term: 0, index: 1000 }) |> ignore
+  l2.maybe_commit({ term: 0, index: 1000, }) |> ignore
   l2.applied_to(l2.committed, 0)
   s2.compact(300)
   assert_eq(l2.all_entries().length(), 700)
@@ -776,7 +776,7 @@ test "TestScan" {
   }
 
   // The callback error is propagated (used to break the scan early).
-  let iters : Ref[Int] = { val: 0 }
+  let iters : Ref[Int] = { val: 0, }
   let broke = try {
     l.scan(offset + 1, half, 0, _es => {
       iters.val = iters.val + 1

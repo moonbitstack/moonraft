@@ -54,7 +54,7 @@ test "TestSendAppendForProgressProbe" {
   }
   // A heartbeat response releases exactly one more message.
   let out = r.step(
-    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
   )
   assert_eq(out.length(), 1)
   match out[0].payload {

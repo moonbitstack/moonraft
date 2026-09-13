@@ -81,7 +81,7 @@ pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
           Message::new(
             self.id,
             msg.from,
-            VoteResp({ term: self.core.current_term(), vote_granted: false }),
+            VoteResp({ term: self.core.current_term(), vote_granted: false, }),
           ),
         ]
       }
@@ -264,7 +264,7 @@ fn RaftNode::handle_read_index_resp(
   self : RaftNode,
   reply : ReadIndexResp,
 ) -> Array[Message] {
-  self.read_only.ready.push({ index: reply.index, request_ctx: reply.context })
+  self.read_only.ready.push({ index: reply.index, request_ctx: reply.context, })
   []
 }
 
@@ -348,7 +348,7 @@ fn RaftNode::handle_pre_vote(
     can_vote &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
   let term = if granted { args.term } else { self.core.current_term() }
-  [Message::new(self.id, from, PreVoteResp({ term, vote_granted: granted }))]
+  [Message::new(self.id, from, PreVoteResp({ term, vote_granted: granted, }))]
 }
 
 ///|
@@ -390,7 +390,7 @@ fn RaftNode::handle_vote(
       Message::new(
         self.id,
         from,
-        VoteResp({ term: self.core.current_term(), vote_granted: false }),
+        VoteResp({ term: self.core.current_term(), vote_granted: false, }),
       ),
     ]
   }
@@ -492,7 +492,7 @@ fn RaftNode::handle_heartbeat(
     Message::new(
       self.id,
       from,
-      HeartbeatResp({ term: self.core.current_term(), context: args.context }),
+      HeartbeatResp({ term: self.core.current_term(), context: args.context, }),
     ),
   ]
 }

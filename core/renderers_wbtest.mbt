@@ -21,12 +21,12 @@
 ///|
 test "describe_hard_state" {
   assert_eq(
-    describe_hard_state({ term: 1, vote: Some("2"), commit: 3 }),
+    describe_hard_state({ term: 1, vote: Some("2"), commit: 3, }),
     "Term:1 Vote:2 Commit:3",
   )
   // No vote cast: the Vote field is omitted.
   assert_eq(
-    describe_hard_state({ term: 5, vote: None, commit: 0 }),
+    describe_hard_state({ term: 5, vote: None, commit: 0, }),
     "Term:5 Commit:0",
   )
 }

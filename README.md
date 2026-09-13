@@ -1,18 +1,18 @@
 <div align="center">
 
-# raft-moonbit
+# moonraft
 
 **A production-grade Raft consensus library in MoonBit — a faithful, line-by-line port of [`etcd-io/raft`](https://github.com/etcd-io/raft).**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Lfan-ke/raft-moonbit/ci.yml?branch=master&label=CI&logo=github)](https://github.com/Lfan-ke/raft-moonbit/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/moonbitstack/moonraft/ci.yml?branch=master&label=CI&logo=github)](https://github.com/moonbitstack/moonraft/actions)
 [![tests](https://img.shields.io/badge/tests-723%20passing-2ea44f)](#correctness)
-[![coverage](https://img.shields.io/badge/coverage-100%25%20line%20%26%20branch-2ea44f)](https://lfan-ke.github.io/raft-moonbit/coverage/)
-[![mooncakes](https://img.shields.io/badge/mooncakes-0.5.0-26b483)](https://mooncakes.io/docs/Lfan-ke/raft-moonbit)
+[![coverage](https://img.shields.io/badge/coverage-100%25%20line%20%26%20branch-2ea44f)](https://moonbitstack.github.io/moonraft/coverage/)
+[![mooncakes](https://img.shields.io/badge/mooncakes-0.6.0-26b483)](https://mooncakes.io/docs/Lfan-ke/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**[▶ Live demo](https://lfan-ke.github.io/raft-moonbit/demo.html)** · **[Docs](https://lfan-ke.github.io/raft-moonbit/)** · **[API](https://lfan-ke.github.io/raft-moonbit/api.html)** · **[Quickstart](https://lfan-ke.github.io/raft-moonbit/quickstart.html)**
+**[▶ Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[Docs](https://moonbitstack.github.io/moonraft/)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Quickstart](https://moonbitstack.github.io/moonraft/quickstart.html)**
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/site-home.png" alt="raft-moonbit home page - 'A cluster that stays in agreement - even when it shouldn't', a faithful MoonBit port of etcd's raft, with a live cluster snapshot and replicated log" width="860"></a>
+<a href="https://moonbitstack.github.io/moonraft/demo.html"><img src="docs/site-home.png" alt="moonraft home page - 'A cluster that stays in agreement - even when it shouldn't', a faithful MoonBit port of etcd's raft, with a live cluster snapshot and replicated log" width="860"></a>
 
 <sub><em>The project home - a faithful MoonBit port of etcd's raft. Click through to the live, in-browser demo.</em></sub>
 
@@ -28,8 +28,10 @@ It ships two ways to drive one consensus core:
 ## Install
 
 ```
-moon add Lfan-ke/raft-moonbit
+moon add Lfan-ke/moonraft
 ```
+
+Previously published as `Lfan-ke/raft-moonbit`; the repository moved from `Lfan-ke/raft-moonbit` to `moonbitstack/moonraft`.
 
 ## Quick example
 
@@ -49,7 +51,7 @@ assert_true(cluster.committed_agrees())
 Or run the bundled example — a five-node cluster elects, replicates, loses its leader and re-elects, printing the safety invariants at each step:
 
 ```
-git clone https://github.com/Lfan-ke/raft-moonbit && cd raft-moonbit
+git clone https://github.com/moonbitstack/moonraft && cd moonraft
 moon run cmd/example
 ```
 
@@ -88,19 +90,19 @@ Three independent methods cross-check behaviour against `etcd-io/raft@26647d5`:
 
 | Method | What it does |
 | --- | --- |
-| **Transliteration** | The 258 upstream tests ported over. **723 tests** pass on the **wasm / wasm-gc / js** backends, with **[100% line _and_ branch coverage](https://lfan-ke.github.io/raft-moonbit/coverage/)** (3094/3094 points) and zero warnings under `moon check --deny-warn` — CI fails the build if either coverage number regresses. |
+| **Transliteration** | The 258 upstream tests ported over. **723 tests** pass on the **wasm / wasm-gc / js** backends, with **[100% line _and_ branch coverage](https://moonbitstack.github.io/moonraft/coverage/)** (3094/3094 points) and zero warnings under `moon check --deny-warn` — CI fails the build if either coverage number regresses. |
 | **Adversarial audit** | An audit whose sole instruction is to *falsify* — to find implemented-but-unwired code: a field nobody fills, a parameter forever default, a method with no caller, an ADT variant never constructed. |
-| **Differential trace** ([`difftest`](https://github.com/Lfan-ke/raft-moonbit/tree/difftest)) | The same scenarios drive etcd's `RawNode` and this port, compared event-by-event with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to **zero trace drift**. |
+| **Differential trace** ([`difftest`](https://github.com/moonbitstack/moonraft/tree/difftest)) | The same scenarios drive etcd's `RawNode` and this port, compared event-by-event with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to **zero trace drift**. |
 
 Together they surfaced **24 correctness defects** in the consensus, log and storage layers — safety, liveness, behavioural and accounting — plus 2 default-configuration mismatches, each fixed under a red-then-green regression test that is still in the suite. Several defect classes were then made *unrepresentable*: narrowing a storage error to a single-variant type turned a whole class of mistaken `catch` into a compile error, and exhaustive matching flags any never-constructed variant at build time.
 
 ## Live demo — real consensus in your browser
 
-### ▶ https://lfan-ke.github.io/raft-moonbit/demo.html
+### ▶ https://moonbitstack.github.io/moonraft/demo.html
 
 Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to **WebAssembly**, ticks on its own wall-clock timer, and talks to peers only by `postMessage`. The main thread is the network — drop packets, add delay, **split** the cluster, **isolate** or **crash** the leader — and it holds no Raft state of its own. Elections race, messages reorder, nothing about the schedule is deterministic; a panel re-checks the safety invariants (*one leader per term*, *committed prefixes agree*) on every frame.
 
-<a href="https://lfan-ke.github.io/raft-moonbit/demo.html"><img src="docs/demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
+<a href="https://moonbitstack.github.io/moonraft/demo.html"><img src="docs/demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
 
 Click **Split 2 | 3** and you can watch two nodes lead *different* terms at once - and **Election Safety still holds**, because two leaders only contradict Raft if they share a term, and the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
@@ -110,7 +112,7 @@ It is not a JavaScript re-implementation — messages cross the boundary as flat
 
 ```
 moon build --target wasm --release              # -> _build/wasm/release/build/demo/demo.wasm
-cp _build/wasm/release/build/demo/demo.wasm docs/raft-moonbit.wasm
+cp _build/wasm/release/build/demo/demo.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 
@@ -158,4 +160,4 @@ The code follows the upstream `etcd-io/raft` package layout so a reader can audi
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors); the protocol core, storage model and test suite are derived from it. What this port adds is the MoonBit data model — algebraic data types and exhaustive matching in place of Go structs and switches — a deterministic simulation harness with built-in safety-invariant checks, and a WebAssembly browser demo that runs each node in its own Web Worker.
 
-> The differential-testing harness lives on the [`difftest`](https://github.com/Lfan-ke/raft-moonbit/tree/difftest) branch.
+> The differential-testing harness lives on the [`difftest`](https://github.com/moonbitstack/moonraft/tree/difftest) branch.

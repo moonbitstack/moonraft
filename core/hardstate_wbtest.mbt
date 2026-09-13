@@ -14,7 +14,7 @@ test "hard state captures term, vote and commit" {
 test "applying hard state never lowers the commit index" {
   let a = Node::new("a")
   a.advance_commit(5)
-  a.apply_hard_state({ term: 3, vote: Some("b"), commit: 2 })
+  a.apply_hard_state({ term: 3, vote: Some("b"), commit: 2, })
   assert_eq(a.current_term(), 3)
   assert_true(a.voted_for == Some("b"))
   assert_eq(a.commit_index, 5)

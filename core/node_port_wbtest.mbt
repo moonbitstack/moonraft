@@ -24,10 +24,10 @@
 
 ///|
 test "TestSoftStateEqual" {
-  let zero : SoftState = { lead: None, state: Follower }
-  assert_true(({ lead: None, state: Follower } : SoftState).equal(zero))
-  assert_true(!({ lead: Some("1"), state: Follower } : SoftState).equal(zero))
-  assert_true(!({ lead: None, state: Leader } : SoftState).equal(zero))
+  let zero : SoftState = { lead: None, state: Follower, }
+  assert_true(({ lead: None, state: Follower, } : SoftState).equal(zero))
+  assert_true(!({ lead: Some("1"), state: Follower, } : SoftState).equal(zero))
+  assert_true(!({ lead: None, state: Leader, } : SoftState).equal(zero))
 }
 
 // TestIsHardStateEqual: the zero hard state equals itself; any set field makes
@@ -37,9 +37,9 @@ test "TestSoftStateEqual" {
 test "TestIsHardStateEqual" {
   let zero = HardState::initial()
   assert_true(hard_state_equal(zero, zero))
-  assert_true(!hard_state_equal({ term: 0, vote: Some("1"), commit: 0 }, zero))
-  assert_true(!hard_state_equal({ term: 0, vote: None, commit: 1 }, zero))
-  assert_true(!hard_state_equal({ term: 1, vote: None, commit: 0 }, zero))
+  assert_true(!hard_state_equal({ term: 0, vote: Some("1"), commit: 0, }, zero))
+  assert_true(!hard_state_equal({ term: 0, vote: None, commit: 1, }, zero))
+  assert_true(!hard_state_equal({ term: 1, vote: None, commit: 0, }, zero))
 }
 
 // TestNodeStep: proposals and received messages take distinct routes. In etcd a
@@ -55,7 +55,7 @@ test "TestNodeStep routes network messages through Step" {
     Message::new(
       "2",
       "1",
-      Vote({ term: 1, candidate_id: "2", last_log_index: 0, last_log_term: 0 }),
+      Vote({ term: 1, candidate_id: "2", last_log_index: 0, last_log_term: 0, }),
     ),
   )
   assert_true(rn.msgs.length() >= 1)
@@ -188,7 +188,7 @@ test "TestNodeStart" {
   let rn = fresh_raw()
   rn.campaign()
   let rd1 = rn.ready()
-  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1 }))
+  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
   assert_true(rd1.must_sync)
   rn.store(rd1)
   rn.advance(rd1)
@@ -196,7 +196,7 @@ test "TestNodeStart" {
   // The proposal bumps commit to 2 and, persisted-before-applied, surfaces the
   // committed entry in the same Ready.
   let rd2 = rn.ready()
-  assert_true(rd2.hard_state == Some({ term: 1, vote: Some("1"), commit: 2 }))
+  assert_true(rd2.hard_state == Some({ term: 1, vote: Some("1"), commit: 2, }))
   assert_eq(rd2.committed_entries.length(), 1)
   assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
   rn.store(rd2)
@@ -235,7 +235,7 @@ test "TestNodeRestartFromSnapshot" {
     conf_state: ConfState::empty(),
   })
   node.append(1, b"foo") |> ignore
-  node.apply_hard_state({ term: 1, vote: None, commit: 3 })
+  node.apply_hard_state({ term: 1, vote: None, commit: 3, })
   let raw = rn.raw()
   let rd = raw.ready()
   assert_true(rd.hard_state == None)

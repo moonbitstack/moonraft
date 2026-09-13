@@ -30,7 +30,7 @@ pub fn Node::compact(
   }
   self.snapshot_index = upto
   self.snapshot_term = term
-  { last_index: upto, last_term: term, data, conf_state }
+  { last_index: upto, last_term: term, data, conf_state, }
 }
 
 ///|
@@ -60,7 +60,7 @@ pub fn Node::handle_install_snapshot(
   args : InstallSnapshotArgs,
 ) -> InstallSnapshotReply {
   if args.term < self.current_term {
-    return { term: self.current_term }
+    return { term: self.current_term, }
   }
   if args.term > self.current_term {
     self.become_follower(args.term)
@@ -68,7 +68,7 @@ pub fn Node::handle_install_snapshot(
     self.role = Follower
   }
   if args.last_index <= self.snapshot_index {
-    return { term: self.current_term }
+    return { term: self.current_term, }
   }
   // If the follower already holds a matching entry at last_index, keep the
   // suffix after it rather than discarding entries it still needs; otherwise
@@ -91,5 +91,5 @@ pub fn Node::handle_install_snapshot(
   if self.last_applied < args.last_index {
     self.last_applied = args.last_index
   }
-  { term: self.current_term }
+  { term: self.current_term, }
 }

@@ -50,7 +50,7 @@ fn build_restart(
     let (t, c) = e
     node.append(t, c) |> ignore
   }
-  node.apply_hard_state({ term, vote: None, commit })
+  node.apply_hard_state({ term, vote: None, commit, })
   rn.raw()
 }
 
@@ -70,7 +70,7 @@ test "TestRawNodeStep every network payload routes through Step" {
     last_log_index: 0,
     last_log_term: 0,
   }
-  let vreply : RequestVoteReply = { term: 1, vote_granted: false }
+  let vreply : RequestVoteReply = { term: 1, vote_granted: false, }
   let aargs : AppendEntriesArgs = {
     term: 1,
     leader_id: "2",
@@ -203,7 +203,7 @@ test "TestRawNodeProposeAddDuplicateNode" {
 ///|
 test "TestRawNodeReadIndex surfaces and resets read states" {
   let rn = fresh_raw()
-  rn.read_states.push({ index: 1, request_ctx: b"somedata" })
+  rn.read_states.push({ index: 1, request_ctx: b"somedata", })
   assert_true(rn.has_ready())
   let rd = rn.ready()
   assert_eq(rd.read_states.length(), 1)
@@ -245,8 +245,8 @@ test "TestRawNodeStart" {
   // (`committed_entries`).
   rn.campaign()
   let rd1 = rn.ready()
-  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader }))
-  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1 }))
+  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader, }))
+  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
   assert_eq(rd1.entries.length(), 1)
   assert_true(entry_is(rd1.entries[0], 1, 1, b""))
   assert_eq(rd1.committed_entries.length(), 1)
@@ -304,7 +304,7 @@ test "TestRawNodeRestartFromSnapshot" {
     conf_state: ConfState::empty(),
   })
   node.append(1, b"foo") |> ignore
-  node.apply_hard_state({ term: 1, vote: None, commit: 3 })
+  node.apply_hard_state({ term: 1, vote: None, commit: 3, })
   let raw = rn.raw()
   let rd = raw.ready()
   assert_true(rd.hard_state == None)

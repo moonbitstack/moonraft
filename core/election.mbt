@@ -22,7 +22,7 @@ pub fn Node::handle_request_vote(
   args : RequestVoteArgs,
 ) -> RequestVoteReply {
   if args.term < self.current_term {
-    return { term: self.current_term, vote_granted: false }
+    return { term: self.current_term, vote_granted: false, }
   }
   if args.term > self.current_term {
     self.become_follower(args.term)
@@ -36,5 +36,5 @@ pub fn Node::handle_request_vote(
   if granted {
     self.voted_for = Some(args.candidate_id)
   }
-  { term: self.current_term, vote_granted: granted }
+  { term: self.current_term, vote_granted: granted, }
 }

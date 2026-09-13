@@ -22,7 +22,7 @@ test "a node recovers its term, vote and log from a store" {
   a.become_candidate()
   let _ = a.append(1, b"x")
   let _ = a.append(1, b"y")
-  let store : MemStore = { saved: None }
+  let store : MemStore = { saved: None, }
   @storage.LogStore::persist(store, a.persisted())
 
   // The node crashes and restarts blank, then reloads from the store.
@@ -40,7 +40,7 @@ test "a node recovers its term, vote and log from a store" {
 test "a persisted image is not disturbed by later log growth" {
   let a = Node::new("a")
   let _ = a.append(1, b"x")
-  let store : MemStore = { saved: None }
+  let store : MemStore = { saved: None, }
   @storage.LogStore::persist(store, a.persisted())
   let _ = a.append(1, b"y")
   match @storage.LogStore::restore(store) {

@@ -66,7 +66,7 @@ pub fn Message::new(
   payload : Payload,
   force? : Bool = false,
 ) -> Message {
-  { from, to, payload, force }
+  { from, to, payload, force, }
 }
 
 ///|

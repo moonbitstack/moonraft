@@ -14,7 +14,7 @@
 
 ///|
 fn vote_resp(from : String, term : UInt64, granted : Bool) -> Message {
-  Message::new(from, "1", VoteResp({ term, vote_granted: granted }))
+  Message::new(from, "1", VoteResp({ term, vote_granted: granted, }))
 }
 
 ///|

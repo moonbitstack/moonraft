@@ -26,7 +26,7 @@ fn cs(
   learners_next? : Array[String] = [],
   auto_leave? : Bool = false,
 ) -> ConfState {
-  { voters, learners, voters_outgoing, learners_next, auto_leave }
+  { voters, learners, voters_outgoing, learners_next, auto_leave, }
 }
 
 ///|

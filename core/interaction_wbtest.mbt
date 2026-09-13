@@ -103,7 +103,7 @@ test "interaction/single_node: a single voter campaigns and commits its no-op" {
   // one Ready (the caller stores before applying, so committed entries are not
   // held back to the next Ready).
   let rd1 = rn.ready()
-  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader }))
+  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader, }))
   assert_eq(rd1.entries.length(), 1)
   assert_true(rd1.entries[0].entry_type == Normal)
   assert_eq(rd1.entries[0].command.length(), 0)

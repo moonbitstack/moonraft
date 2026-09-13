@@ -59,7 +59,7 @@ fn hex_digit(n : Int) -> Char {
 /// quote, backslash and the usual control characters, and rendering any other
 /// non-printable byte as `\xHH`. This is the default `describe_entry` renderer.
 fn quote_bytes(data : Bytes) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   buf.write_char('"')
   for i in 0..<data.length() {
     let b = data[i].to_int()
@@ -112,7 +112,7 @@ pub fn describe_entries(
   entries : ArrayView[Entry],
   format : ((Bytes) -> String)?,
 ) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for e in entries {
     buf.write_string(describe_entry(e, format))
     buf.write_char('\n')
@@ -123,7 +123,7 @@ pub fn describe_entries(
 ///|
 /// Render a set of ids the way Go's `%v` renders a slice: `[a b c]`.
 fn describe_ids(ids : ArrayView[String]) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   buf.write_char('[')
   let mut first = true
   for id in ids {

@@ -37,7 +37,7 @@ fn Net::new(ids : Array[String], pre_vote? : Bool = false) -> Net {
     let peers = ids.filter(fn(x) { x != id })
     nodes[id] = RaftNode::new(id, peers, seed=(i + 1).to_uint64(), pre_vote~)
   }
-  { nodes, cuts: Map([]), ignored: Map([]), msg_hook: None }
+  { nodes, cuts: Map([]), ignored: Map([]), msg_hook: None, }
 }
 
 ///|

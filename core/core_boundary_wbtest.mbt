@@ -165,7 +165,7 @@ test "coverage: load_from tolerates a temporarily unavailable snapshot" {
   // load the hard state and entries.
   let s = MemoryStorage::new()
   s.append([ent(1, 1), ent(2, 1)])
-  s.set_hard_state({ term: 1, vote: None, commit: 2 })
+  s.set_hard_state({ term: 1, vote: None, commit: 2, })
   s.set_snapshot_pending(true)
   let n = Node::new("n")
   n.load_from(s)
@@ -195,7 +195,7 @@ test "coverage: RawNode transfer_leader emits a message from a leader" {
 test "coverage: RawNode step_apply_resp is a no-op for an empty batch" {
   let raw = RaftNode::new("1", [], pre_vote=false).raw_async()
   let commit_before = raw.node().commit_index()
-  raw.step_apply_resp({ entries: [] })
+  raw.step_apply_resp({ entries: [], })
   assert_eq(raw.node().commit_index(), commit_before)
 }
 

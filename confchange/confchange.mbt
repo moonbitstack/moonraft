@@ -33,19 +33,19 @@ pub(all) struct ConfChange {
 ///|
 /// A change that adds `id` to the cluster.
 pub fn ConfChange::add(id : String) -> ConfChange {
-  { change_type: AddNode, node_id: id }
+  { change_type: AddNode, node_id: id, }
 }
 
 ///|
 /// A change that removes `id` from the cluster.
 pub fn ConfChange::remove(id : String) -> ConfChange {
-  { change_type: RemoveNode, node_id: id }
+  { change_type: RemoveNode, node_id: id, }
 }
 
 ///|
 /// A change that adds `id` as a learner (a non-voting member).
 pub fn ConfChange::add_learner(id : String) -> ConfChange {
-  { change_type: AddLearnerNode, node_id: id }
+  { change_type: AddLearnerNode, node_id: id, }
 }
 
 ///|
@@ -79,11 +79,11 @@ pub fn ConfChange::decode(command : Bytes) -> ConfChange? {
   }
   let id = s[1:].to_owned()
   if s.has_prefix("+") {
-    Some({ change_type: AddNode, node_id: id })
+    Some({ change_type: AddNode, node_id: id, })
   } else if s.has_prefix("-") {
-    Some({ change_type: RemoveNode, node_id: id })
+    Some({ change_type: RemoveNode, node_id: id, })
   } else if s.has_prefix("L") {
-    Some({ change_type: AddLearnerNode, node_id: id })
+    Some({ change_type: AddLearnerNode, node_id: id, })
   } else {
     None
   }
@@ -152,13 +152,13 @@ pub fn ConfChangeV2::enter_joint(
 /// A batch with the `Auto` transition: applied simply when it can be (at most one
 /// voter changed), otherwise as an auto-leaving joint change — etcd's default.
 pub fn ConfChangeV2::auto(changes : Array[ConfChange]) -> ConfChangeV2 {
-  { changes, transition: Auto }
+  { changes, transition: Auto, }
 }
 
 ///|
 /// Leave joint consensus (an empty batch).
 pub fn ConfChangeV2::leave_joint() -> ConfChangeV2 {
-  { changes: [], transition: Auto }
+  { changes: [], transition: Auto, }
 }
 
 ///|
@@ -250,7 +250,7 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
         _ => None
       }
       if ct is Some(t) {
-        changes.push({ change_type: t, node_id: id })
+        changes.push({ change_type: t, node_id: id, })
       }
     }
     cur = ""
@@ -265,5 +265,5 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
     }
   }
   flush()
-  Some({ changes, transition })
+  Some({ changes, transition, })
 }

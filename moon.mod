@@ -1,10 +1,10 @@
-name = "Lfan-ke/raft-moonbit"
+name = "Lfan-ke/moonraft"
 
-version = "0.5.2"
+version = "0.6.0"
 
 readme = "README.md"
 
-repository = "https://github.com/Lfan-ke/raft-moonbit"
+repository = "https://github.com/moonbitstack/moonraft"
 
 license = "Apache-2.0"
 

@@ -106,8 +106,8 @@ pub fn Config::new(
   disable_proposal_forwarding? : Bool = false,
   disable_conf_change_validation? : Bool = false,
   applied? : UInt64 = 0,
-  logger? : &Logger = NopLogger::{  },
-  tracer? : &Tracer = NopTracer::{  },
+  logger? : &Logger = NopLogger::{ },
+  tracer? : &Tracer = NopTracer::{ },
   seed? : UInt64 = 1,
 ) -> Config {
   {

@@ -38,7 +38,7 @@ pub struct ConfDriver {
 ///|
 /// Create a configuration driver starting from an initial voter set.
 pub fn ConfDriver::new(members : Array[String]) -> ConfDriver {
-  { config: Membership::new(members), applied: 0 }
+  { config: Membership::new(members), applied: 0, }
 }
 
 ///|

@@ -56,7 +56,7 @@ test "TestRawNodeCommitPaginationAfterRestart" {
     node.append(1, b"a") |> ignore
     k = k + 1
   }
-  node.apply_hard_state({ term: 1, vote: Some("1"), commit: 11 })
+  node.apply_hard_state({ term: 1, vote: Some("1"), commit: 11, })
   let esz = entry_encoding_size(Entry::normal(1, 1, b"a"))
   let raw = rn0.raw_with_max_committed_size(esz * 5)
   let applied : Array[UInt64] = []

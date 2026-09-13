@@ -169,7 +169,7 @@ fn Cluster::schedule(self : Cluster, msg : Message) -> Unit {
   } else {
     0
   }
-  self.inflight.push({ deliver_at: self.now + 1 + delay, msg })
+  self.inflight.push({ deliver_at: self.now + 1 + delay, msg, })
 }
 
 ///|

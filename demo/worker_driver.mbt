@@ -17,7 +17,7 @@ priv struct WCtx {
 }
 
 ///|
-let wctx : WCtx = { raw: None, out: [], inbuf: [] }
+let wctx : WCtx = { raw: None, out: [], inbuf: [], }
 
 ///|
 /// Create this worker's node: server `self_idx` (0-based) of `n`, with the other
@@ -112,7 +112,7 @@ pub fn wnode_recv_apply() -> Unit {
 /// Take all pending outbound messages as a JSON array of int arrays and clear
 /// the queue. Called once per animation frame by the router.
 pub fn wnode_drain() -> String {
-  let b = StringBuilder::new()
+  let b = StringBuilder()
   b.write_char('[')
   for i in 0..<wctx.out.length() {
     if i > 0 {
@@ -144,7 +144,7 @@ pub fn wnode_state() -> String {
       let node = raw.node()
       let core = node.node()
       let st = raw.status()
-      let b = StringBuilder::new()
+      let b = StringBuilder()
       b.write_string("{\"ready\":true,\"id\":")
       b.write_string(id_num(st.id).to_string())
       b.write_string(",\"role\":\"")
@@ -382,7 +382,7 @@ fn dec_msg(buf : Array[Int]) -> Message? {
           last_log_term: buf[5].to_uint64(),
         }),
       )
-    2 => Some(PreVoteResp({ term, vote_granted: buf[4] != 0 }))
+    2 => Some(PreVoteResp({ term, vote_granted: buf[4] != 0, }))
     3 =>
       Some(
         Vote({
@@ -392,7 +392,7 @@ fn dec_msg(buf : Array[Int]) -> Message? {
           last_log_term: buf[5].to_uint64(),
         }),
       )
-    4 => Some(VoteResp({ term, vote_granted: buf[4] != 0 }))
+    4 => Some(VoteResp({ term, vote_granted: buf[4] != 0, }))
     5 => {
       let entries : Array[Entry] = []
       let count = buf[7]
@@ -444,7 +444,7 @@ fn dec_msg(buf : Array[Int]) -> Message? {
           context: b"",
         }),
       )
-    8 => Some(HeartbeatResp({ term, context: b"" }))
+    8 => Some(HeartbeatResp({ term, context: b"", }))
     9 => Some(TimeoutNow(term))
     _ => None
   }

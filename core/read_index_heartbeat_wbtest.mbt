@@ -66,7 +66,7 @@ test "RawNode read_index surfaces the confirmed read after a heartbeat quorum" {
           Message::new(
             m.to,
             "1",
-            HeartbeatResp({ term: rn.node().term(), context: a.context }),
+            HeartbeatResp({ term: rn.node().term(), context: a.context, }),
           ),
         )
       _ => ()

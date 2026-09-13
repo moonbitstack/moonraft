@@ -144,7 +144,7 @@ pub fn RaftLog::async_stabilize(
             self.unstable.slice(self.unstable.offset, index + 1),
           )
         }
-        self.stable_to({ term: log_term, index })
+        self.stable_to({ term: log_term, index, })
       }
     None => ()
   }
@@ -223,7 +223,7 @@ pub fn RaftLog::last_entry_id(self : RaftLog) -> EntryId {
   let t = self.term(index) catch {
     _ => abort("unexpected error getting last term")
   }
-  { term: t, index }
+  { term: t, index, }
 }
 
 ///|

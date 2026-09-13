@@ -175,13 +175,13 @@ test "codec round-trips a PreVote request and reply" {
     PreVote(got) => assert_true(got == a)
     _ => abort("expected PreVote")
   }
-  let r : RequestVoteReply = { term: 5, vote_granted: true }
+  let r : RequestVoteReply = { term: 5, vote_granted: true, }
   match rt(Message::new("S1", "S2", PreVoteResp(r))) {
     PreVoteResp(got) => assert_true(got == r)
     _ => abort("expected PreVoteResp")
   }
   // A denied pre-vote drives the other branch of the reply's boolean encoding.
-  let denied : RequestVoteReply = { term: 5, vote_granted: false }
+  let denied : RequestVoteReply = { term: 5, vote_granted: false, }
   match rt(Message::new("S2", "S1", PreVoteResp(denied))) {
     PreVoteResp(got) => assert_true(got == denied)
     _ => abort("expected PreVoteResp")
@@ -201,7 +201,7 @@ test "codec round-trips a Vote request and reply" {
     _ => abort("expected Vote")
   }
   // vote_granted false drives the other branch of the boolean encoding.
-  let r : RequestVoteReply = { term: 4, vote_granted: false }
+  let r : RequestVoteReply = { term: 4, vote_granted: false, }
   match rt(Message::new("S1", "S3", VoteResp(r))) {
     VoteResp(got) => assert_true(got == r)
     _ => abort("expected VoteResp")
@@ -269,12 +269,17 @@ test "codec round-trips an AppendResp in both success states" {
 test "codec round-trips a Heartbeat, its reply, and TimeoutNow" {
   // The wire carries no read-index context, so both heartbeat forms round-trip
   // only with an empty context (see the behavioural note in the report).
-  let hb : HeartbeatArgs = { term: 6, leader_id: "S1", commit: 3, context: b"" }
+  let hb : HeartbeatArgs = {
+    term: 6,
+    leader_id: "S1",
+    commit: 3,
+    context: b"",
+  }
   match rt(Message::new("S1", "S2", Heartbeat(hb))) {
     Heartbeat(got) => assert_true(got == hb)
     _ => abort("expected Heartbeat")
   }
-  let hr : HeartbeatReply = { term: 6, context: b"" }
+  let hr : HeartbeatReply = { term: 6, context: b"", }
   match rt(Message::new("S2", "S1", HeartbeatResp(hr))) {
     HeartbeatResp(got) => assert_true(got == hr)
     _ => abort("expected HeartbeatResp")
@@ -291,7 +296,7 @@ test "codec drops the payloads the demo never puts on the wire" {
     Snapshot(InstallSnapshotArgs::whole(1, "S1", Snapshot::empty())),
     Propose([Entry::normal(1, 1, b"x")]),
     ReadIndex(b"rctx"),
-    ReadIndexResp({ term: 1, index: 1, context: b"" }),
+    ReadIndexResp({ term: 1, index: 1, context: b"", }),
     TransferLeader("S2"),
     ForgetLeader,
   ]

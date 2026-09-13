@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/demo"
+package "Lfan-ke/moonraft/demo"
 
 // Values
 pub fn wnode_campaign() -> Unit
@@ -27,4 +27,3 @@ pub fn wnode_tick() -> Unit
 // Type aliases
 
 // Traits
-

@@ -73,8 +73,8 @@ test "TestInitialState: HardState and the snapshot ConfState both round-trip" {
     learners_next: [],
     auto_leave: false,
   }
-  s.apply_snapshot({ last_index: 3, last_term: 5, data: b"", conf_state: cs })
-  s.set_hard_state({ term: 5, vote: Some("2"), commit: 3 })
+  s.apply_snapshot({ last_index: 3, last_term: 5, data: b"", conf_state: cs, })
+  s.set_hard_state({ term: 5, vote: Some("2"), commit: 3, })
   let hs = s.initial_state()
   assert_eq(hs.term, 5)
   assert_true(hs.vote == Some("2"))

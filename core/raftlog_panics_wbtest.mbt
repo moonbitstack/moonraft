@@ -29,7 +29,7 @@ test "panic maybe_append conflicting with a committed entry aborts" {
   l.commit_to(1)
   let app : LogSlice = {
     term: 100,
-    prev: { term: 0, index: 0 },
+    prev: { term: 0, index: 0, },
     entries: ents_at(1, [3, 3]),
   }
   l.maybe_append(app, 3) |> ignore
@@ -42,7 +42,7 @@ test "panic maybe_append with a conflict index past the slice aborts" {
   let l = log_appended(ents_at(1, [1, 1, 1, 1, 1, 1]))
   let app : LogSlice = {
     term: 100,
-    prev: { term: 1, index: 5 },
+    prev: { term: 1, index: 5, },
     entries: [Entry::normal(9, 9, b"")],
   }
   l.maybe_append(app, 0) |> ignore
@@ -310,7 +310,7 @@ test "panic last_entry_id aborts on an unexpected storage error" {
 test "match_term is false when the term read fails" {
   let fs = FailingStorage::over(ents_at(1, [1, 2, 3]))
   fs.term_err = Some(SnapOutOfDate)
-  assert_false(failing_log(fs).match_term({ term: 1, index: 2 }))
+  assert_false(failing_log(fs).match_term({ term: 1, index: 2, }))
 }
 
 ///|

@@ -85,7 +85,7 @@ struct ReadOnly {
 ///|
 /// A fresh, lease-based read tracker (matching etcd's default).
 fn ReadOnly::new() -> ReadOnly {
-  { safe: false, acks: Map([]), unconfirmed: [], confirmed: 0, ready: [] }
+  { safe: false, acks: Map([]), unconfirmed: [], confirmed: 0, ready: [], }
 }
 
 ///|
@@ -108,7 +108,7 @@ fn ReadOnly::add_request(
   context : Bytes,
   from : String,
 ) -> Unit {
-  self.unconfirmed.push({ context, index, from })
+  self.unconfirmed.push({ context, index, from, })
 }
 
 ///|
@@ -229,7 +229,7 @@ fn RaftNode::lead_read_index(
   // read, and waiting on one would let a down learner stall a read the sole voter
   // could serve itself.
   if self.config.size() == 1 && !self.config.is_joint() {
-    return self.deliver_read({ from, index: self.core.commit_index, context })
+    return self.deliver_read({ from, index: self.core.commit_index, context, })
   }
   // The read must be anchored at an index from the current term, else the commit
   // index may not yet reflect the latest leader's writes (§5.4.2). Until the
@@ -248,7 +248,7 @@ fn RaftNode::lead_read_index(
     self.read_only.recv_ack(self.id, self.read_only.heartbeat_ctx())
     self.bcast_heartbeat()
   } else if self.quorum_active() {
-    self.deliver_read({ from, index: self.core.commit_index, context })
+    self.deliver_read({ from, index: self.core.commit_index, context, })
   } else {
     []
   }
@@ -260,7 +260,7 @@ fn RaftNode::lead_read_index(
 /// `ReadIndexResp` carrying the confirmed index and the caller's context.
 fn RaftNode::deliver_read(self : RaftNode, req : ReadReq) -> Array[Message] {
   if req.from == self.id {
-    self.read_only.ready.push({ index: req.index, request_ctx: req.context })
+    self.read_only.ready.push({ index: req.index, request_ctx: req.context, })
     []
   } else {
     [

@@ -17,7 +17,7 @@
 
 ///|
 fn full_buffer(n : Int) -> Array[Inflight] {
-  Array::makei(n, fn(_) { { index: 0, bytes: 0 } })
+  Array::makei(n, fn(_) { { index: 0, bytes: 0, } })
 }
 
 ///|

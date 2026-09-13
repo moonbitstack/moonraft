@@ -32,7 +32,7 @@ test "cov: responses from an untracked node are ignored (pr == nil)" {
   let t = r.term()
   assert_eq(
     r
-    .step(Message::new("9", "1", HeartbeatResp({ term: t, context: b"" })))
+    .step(Message::new("9", "1", HeartbeatResp({ term: t, context: b"", })))
     .length(),
     0,
   )
@@ -54,7 +54,7 @@ test "cov: a higher-term pre-vote rejection steps the pre-candidate down" {
     Message::new(
       "2",
       "1",
-      PreVoteResp({ term: r.term() + 5, vote_granted: false }),
+      PreVoteResp({ term: r.term() + 5, vote_granted: false, }),
     ),
   )
   assert_true(r.role() == Follower)
@@ -69,11 +69,11 @@ test "cov: pre-vote VotePending then VoteLost" {
   r.campaign() |> ignore
   let t = r.term()
   // One aligned rejection: still pending, still a pre-candidate.
-  r.step(Message::new("2", "1", PreVoteResp({ term: t, vote_granted: false })))
+  r.step(Message::new("2", "1", PreVoteResp({ term: t, vote_granted: false, })))
   |> ignore
   assert_true(r.role() == PreCandidate)
   // A second rejection is a majority against: the pre-campaign ends.
-  r.step(Message::new("3", "1", PreVoteResp({ term: t, vote_granted: false })))
+  r.step(Message::new("3", "1", PreVoteResp({ term: t, vote_granted: false, })))
   |> ignore
   assert_true(r.role() == Follower)
 }
@@ -88,7 +88,7 @@ test "cov: a leased follower rejects an aligned-term vote" {
     Message::new(
       "1",
       "2",
-      Heartbeat({ term: 1, leader_id: "1", commit: 0, context: b"" }),
+      Heartbeat({ term: 1, leader_id: "1", commit: 0, context: b"", }),
     ),
   )
   |> ignore
@@ -96,7 +96,7 @@ test "cov: a leased follower rejects an aligned-term vote" {
     Message::new(
       "3",
       "2",
-      Vote({ term: 1, candidate_id: "3", last_log_index: 0, last_log_term: 0 }),
+      Vote({ term: 1, candidate_id: "3", last_log_index: 0, last_log_term: 0, }),
     ),
   )
   match out[0].payload {

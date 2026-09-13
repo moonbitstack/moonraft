@@ -56,13 +56,13 @@ test "a candidate denied a vote remains a candidate" {
   let _ = a.campaign() // pre-vote round begins at would-be term 1
   // Grant the pre-vote from b so a becomes a real candidate in term 1.
   let _ = a.step(
-    Message::new("b", "a", PreVoteResp({ term: 1, vote_granted: true })),
+    Message::new("b", "a", PreVoteResp({ term: 1, vote_granted: true, })),
   )
   assert_true(a.role() == Candidate)
   assert_eq(a.term(), 1)
   // A rejection in the same term neither wins the election nor steps a down.
   let _ = a.step(
-    Message::new("c", "a", VoteResp({ term: 1, vote_granted: false })),
+    Message::new("c", "a", VoteResp({ term: 1, vote_granted: false, })),
   )
   assert_true(a.role() == Candidate)
 }

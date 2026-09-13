@@ -64,7 +64,7 @@ test "cov: partial read confirmation leaves later reads pending" {
     Message::new(
       "2",
       "1",
-      HeartbeatResp({ term: r.term(), context: encode_u64_le(1) }),
+      HeartbeatResp({ term: r.term(), context: encode_u64_le(1), }),
     ),
   )
   |> ignore
@@ -74,7 +74,7 @@ test "cov: partial read confirmation leaves later reads pending" {
     Message::new(
       "2",
       "1",
-      HeartbeatResp({ term: r.term(), context: encode_u64_le(2) }),
+      HeartbeatResp({ term: r.term(), context: encode_u64_le(2), }),
     ),
   )
   |> ignore

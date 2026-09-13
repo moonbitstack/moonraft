@@ -187,7 +187,7 @@ fn check_stable_to(
   wlen : Int,
 ) -> Unit raise {
   let u = us(entries, offset, snap, oip, false)
-  u.stable_to({ term, index })
+  u.stable_to({ term, index, })
   assert_eq(u.offset, woffset)
   assert_eq(u.offset_in_progress, woip)
   assert_eq(u.entries.length(), wlen)

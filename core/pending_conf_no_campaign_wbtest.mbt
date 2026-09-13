@@ -62,7 +62,7 @@ fn leased_to_leader() -> RaftNode {
     Message::new(
       "1",
       "2",
-      Heartbeat({ term: 1, leader_id: "1", commit: 0, context: b"" }),
+      Heartbeat({ term: 1, leader_id: "1", commit: 0, context: b"", }),
     ),
   )
   |> ignore

@@ -1,9 +1,9 @@
-// raft-moonbit demo: the browser/Web-Worker driver. Each node runs in its own
+// moonraft demo: the browser/Web-Worker driver. Each node runs in its own
 // Web Worker over its own wasm instance, so the exports are the flat per-node
 // API and the linear memory the strings are read out of.
 import {
-  "Lfan-ke/raft-moonbit/core",
-  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/moonraft/core",
+  "Lfan-ke/moonraft/raftpb",
 }
 
 options(

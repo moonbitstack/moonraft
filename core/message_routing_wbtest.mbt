@@ -141,7 +141,7 @@ test "read index forwarded to the leader is answered to the requester" {
   // A quorum ack (follower 2 echoing the context) confirms the read; the leader
   // answers the originator rather than recording it locally.
   let resp = l.step(
-    Message::new("2", "1", HeartbeatResp({ term: l.term(), context: b"rctx" })),
+    Message::new("2", "1", HeartbeatResp({ term: l.term(), context: b"rctx", })),
   )
   assert_eq(l.take_read_states().length(), 0)
   assert_eq(resp.length(), 1)
@@ -260,7 +260,7 @@ test "a stale ReadIndexResp is dropped by term" {
     Message::new(
       "1",
       "2",
-      ReadIndexResp({ term: 3, index: 9, context: b"old" }),
+      ReadIndexResp({ term: 3, index: 9, context: b"old", }),
     ),
   )
   |> ignore
@@ -270,7 +270,7 @@ test "a stale ReadIndexResp is dropped by term" {
     Message::new(
       "1",
       "2",
-      ReadIndexResp({ term: 5, index: 9, context: b"now" }),
+      ReadIndexResp({ term: 5, index: 9, context: b"now", }),
     ),
   )
   |> ignore

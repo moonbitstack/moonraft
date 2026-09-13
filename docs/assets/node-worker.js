@@ -48,7 +48,7 @@ function startTimer() {
 }
 
 async function boot(seed) {
-  const url = new URL("../raft-moonbit.wasm", import.meta.url);
+  const url = new URL("../moonraft.wasm", import.meta.url);
   const buf = await (await fetch(url)).arrayBuffer();
   const { instance } = await WebAssembly.instantiate(buf, {});
   ex = instance.exports;

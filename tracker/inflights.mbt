@@ -41,7 +41,7 @@ pub struct Inflights {
 
 ///|
 fn zero_inflight() -> Inflight {
-  { index: 0, bytes: 0 }
+  { index: 0, bytes: 0, }
 }
 
 ///|
@@ -49,7 +49,7 @@ fn zero_inflight() -> Inflight {
 /// total bytes. `max_bytes` of 0 means no byte limit. The byte limit is soft:
 /// one message that crosses it is still accepted.
 pub fn Inflights::new(size : Int, max_bytes : UInt64) -> Inflights {
-  { start: 0, count: 0, bytes: 0, size, max_bytes, buffer: [] }
+  { start: 0, count: 0, bytes: 0, size, max_bytes, buffer: [], }
 }
 
 ///|
@@ -62,7 +62,7 @@ pub fn Inflights::clone(self : Inflights) -> Inflights {
     size: self.size,
     max_bytes: self.max_bytes,
     buffer: Array::makei(self.buffer.length(), fn(i) {
-      { index: self.buffer[i].index, bytes: self.buffer[i].bytes }
+      { index: self.buffer[i].index, bytes: self.buffer[i].bytes, }
     }),
   }
 }
@@ -102,7 +102,7 @@ pub fn Inflights::add(self : Inflights, index : UInt64, bytes : UInt64) -> Unit 
   if next >= self.buffer.length() {
     self.grow()
   }
-  self.buffer[next] = { index, bytes }
+  self.buffer[next] = { index, bytes, }
   self.count = self.count + 1
   self.bytes = self.bytes + bytes
 }

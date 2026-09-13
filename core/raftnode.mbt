@@ -123,8 +123,8 @@ pub fn RaftNode::new(
   // etcd's zero value is ReadOnlySafe ("default and suggested"); a LeaseBased
   // default without check-quorum is a configuration etcd's validate() rejects.
   read_only_option? : ReadOnlyOption = Safe,
-  logger? : &Logger = NopLogger::{  },
-  tracer? : &Tracer = NopTracer::{  },
+  logger? : &Logger = NopLogger::{ },
+  tracer? : &Tracer = NopTracer::{ },
 ) -> RaftNode {
   // Reject an unusable configuration at construction, as etcd's newRaft panics on
   // an invalid Config.validate() (raft.go:440). This convenience constructor

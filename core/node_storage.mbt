@@ -2,7 +2,7 @@
 /// Capture this node's persistent state so it can be written to a `LogStore`.
 /// The log is copied, so the returned value is a stable point-in-time image.
 pub fn Node::persisted(self : Node) -> Persisted {
-  { term: self.current_term, voted_for: self.voted_for, log: self.log.copy() }
+  { term: self.current_term, voted_for: self.voted_for, log: self.log.copy(), }
 }
 
 ///|

@@ -45,7 +45,7 @@ test "TestLeaderStepdownWhenQuorumActive" {
   r.become_leader()
   for _i in 0..<(5 + 1) {
     r.step(
-      Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+      Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
     )
     |> ignore
     r.tick() |> ignore

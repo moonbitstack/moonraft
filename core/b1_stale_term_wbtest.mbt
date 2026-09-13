@@ -31,12 +31,12 @@ test "B1: stale granted VoteResp is not counted (no double leader)" {
   assert_true(n.role() == Candidate)
   assert_eq(n.term(), 1)
   // A vote granted in term 0 arriving now, in term 1. It must be ignored.
-  let stale = Message::new("2", "1", VoteResp({ term: 0, vote_granted: true }))
+  let stale = Message::new("2", "1", VoteResp({ term: 0, vote_granted: true, }))
   n.step(stale) |> ignore
   assert_false(n.is_leader())
   assert_true(n.role() == Candidate)
   // The legitimate current-term vote does elect it.
-  let ok = Message::new("2", "1", VoteResp({ term: 1, vote_granted: true }))
+  let ok = Message::new("2", "1", VoteResp({ term: 1, vote_granted: true, }))
   n.step(ok) |> ignore
   assert_true(n.is_leader())
 }
@@ -49,17 +49,17 @@ test "B1: stale AppendResp does not inflate progress or commit" {
   let n = RaftNode::new("1", ["2", "3"], pre_vote=false)
   // Drive to leader at term 2.
   n.campaign() |> ignore // term 1, candidate
-  n.step(Message::new("2", "1", VoteResp({ term: 1, vote_granted: true })))
+  n.step(Message::new("2", "1", VoteResp({ term: 1, vote_granted: true, })))
   |> ignore
   assert_true(n.is_leader())
   assert_eq(n.term(), 1)
   // Force a term bump to 2 by observing a higher term, then re-elect.
-  n.step(Message::new("2", "1", VoteResp({ term: 2, vote_granted: false })))
+  n.step(Message::new("2", "1", VoteResp({ term: 2, vote_granted: false, })))
   |> ignore
   assert_true(n.role() == Follower)
   n.campaign() |> ignore // term 3 candidate
   n.step(
-    Message::new("2", "1", VoteResp({ term: n.term(), vote_granted: true })),
+    Message::new("2", "1", VoteResp({ term: n.term(), vote_granted: true, })),
   )
   |> ignore
   assert_true(n.is_leader())

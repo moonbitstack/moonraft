@@ -112,7 +112,7 @@ fn candidate_reset_term(use_append : Bool) -> Unit raise {
     Message::new(
       "1",
       "3",
-      Heartbeat({ term: leader_term, leader_id: "1", commit: 0, context: b"" }),
+      Heartbeat({ term: leader_term, leader_id: "1", commit: 0, context: b"", }),
     )
   }
   net.inject(disrupt)

@@ -20,7 +20,7 @@ struct CapturingLogger {
 
 ///|
 fn CapturingLogger::new() -> CapturingLogger {
-  { records: [] }
+  { records: [], }
 }
 
 ///|
@@ -45,7 +45,7 @@ struct CapturingTracer {
 
 ///|
 fn CapturingTracer::new() -> CapturingTracer {
-  { events: [] }
+  { events: [], }
 }
 
 ///|
@@ -182,7 +182,11 @@ test "B1: stale ReadIndexResp is dropped" {
   let before = f.take_read_states().length()
   // A ReadIndexResp stamped with an old term (3 < 5) must be ignored.
   f.step(
-    Message::new("1", "2", ReadIndexResp({ term: 3, index: 9, context: b"rc" })),
+    Message::new(
+      "1",
+      "2",
+      ReadIndexResp({ term: 3, index: 9, context: b"rc", }),
+    ),
   )
   |> ignore
   assert_eq(f.take_read_states().length(), before)
@@ -195,7 +199,11 @@ test "current-term ReadIndexResp is recorded" {
   let f = RaftNode::new("2", ["1", "3"], pre_vote=false)
   f.become_follower(5)
   f.step(
-    Message::new("1", "2", ReadIndexResp({ term: 5, index: 9, context: b"rc" })),
+    Message::new(
+      "1",
+      "2",
+      ReadIndexResp({ term: 5, index: 9, context: b"rc", }),
+    ),
   )
   |> ignore
   let rs = f.take_read_states()

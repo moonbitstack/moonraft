@@ -18,7 +18,7 @@
 ///|
 /// etcd's `id(index, term)` helper — note the argument order is (index, term).
 fn eid(index : UInt64, term : UInt64) -> EntryId {
-  { term, index }
+  { term, index, }
 }
 
 ///|
@@ -49,7 +49,7 @@ fn check_slice(
   not_ok : Bool,
   last : EntryId,
 ) -> Unit raise {
-  let s : LogSlice = { term, prev, entries }
+  let s : LogSlice = { term, prev, entries, }
   assert_eq(s.valid(), !not_ok)
   if !not_ok {
     assert_true(s.last_entry_id() == last)

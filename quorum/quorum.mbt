@@ -44,7 +44,7 @@ fn majority_committed(
   if n == 0 {
     return MAX_U64
   }
-  let srt = Array::new(capacity=n)
+  let srt = Array(capacity=n)
   for v in voters {
     srt.push(acked.get(v).unwrap_or(0))
   }
@@ -117,7 +117,7 @@ pub fn describe(voters : Array[String], acked : Map[String, UInt64]) -> String {
       Some(i) => (i, true)
       None => (0, false)
     }
-    info.push({ id, idx, ok, bar: 0 })
+    info.push({ id, idx, ok, bar: 0, })
   }
   // Sort by (idx, id) to assign bar lengths, longest bar = highest index.
   insertion_sort(info, fn(a, b) {

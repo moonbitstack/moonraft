@@ -1,7 +1,7 @@
 ///|
 /// Capture this node's HardState for durable storage.
 pub fn Node::hard_state(self : Node) -> HardState {
-  { term: self.current_term, vote: self.voted_for, commit: self.commit_index }
+  { term: self.current_term, vote: self.voted_for, commit: self.commit_index, }
 }
 
 ///|

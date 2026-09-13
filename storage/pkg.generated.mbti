@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/raft-moonbit/storage"
+package "Lfan-ke/moonraft/storage"
 
 import {
-  "Lfan-ke/raft-moonbit/raftpb",
+  "Lfan-ke/moonraft/raftpb",
 }
 
 // Values
@@ -69,4 +69,3 @@ pub(open) trait WalStore {
   fn append_record(Self, WalRecord) -> Unit
   fn load(Self) -> Array[WalRecord]
 }
-

@@ -53,7 +53,7 @@ test "TestHandleHeartbeat" {
       Message::new(
         "2",
         "1",
-        Heartbeat({ term: 2, leader_id: "2", commit: hb_commit, context: b"" }),
+        Heartbeat({ term: 2, leader_id: "2", commit: hb_commit, context: b"", }),
       ),
     )
     assert_eq(r.commit_index(), want)
@@ -76,19 +76,19 @@ test "TestHandleHeartbeatResp" {
   r.node().advance_commit(r.node().last_log_index())
   // Behind follower: a heartbeat response prompts an append.
   let m1 = r.step(
-    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
   )
   assert_eq(m1.length(), 1)
   assert_true(m1[0].kind() == "Append" || m1[0].kind() == "Probe")
   // A second heartbeat response prompts another append.
   let m2 = r.step(
-    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
   )
   assert_eq(m2.length(), 1)
   // Once the follower has acknowledged the last index, heartbeats send nothing.
   r.step(ack_from("2", r.node().last_log_index(), r.term())) |> ignore
   let m3 = r.step(
-    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"" })),
+    Message::new("2", "1", HeartbeatResp({ term: r.term(), context: b"", })),
   )
   assert_eq(m3.length(), 0)
 }

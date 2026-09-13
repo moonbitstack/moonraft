@@ -35,7 +35,7 @@ test "B3: leased follower rejects a higher-term vote without bumping its term" {
     Message::new(
       "3",
       "2",
-      Vote({ term: 6, candidate_id: "3", last_log_index: 0, last_log_term: 0 }),
+      Vote({ term: 6, candidate_id: "3", last_log_index: 0, last_log_term: 0, }),
     ),
   )
   assert_eq(out.length(), 1)
@@ -81,7 +81,7 @@ test "B3: once the lease expires the vote is granted again" {
     Message::new(
       "3",
       "2",
-      Vote({ term: 6, candidate_id: "3", last_log_index: 0, last_log_term: 0 }),
+      Vote({ term: 6, candidate_id: "3", last_log_index: 0, last_log_term: 0, }),
     ),
   )
   match out[0].payload {
