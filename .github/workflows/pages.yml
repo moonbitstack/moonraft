@@ -6,9 +6,6 @@ on:
       - master
   workflow_dispatch:
 
-env:
-  MOONBIT_INSTALL_VERSION: "0.10.3+16975d007"
-
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
