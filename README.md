@@ -7,7 +7,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/moonbitstack/moonraft/ci.yml?branch=master&label=CI&logo=github)](https://github.com/moonbitstack/moonraft/actions)
 [![tests](https://img.shields.io/badge/tests-723%20passing-2ea44f)](#correctness)
 [![coverage](https://img.shields.io/badge/coverage-100%25%20line%20%26%20branch-2ea44f)](https://moonbitstack.github.io/moonraft/coverage/)
-[![mooncakes](https://img.shields.io/badge/mooncakes-0.6.0-26b483)](https://mooncakes.io/docs/Lfan-ke/moonraft)
+[![mooncakes](https://img.shields.io/badge/mooncakes-0.6.0-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **[▶ Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[Docs](https://moonbitstack.github.io/moonraft/)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Quickstart](https://moonbitstack.github.io/moonraft/quickstart.html)**
@@ -17,6 +17,8 @@
 <sub><em>The project home - a faithful MoonBit port of etcd's raft. Click through to the live, in-browser demo.</em></sub>
 
 </div>
+
+> Moved on mooncakes from `Lfan-ke/moonraft` to `moonbitstack/moonraft`.
 
 Raft keeps a cluster of nodes agreeing on the order of a command log even when nodes crash and the network drops, delays and reorders messages — the foundation of the replicated state machines behind systems such as **etcd, TiKV and Consul**. This library ports the Go [`etcd-io/raft`](https://github.com/etcd-io/raft) (Apache-2.0) to MoonBit, carrying over its protocol core, storage model and **test suite**; see [NOTICE](NOTICE) for what is derived and what is new.
 
@@ -28,7 +30,7 @@ It ships two ways to drive one consensus core:
 ## Install
 
 ```
-moon add Lfan-ke/moonraft
+moon add moonbitstack/moonraft
 ```
 
 Previously published as `Lfan-ke/raft-moonbit`; the repository moved from `Lfan-ke/raft-moonbit` to `moonbitstack/moonraft`.

@@ -1,12 +1,12 @@
-// moonraft: the public facade. `moon add Lfan-ke/moonraft` and the
+// moonraft: the public facade. `moon add moonbitstack/moonraft` and the
 // `@raft.*` names in the README resolve here; every symbol is re-exported from
 // the sub-packages below so a consumer never imports them directly.
 import {
-  "Lfan-ke/moonraft/quorum",
-  "Lfan-ke/moonraft/tracker",
-  "Lfan-ke/moonraft/raftpb",
-  "Lfan-ke/moonraft/confchange",
-  "Lfan-ke/moonraft/storage",
-  "Lfan-ke/moonraft/log",
-  "Lfan-ke/moonraft/core",
+  "moonbitstack/moonraft/quorum",
+  "moonbitstack/moonraft/tracker",
+  "moonbitstack/moonraft/raftpb",
+  "moonbitstack/moonraft/confchange",
+  "moonbitstack/moonraft/storage",
+  "moonbitstack/moonraft/log",
+  "moonbitstack/moonraft/core",
 }

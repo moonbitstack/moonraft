@@ -7,7 +7,7 @@ adheres to semantic versioning.
 
 ### Changed
 
-- **Renamed to `moonraft`.** The module is now `Lfan-ke/moonraft` (was `Lfan-ke/raft-moonbit`) and the repository lives at `moonbitstack/moonraft`. Import paths change accordingly; the `@raft` alias used in the examples is unchanged.
+- **Renamed to `moonraft`.** The module is now `moonbitstack/moonraft` (was `Lfan-ke/raft-moonbit`) and the repository lives at `moonbitstack/moonraft`. Import paths change accordingly; the `@raft` alias used in the examples is unchanged.
 - The docs site ships the demo module as `moonraft.wasm`.
 - Deprecated `StringBuilder::new()` and `Array::new(capacity=)` calls moved to `StringBuilder()` and `Array(capacity=)`.
 

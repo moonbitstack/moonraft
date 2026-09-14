@@ -1,6 +1,6 @@
 // moonraft log: the raft log (RaftLog), the unstable tail, log slices, and
 // the human-readable describe helpers.
 import {
-  "Lfan-ke/moonraft/raftpb",
-  "Lfan-ke/moonraft/storage",
+  "moonbitstack/moonraft/raftpb",
+  "moonbitstack/moonraft/storage",
 }

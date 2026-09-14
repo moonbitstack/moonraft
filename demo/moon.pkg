@@ -2,8 +2,8 @@
 // Web Worker over its own wasm instance, so the exports are the flat per-node
 // API and the linear memory the strings are read out of.
 import {
-  "Lfan-ke/moonraft/core",
-  "Lfan-ke/moonraft/raftpb",
+  "moonbitstack/moonraft/core",
+  "moonbitstack/moonraft/raftpb",
 }
 
 options(

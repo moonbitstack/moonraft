@@ -1,7 +1,7 @@
 // moonraft confchange: cluster membership, single and joint-consensus
 // configuration changes, and the confchange Changer.
 import {
-  "Lfan-ke/moonraft/quorum",
-  "Lfan-ke/moonraft/tracker",
-  "Lfan-ke/moonraft/raftpb",
+  "moonbitstack/moonraft/quorum",
+  "moonbitstack/moonraft/tracker",
+  "moonbitstack/moonraft/raftpb",
 }
