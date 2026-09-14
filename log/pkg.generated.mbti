@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/moonraft/log"
+package "moonbitstack/moonraft/log"
 
 import {
-  "Lfan-ke/moonraft/raftpb",
-  "Lfan-ke/moonraft/storage",
+  "moonbitstack/moonraft/raftpb",
+  "moonbitstack/moonraft/storage",
 }
 
 // Values

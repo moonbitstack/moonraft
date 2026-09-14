@@ -1,4 +1,4 @@
-name = "Lfan-ke/moonraft"
+name = "moonbitstack/moonraft"
 
 version = "0.4.1"
 

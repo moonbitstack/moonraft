@@ -1,5 +1,5 @@
 // moonraft storage: the MemoryStorage engine, the RaftStorage/LogStore/
 // WalStore traits, and the write-ahead-log record type.
 import {
-  "Lfan-ke/moonraft/raftpb",
+  "moonbitstack/moonraft/raftpb",
 }

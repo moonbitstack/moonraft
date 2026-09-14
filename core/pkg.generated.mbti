@@ -1,12 +1,12 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/moonraft/core"
+package "moonbitstack/moonraft/core"
 
 import {
-  "Lfan-ke/moonraft/confchange",
-  "Lfan-ke/moonraft/log",
-  "Lfan-ke/moonraft/raftpb",
-  "Lfan-ke/moonraft/storage",
-  "Lfan-ke/moonraft/tracker",
+  "moonbitstack/moonraft/confchange",
+  "moonbitstack/moonraft/log",
+  "moonbitstack/moonraft/raftpb",
+  "moonbitstack/moonraft/storage",
+  "moonbitstack/moonraft/tracker",
 }
 
 // Values

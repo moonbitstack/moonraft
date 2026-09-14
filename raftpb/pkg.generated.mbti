@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lfan-ke/moonraft/raftpb"
+package "moonbitstack/moonraft/raftpb"
 
 // Values
 pub fn entry_encoding_size(Entry) -> UInt64
