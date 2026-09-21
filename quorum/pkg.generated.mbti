@@ -16,6 +16,8 @@ pub(all) enum VoteState {
   VoteLost
   VotePending
 } derive(Eq)
+pub fn VoteState::equal(Self, Self) -> Bool
+pub fn VoteState::not_equal(Self, Self) -> Bool
 
 // Type aliases
 

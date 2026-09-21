@@ -43,3 +43,9 @@ pub fn InstallSnapshotArgs::whole(
 pub(all) struct InstallSnapshotReply {
   term : UInt64
 } derive(Eq)
+
+///|
+pub extend InstallSnapshotArgs with Eq::{not_equal, equal}
+
+///|
+pub extend InstallSnapshotReply with Eq::{not_equal, equal}

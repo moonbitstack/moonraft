@@ -323,7 +323,7 @@ pub fn MemoryStorage::create_snapshot(
   self : MemoryStorage,
   index : UInt64,
   data : Bytes,
-  conf_state? : ConfState? = None,
+  conf_state? : ConfState,
 ) -> Snapshot raise StorageError {
   if index <= self.snap.last_index {
     raise SnapOutOfDate
@@ -345,3 +345,16 @@ pub fn MemoryStorage::create_snapshot(
   self.snap = snap
   snap
 }
+
+///|
+pub extend MemoryStorage with RaftStorage::{
+  first_index,
+  storage_entries,
+  storage_term,
+  storage_snapshot,
+  initial_state,
+  last_index,
+}
+
+///|
+pub extend StorageError with Eq::{not_equal, equal}

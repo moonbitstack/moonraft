@@ -138,3 +138,6 @@ pub fn Payload::is_local(self : Payload) -> Bool {
     _ => false
   }
 }
+
+///|
+pub extend ReadIndexResp with Eq::{not_equal, equal}

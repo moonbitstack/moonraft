@@ -29,3 +29,6 @@ pub fn HardState::is_empty(self : HardState) -> Bool {
 pub fn hard_state_equal(a : HardState, b : HardState) -> Bool {
   a == b
 }
+
+///|
+pub extend HardState with Eq::{not_equal, equal}

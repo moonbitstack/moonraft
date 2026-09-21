@@ -31,6 +31,8 @@ pub suberror ConfigError {
   MaxInflightBytesTooSmall
   LeaseBasedNeedsCheckQuorum
 } derive(Eq)
+pub fn ConfigError::equal(Self, Self) -> Bool
+pub fn ConfigError::not_equal(Self, Self) -> Bool
 
 // Types and methods
 pub struct Cluster {
@@ -133,6 +135,8 @@ pub enum LogLevel {
   Fatal
   Panic
 } derive(Eq)
+pub fn LogLevel::equal(Self, Self) -> Bool
+pub fn LogLevel::not_equal(Self, Self) -> Bool
 
 pub struct Node {
   id : String
@@ -197,6 +201,8 @@ pub(all) struct ProgressStatus {
   pending_snapshot : UInt64
   is_learner : Bool
 } derive(Eq)
+pub fn ProgressStatus::equal(Self, Self) -> Bool
+pub fn ProgressStatus::not_equal(Self, Self) -> Bool
 
 pub struct RaftNode {
   core : Node
@@ -293,6 +299,8 @@ pub(all) struct RaftStatus {
   applied : UInt64
 } derive(Eq)
 pub fn RaftStatus::describe(Self) -> String
+pub fn RaftStatus::equal(Self, Self) -> Bool
+pub fn RaftStatus::not_equal(Self, Self) -> Bool
 
 pub struct RawNode {
   raft : RaftNode
@@ -342,11 +350,15 @@ pub enum ReadOnlyOption {
   Safe
   LeaseBased
 } derive(Eq)
+pub fn ReadOnlyOption::equal(Self, Self) -> Bool
+pub fn ReadOnlyOption::not_equal(Self, Self) -> Bool
 
 pub(all) struct ReadState {
   index : UInt64
   request_ctx : Bytes
 } derive(Eq)
+pub fn ReadState::equal(Self, Self) -> Bool
+pub fn ReadState::not_equal(Self, Self) -> Bool
 
 pub(all) struct Ready {
   soft_state : SoftState?
@@ -367,12 +379,15 @@ pub(all) enum Role {
   Candidate
   Leader
 } derive(Eq)
+pub fn Role::equal(Self, Self) -> Bool
+pub fn Role::not_equal(Self, Self) -> Bool
 
 pub(all) struct SoftState {
   lead : String?
   state : Role
 } derive(Eq)
 pub fn SoftState::equal(Self, Self) -> Bool
+pub fn SoftState::not_equal(Self, Self) -> Bool
 
 pub(all) struct StorageAppend {
   entries : Array[@raftpb.Entry]
@@ -386,6 +401,8 @@ pub(all) struct StorageAppendResp {
   log_term : UInt64
   term : UInt64
 } derive(Eq)
+pub fn StorageAppendResp::equal(Self, Self) -> Bool
+pub fn StorageAppendResp::not_equal(Self, Self) -> Bool
 
 pub(all) struct StorageApply {
   entries : Array[@raftpb.Entry]

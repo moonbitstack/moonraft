@@ -18,3 +18,6 @@ pub(open) trait WalStore {
   fn append_record(Self, WalRecord) -> Unit
   fn load(Self) -> Array[WalRecord]
 }
+
+///|
+pub extend WalRecord with Eq::{not_equal, equal}

@@ -309,3 +309,6 @@ fn RaftNode::release_pending_read_index(self : RaftNode) -> Array[Message] {
 pub fn RaftNode::take_read_states(self : RaftNode) -> Array[ReadState] {
   self.read_only.take_ready()
 }
+
+///|
+pub extend ReadOnlyOption with Eq::{not_equal, equal}

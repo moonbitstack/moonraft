@@ -192,14 +192,14 @@ test "TestStorageCreateSnapshot" {
   }
   // {4, nil, snap(index=4, term=4, cs)}
   let s0 = MemoryStorage::from_ents(ents_at(3, [3, 4, 5]))
-  let snap0 = s0.create_snapshot(4, b"data", conf_state=Some(cs))
+  let snap0 = s0.create_snapshot(4, b"data", conf_state=cs)
   assert_eq(snap0.last_index, 4)
   assert_eq(snap0.last_term, 4)
   assert_true(snap0.data == b"data")
   assert_true(snap0.conf_state == cs)
   // {5, nil, snap(index=5, term=5, cs)}
   let s1 = MemoryStorage::from_ents(ents_at(3, [3, 4, 5]))
-  let snap1 = s1.create_snapshot(5, b"data", conf_state=Some(cs))
+  let snap1 = s1.create_snapshot(5, b"data", conf_state=cs)
   assert_eq(snap1.last_index, 5)
   assert_eq(snap1.last_term, 5)
   assert_true(snap1.data == b"data")

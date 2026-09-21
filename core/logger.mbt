@@ -48,3 +48,6 @@ pub struct NopLogger {}
 impl Logger for NopLogger with fn log(_self, _level, _msg) {
 
 }
+
+///|
+pub extend LogLevel with Eq::{not_equal, equal}

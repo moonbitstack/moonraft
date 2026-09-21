@@ -163,3 +163,6 @@ pub fn Inflights::reset(self : Inflights) -> Unit {
   self.count = 0
   self.bytes = 0
 }
+
+///|
+pub extend Inflight with Eq::{not_equal, equal}

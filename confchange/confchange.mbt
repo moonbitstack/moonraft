@@ -267,3 +267,15 @@ pub fn ConfChangeV2::decode(command : Bytes) -> ConfChangeV2? {
   flush()
   Some({ changes, transition, })
 }
+
+///|
+pub extend ConfChange with Eq::{not_equal, equal}
+
+///|
+pub extend ConfChangeTransition with Eq::{not_equal, equal}
+
+///|
+pub extend ConfChangeType with Eq::{not_equal, equal}
+
+///|
+pub extend ConfChangeV2 with Eq::{not_equal, equal}

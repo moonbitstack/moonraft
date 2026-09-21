@@ -65,3 +65,6 @@ pub fn ConfState::equivalent(self : ConfState, other : ConfState) -> Bool {
   set_eq(self.learners_next, other.learners_next) &&
   self.auto_leave == other.auto_leave
 }
+
+///|
+pub extend ConfState with Eq::{not_equal, equal}

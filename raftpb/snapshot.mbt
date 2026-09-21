@@ -24,3 +24,6 @@ pub fn Snapshot::empty() -> Snapshot {
 pub fn Snapshot::is_empty(self : Snapshot) -> Bool {
   self.last_index == 0
 }
+
+///|
+pub extend Snapshot with Eq::{not_equal, equal}

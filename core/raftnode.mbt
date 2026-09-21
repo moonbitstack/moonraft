@@ -1262,3 +1262,6 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
     self.step_down()
   }
 }
+
+///|
+pub extend ProgressStatus with Eq::{not_equal, equal}

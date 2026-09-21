@@ -217,3 +217,6 @@ pub fn vote_result(
     VotePending
   }
 }
+
+///|
+pub extend VoteState with Eq::{not_equal, equal}

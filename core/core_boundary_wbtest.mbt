@@ -153,7 +153,7 @@ test "coverage: entries_after skips indices swallowed by a snapshot" {
 test "coverage: create_snapshot rejects an index at or before the current one" {
   let s = MemoryStorage::new()
   s.append([ent(1, 1), ent(2, 1), ent(3, 1)])
-  s.create_snapshot(3, b"snap", conf_state=Some(ConfState::empty())) |> ignore
+  s.create_snapshot(3, b"snap", conf_state=ConfState::empty()) |> ignore
   // A second snapshot at or below index 3 is out of date.
   assert_raises(() => s.create_snapshot(2, b"older") |> ignore, SnapOutOfDate)
 }

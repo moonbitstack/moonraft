@@ -10,6 +10,8 @@ pub(all) struct Inflight {
   mut index : UInt64
   mut bytes : UInt64
 } derive(Eq)
+pub fn Inflight::equal(Self, Self) -> Bool
+pub fn Inflight::not_equal(Self, Self) -> Bool
 
 pub struct Inflights {
   mut start : Int
@@ -64,6 +66,8 @@ pub(all) enum ProgressState {
   Replicate
   Snapshot
 } derive(Eq)
+pub fn ProgressState::equal(Self, Self) -> Bool
+pub fn ProgressState::not_equal(Self, Self) -> Bool
 
 // Type aliases
 

@@ -79,3 +79,21 @@ pub(all) struct AppendEntriesReply {
   /// is 0 and carries no meaning.
   reject_index : UInt64
 } derive(Eq)
+
+///|
+pub extend RequestVoteArgs with Eq::{not_equal, equal}
+
+///|
+pub extend RequestVoteReply with Eq::{not_equal, equal}
+
+///|
+pub extend HeartbeatArgs with Eq::{not_equal, equal}
+
+///|
+pub extend HeartbeatReply with Eq::{not_equal, equal}
+
+///|
+pub extend AppendEntriesArgs with Eq::{not_equal, equal}
+
+///|
+pub extend AppendEntriesReply with Eq::{not_equal, equal}

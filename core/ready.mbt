@@ -90,3 +90,6 @@ pub(all) struct StorageApply {
 pub fn must_sync(hs : HardState, prev : HardState, entries_num : Int) -> Bool {
   entries_num != 0 || hs.vote != prev.vote || hs.term != prev.term
 }
+
+///|
+pub extend StorageAppendResp with Eq::{not_equal, equal}

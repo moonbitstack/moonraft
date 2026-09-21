@@ -27,6 +27,8 @@ pub(all) struct AppendEntriesArgs {
   entries : Array[Entry]
   leader_commit : UInt64
 } derive(Eq)
+pub fn AppendEntriesArgs::equal(Self, Self) -> Bool
+pub fn AppendEntriesArgs::not_equal(Self, Self) -> Bool
 
 pub(all) struct AppendEntriesReply {
   term : UInt64
@@ -36,6 +38,8 @@ pub(all) struct AppendEntriesReply {
   conflict_term : UInt64
   reject_index : UInt64
 } derive(Eq)
+pub fn AppendEntriesReply::equal(Self, Self) -> Bool
+pub fn AppendEntriesReply::not_equal(Self, Self) -> Bool
 
 pub(all) struct ConfState {
   voters : Array[String]
@@ -45,8 +49,10 @@ pub(all) struct ConfState {
   auto_leave : Bool
 } derive(Eq)
 pub fn ConfState::empty() -> Self
+pub fn ConfState::equal(Self, Self) -> Bool
 pub fn ConfState::equivalent(Self, Self) -> Bool
 pub fn ConfState::is_empty(Self) -> Bool
+pub fn ConfState::not_equal(Self, Self) -> Bool
 
 pub(all) struct Entry {
   term : UInt64
@@ -55,27 +61,35 @@ pub(all) struct Entry {
   command : Bytes
 } derive(Eq)
 pub fn Entry::conf(UInt64, UInt64, Bytes) -> Self
+pub fn Entry::equal(Self, Self) -> Bool
 pub fn Entry::id(Self) -> EntryId
 pub fn Entry::is_conf_change(Self) -> Bool
 pub fn Entry::normal(UInt64, UInt64, Bytes) -> Self
+pub fn Entry::not_equal(Self, Self) -> Bool
 
 pub(all) struct EntryId {
   term : UInt64
   index : UInt64
 } derive(Eq)
+pub fn EntryId::equal(Self, Self) -> Bool
+pub fn EntryId::not_equal(Self, Self) -> Bool
 
 pub(all) enum EntryType {
   Normal
   ConfChange
 } derive(Eq)
+pub fn EntryType::equal(Self, Self) -> Bool
+pub fn EntryType::not_equal(Self, Self) -> Bool
 
 pub(all) struct HardState {
   term : UInt64
   vote : String?
   commit : UInt64
 } derive(Eq)
+pub fn HardState::equal(Self, Self) -> Bool
 pub fn HardState::initial() -> Self
 pub fn HardState::is_empty(Self) -> Bool
+pub fn HardState::not_equal(Self, Self) -> Bool
 
 pub(all) struct HeartbeatArgs {
   term : UInt64
@@ -83,11 +97,15 @@ pub(all) struct HeartbeatArgs {
   commit : UInt64
   context : Bytes
 } derive(Eq)
+pub fn HeartbeatArgs::equal(Self, Self) -> Bool
+pub fn HeartbeatArgs::not_equal(Self, Self) -> Bool
 
 pub(all) struct HeartbeatReply {
   term : UInt64
   context : Bytes
 } derive(Eq)
+pub fn HeartbeatReply::equal(Self, Self) -> Bool
+pub fn HeartbeatReply::not_equal(Self, Self) -> Bool
 
 pub(all) struct InstallSnapshotArgs {
   term : UInt64
@@ -99,11 +117,15 @@ pub(all) struct InstallSnapshotArgs {
   done : Bool
   conf_state : ConfState
 } derive(Eq)
+pub fn InstallSnapshotArgs::equal(Self, Self) -> Bool
+pub fn InstallSnapshotArgs::not_equal(Self, Self) -> Bool
 pub fn InstallSnapshotArgs::whole(UInt64, String, Snapshot) -> Self
 
 pub(all) struct InstallSnapshotReply {
   term : UInt64
 } derive(Eq)
+pub fn InstallSnapshotReply::equal(Self, Self) -> Bool
+pub fn InstallSnapshotReply::not_equal(Self, Self) -> Bool
 
 pub(all) struct Message {
   from : String
@@ -140,6 +162,8 @@ pub(all) struct ReadIndexResp {
   index : UInt64
   context : Bytes
 } derive(Eq)
+pub fn ReadIndexResp::equal(Self, Self) -> Bool
+pub fn ReadIndexResp::not_equal(Self, Self) -> Bool
 
 pub(all) struct RequestVoteArgs {
   term : UInt64
@@ -147,11 +171,15 @@ pub(all) struct RequestVoteArgs {
   last_log_index : UInt64
   last_log_term : UInt64
 } derive(Eq)
+pub fn RequestVoteArgs::equal(Self, Self) -> Bool
+pub fn RequestVoteArgs::not_equal(Self, Self) -> Bool
 
 pub(all) struct RequestVoteReply {
   term : UInt64
   vote_granted : Bool
 } derive(Eq)
+pub fn RequestVoteReply::equal(Self, Self) -> Bool
+pub fn RequestVoteReply::not_equal(Self, Self) -> Bool
 
 pub(all) struct Snapshot {
   last_index : UInt64
@@ -160,7 +188,9 @@ pub(all) struct Snapshot {
   conf_state : ConfState
 } derive(Eq)
 pub fn Snapshot::empty() -> Self
+pub fn Snapshot::equal(Self, Self) -> Bool
 pub fn Snapshot::is_empty(Self) -> Bool
+pub fn Snapshot::not_equal(Self, Self) -> Bool
 
 // Type aliases
 

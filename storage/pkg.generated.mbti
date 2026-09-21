@@ -14,6 +14,8 @@ pub(all) suberror StorageError {
   SnapOutOfDate
   SnapshotTemporarilyUnavailable
 } derive(Eq)
+pub fn StorageError::equal(Self, Self) -> Bool
+pub fn StorageError::not_equal(Self, Self) -> Bool
 
 // Types and methods
 pub struct MemoryStorage {
@@ -25,14 +27,20 @@ pub struct MemoryStorage {
 pub fn MemoryStorage::append(Self, Array[@raftpb.Entry]) -> Unit
 pub fn MemoryStorage::apply_snapshot(Self, @raftpb.Snapshot) -> Unit raise StorageError
 pub fn MemoryStorage::compact(Self, UInt64) -> Unit raise StorageError
-pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : @raftpb.ConfState?) -> @raftpb.Snapshot raise StorageError
+pub fn MemoryStorage::create_snapshot(Self, UInt64, Bytes, conf_state? : @raftpb.ConfState) -> @raftpb.Snapshot raise StorageError
+pub fn MemoryStorage::first_index(Self) -> UInt64
 pub fn MemoryStorage::from_ents(Array[@raftpb.Entry]) -> Self
+pub fn MemoryStorage::initial_state(Self) -> @raftpb.HardState
+pub fn MemoryStorage::last_index(Self) -> UInt64
 pub fn MemoryStorage::new() -> Self
 pub fn MemoryStorage::raw_ents(Self) -> Array[@raftpb.Entry]
 pub fn MemoryStorage::seed_snapshot(Self, @raftpb.Snapshot) -> Unit
 pub fn MemoryStorage::set_hard_state(Self, @raftpb.HardState) -> Unit
 pub fn MemoryStorage::set_snapshot_pending(Self, Bool) -> Unit
 pub fn MemoryStorage::slice(Self, UInt64, UInt64) -> Array[@raftpb.Entry]
+pub fn MemoryStorage::storage_entries(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise StorageError
+pub fn MemoryStorage::storage_snapshot(Self) -> @raftpb.Snapshot raise StorageError
+pub fn MemoryStorage::storage_term(Self, UInt64) -> UInt64 raise StorageError
 pub impl RaftStorage for MemoryStorage
 
 pub(all) struct Persisted {
@@ -46,6 +54,8 @@ pub(all) enum WalRecord {
   WalEntry(@raftpb.Entry)
   WalSnapshot(@raftpb.Snapshot)
 } derive(Eq)
+pub fn WalRecord::equal(Self, Self) -> Bool
+pub fn WalRecord::not_equal(Self, Self) -> Bool
 
 // Type aliases
 

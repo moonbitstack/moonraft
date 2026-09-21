@@ -376,3 +376,6 @@ pub fn Progress::maybe_decrease(self : Progress, hint : UInt64) -> Bool {
     false
   }
 }
+
+///|
+pub extend ProgressState with Eq::{not_equal, equal}

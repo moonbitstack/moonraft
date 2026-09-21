@@ -45,6 +45,8 @@ pub fn ConfChange::add_learner(String) -> Self
 pub fn ConfChange::apply_to(Self, Membership) -> Unit
 pub fn ConfChange::decode(Bytes) -> Self?
 pub fn ConfChange::encode(Self) -> Bytes
+pub fn ConfChange::equal(Self, Self) -> Bool
+pub fn ConfChange::not_equal(Self, Self) -> Bool
 pub fn ConfChange::remove(String) -> Self
 
 pub(all) enum ConfChangeTransition {
@@ -52,12 +54,16 @@ pub(all) enum ConfChangeTransition {
   JointImplicit
   JointExplicit
 } derive(Eq)
+pub fn ConfChangeTransition::equal(Self, Self) -> Bool
+pub fn ConfChangeTransition::not_equal(Self, Self) -> Bool
 
 pub(all) enum ConfChangeType {
   AddNode
   RemoveNode
   AddLearnerNode
 } derive(Eq)
+pub fn ConfChangeType::equal(Self, Self) -> Bool
+pub fn ConfChangeType::not_equal(Self, Self) -> Bool
 
 pub(all) struct ConfChangeV2 {
   changes : Array[ConfChange]
@@ -69,8 +75,10 @@ pub fn ConfChangeV2::decode(Bytes) -> Self?
 pub fn ConfChangeV2::encode(Self) -> Bytes
 pub fn ConfChangeV2::enter_joint(Array[ConfChange], auto_leave? : Bool) -> Self
 pub fn ConfChangeV2::enters_joint(Self) -> (Bool, Bool)
+pub fn ConfChangeV2::equal(Self, Self) -> Bool
 pub fn ConfChangeV2::is_leave(Self) -> Bool
 pub fn ConfChangeV2::leave_joint() -> Self
+pub fn ConfChangeV2::not_equal(Self, Self) -> Bool
 
 pub(all) struct Membership {
   members : Array[String]

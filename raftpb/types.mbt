@@ -58,3 +58,12 @@ pub(all) struct EntryId {
 pub fn Entry::id(self : Entry) -> EntryId {
   { term: self.term, index: self.index, }
 }
+
+///|
+pub extend EntryType with Eq::{not_equal, equal}
+
+///|
+pub extend Entry with Eq::{not_equal, equal}
+
+///|
+pub extend EntryId with Eq::{not_equal, equal}

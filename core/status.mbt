@@ -46,3 +46,6 @@ pub fn RaftStatus::describe(self : RaftStatus) -> String {
   }
   "\{self.id} \{role_name(self.role)} term=\{self.term} leader=\{lead} commit=\{self.commit} last=\{self.last_index}"
 }
+
+///|
+pub extend RaftStatus with Eq::{not_equal, equal}

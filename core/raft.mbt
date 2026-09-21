@@ -14,3 +14,6 @@ pub(all) enum Role {
   Candidate
   Leader
 } derive(Eq)
+
+///|
+pub extend Role with Eq::{not_equal, equal}

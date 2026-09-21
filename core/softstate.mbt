@@ -38,3 +38,9 @@ pub(all) struct ReadState {
   index : UInt64
   request_ctx : Bytes
 } derive(Eq)
+
+///|
+pub extend ReadState with Eq::{not_equal, equal}
+
+///|
+pub extend SoftState with Eq::{not_equal}

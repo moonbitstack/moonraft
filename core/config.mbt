@@ -194,3 +194,6 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
   }
   r
 }
+
+///|
+pub extend ConfigError with Eq::{not_equal, equal}
