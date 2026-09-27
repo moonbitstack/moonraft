@@ -206,6 +206,14 @@ a:hover {
 .brand .prompt {
   color: var(--replicate);
 }
+/* The name is two words, and the site already owns the two colours they mean:
+   green replicates, amber leads. */
+.brand .moon {
+  color: var(--replicate);
+}
+.brand .raft {
+  color: var(--leader);
+}
 .brand .caret {
   color: var(--caret);
   animation: blink 1.1s steps(1) infinite;
