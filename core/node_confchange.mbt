@@ -51,7 +51,7 @@ pub fn ConfDriver::config(self : ConfDriver) -> Membership {
 /// Fold every committed-but-unapplied `ConfChange` entry of `node` into the
 /// configuration, in log order, advancing the applied marker. Normal entries
 /// are skipped. Returns how many changes were applied in this pass.
-pub fn ConfDriver::drive(self : ConfDriver, node : Node) -> Int {
+pub fn ConfDriver::drive(self : ConfDriver, node : Node) -> Int32 {
   let mut applied = 0
   while self.applied < node.commit_index {
     let next = self.applied + 1

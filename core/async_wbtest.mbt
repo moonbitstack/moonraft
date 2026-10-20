@@ -184,7 +184,7 @@ test "TestCommitPaginationWithAsyncStorageWrites" {
   raw.propose(b"a")
   raw.propose(b"a")
   // Drive by hand to observe the apply-batch sizes.
-  let batches : Array[Int] = []
+  let batches : Array[Int32] = []
   let applied : Array[UInt64] = []
   let mut rounds = 0
   while raw.has_ready() && rounds < 1000 {

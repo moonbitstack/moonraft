@@ -45,7 +45,7 @@ test "TestLimitSize" {
 fn check_limit(
   ents : Array[Entry],
   max_size : UInt64,
-  want_len : Int,
+  want_len : Int32,
 ) -> Unit raise {
   let got = limit_size(ents[:], max_size)
   assert_eq(got.length(), want_len)

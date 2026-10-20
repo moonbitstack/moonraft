@@ -50,11 +50,11 @@ fn mk_progress(
   state : ProgressState,
   match_ : UInt64,
   next : UInt64,
-  pending? : UInt64 = 0,
-  paused? : Bool = false,
-  learner? : Bool = false,
-  sent_commit? : UInt64 = 0,
-  inflights? : Inflights = Inflights::new(256, 0),
+  pending~ : UInt64 = 0,
+  paused~ : Bool = false,
+  learner~ : Bool = false,
+  sent_commit~ : UInt64 = 0,
+  inflights~ : Inflights = Inflights::new(256, 0),
 ) -> Progress {
   {
     next_index: next,

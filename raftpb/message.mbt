@@ -64,7 +64,7 @@ pub fn Message::new(
   from : String,
   to : String,
   payload : Payload,
-  force? : Bool = false,
+  force~ : Bool = false,
 ) -> Message {
   { from, to, payload, force, }
 }

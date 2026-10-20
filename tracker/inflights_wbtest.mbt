@@ -16,17 +16,17 @@
 // Ported from etcd-io/raft (Apache-2.0): tracker/inflights_test.go.
 
 ///|
-fn full_buffer(n : Int) -> Array[Inflight] {
+fn full_buffer(n : Int32) -> Array[Inflight] {
   Array::makei(n, fn(_) { { index: 0, bytes: 0, } })
 }
 
 ///|
 fn assert_infl(
   actual : Inflights,
-  start : Int,
-  count : Int,
+  start : Int32,
+  count : Int32,
   bytes : UInt64,
-  size : Int,
+  size : Int32,
   idxs : Array[UInt64],
   szs : Array[UInt64],
 ) -> Unit raise {
@@ -127,7 +127,7 @@ test "TestInflightFreeTo" {
 // the tracker is Full at that point — the exact precondition that makes Add
 // abort — which verifies the same behaviour without weakening it.
 test "TestInflightsFull" {
-  let cases : Array[(Int, UInt64, Int, UInt64, Int)] = [
+  let cases : Array[(Int32, UInt64, Int32, UInt64, Int32)] = [
     // size, max_bytes, full_at, free_le, again_at
     (0, 0, 0, 0, 0),
     (1, 0, 1, 1, 2),
@@ -140,7 +140,7 @@ test "TestInflightsFull" {
   for tc in cases {
     let (size, max_bytes, full_at, free_le, again_at) = tc
     let in_ = Inflights::new(size, max_bytes)
-    fn add_until_full(begin : Int, end : Int) -> Unit raise {
+    fn add_until_full(begin : Int32, end : Int32) -> Unit raise {
       for i in begin..<end {
         assert_false(in_.full())
         in_.add(i.to_uint64(), (100 + i).to_uint64())

@@ -17,7 +17,7 @@
 /// `budget`, returning how many entries actually reach the follower. Wires the
 /// ③-path config knob `max_inflight_bytes` end to end into each follower's
 /// `Progress`/`Inflights`.
-fn replicate_three_big(budget : UInt64) -> Int {
+fn replicate_three_big(budget : UInt64) -> Int32 {
   let r = RaftNode::new(
     "1",
     ["2"],

@@ -23,7 +23,7 @@ impl @storage.WalStore for MemWal with fn load(self) {
 }
 
 ///|
-fn MemWal::len(self : MemWal) -> Int {
+fn MemWal::len(self : MemWal) -> Int32 {
   self.records.length()
 }
 

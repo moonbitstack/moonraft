@@ -46,7 +46,7 @@ pub fn LogSlice::valid(self : LogSlice) -> Bool {
 
 ///|
 /// One nibble as a lowercase hex digit.
-fn hex_digit(n : Int) -> Char {
+fn hex_digit(n : Int32) -> Char {
   if n < 10 {
     ('0'.to_int() + n).unsafe_to_char()
   } else {

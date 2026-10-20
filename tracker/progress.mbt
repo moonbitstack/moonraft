@@ -73,8 +73,8 @@ pub(all) struct Progress {
 /// entry size to `sent_entries` once its `Config` carries the knob.
 pub fn Progress::new(
   next : UInt64,
-  max_inflight? : Int = 256,
-  max_inflight_bytes? : UInt64 = 0,
+  max_inflight~ : Int32 = 256,
+  max_inflight_bytes~ : UInt64 = 0,
 ) -> Progress {
   {
     next_index: next,
@@ -186,7 +186,7 @@ pub fn Progress::sent_entries(
   self : Progress,
   last : UInt64,
   has_entries : Bool,
-  bytes? : UInt64 = 0,
+  bytes~ : UInt64 = 0,
 ) -> Unit {
   match self.state {
     Replicate => {

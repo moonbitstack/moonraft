@@ -50,7 +50,7 @@ test "wnode_new clamps node count and self index" {
 ///|
 /// The node id the driver assigned itself, read back through its own status so
 /// the clamping in `wnode_new` is observed rather than recomputed.
-fn state_id() -> Int {
+fn state_id() -> Int32 {
   match wctx.raw {
     Some(raw) => id_num(raw.status().id)
     None => -1
@@ -153,7 +153,7 @@ test "an inbound append is decoded, stored, and shows in the log" {
 ///|
 /// Push an encoded message through the receive buffer and apply it, the way the
 /// router feeds one integer at a time across the wasm boundary.
-fn feed(arr : Array[Int]) -> Unit {
+fn feed(arr : Array[Int32]) -> Unit {
   wnode_recv_reset()
   for v in arr {
     wnode_recv_push(v)

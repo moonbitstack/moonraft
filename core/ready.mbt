@@ -87,7 +87,7 @@ pub(all) struct StorageApply {
 /// (etcd's `MustSync`). The persistent state on every server — currentTerm,
 /// votedFor, and the log — must be flushed when new entries are appended or the
 /// term or vote changed; a bare commit-index bump may be flushed lazily (§5).
-pub fn must_sync(hs : HardState, prev : HardState, entries_num : Int) -> Bool {
+pub fn must_sync(hs : HardState, prev : HardState, entries_num : Int32) -> Bool {
   entries_num != 0 || hs.vote != prev.vote || hs.term != prev.term
 }
 

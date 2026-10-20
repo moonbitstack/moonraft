@@ -31,7 +31,7 @@ struct Net {
 }
 
 ///|
-fn Net::new(ids : Array[String], pre_vote? : Bool = false) -> Net {
+fn Net::new(ids : Array[String], pre_vote~ : Bool = false) -> Net {
   let nodes : Map[String, RaftNode] = Map([])
   for i, id in ids {
     let peers = ids.filter(fn(x) { x != id })

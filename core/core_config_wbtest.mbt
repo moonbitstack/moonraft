@@ -54,7 +54,7 @@ impl Tracer for CapturingTracer with fn on_event(self, event) {
 }
 
 ///|
-fn CapturingTracer::count(self : CapturingTracer) -> Int {
+fn CapturingTracer::count(self : CapturingTracer) -> Int32 {
   self.events.length()
 }
 
@@ -62,7 +62,7 @@ fn CapturingTracer::count(self : CapturingTracer) -> Int {
 fn CapturingTracer::state_changes_to(
   self : CapturingTracer,
   role : Role,
-) -> Int {
+) -> Int32 {
   let mut n = 0
   for e in self.events {
     if e is StateChange(_, r, _) && r == role {

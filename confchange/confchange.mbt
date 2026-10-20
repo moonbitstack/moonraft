@@ -136,7 +136,7 @@ pub(all) struct ConfChangeV2 {
 /// (auto-leaving) or explicit joint transition — the historical API.
 pub fn ConfChangeV2::enter_joint(
   changes : Array[ConfChange],
-  auto_leave? : Bool = true,
+  auto_leave~ : Bool = true,
 ) -> ConfChangeV2 {
   {
     changes,

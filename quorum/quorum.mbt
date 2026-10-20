@@ -78,11 +78,11 @@ priv struct DescTup {
   id : String
   idx : UInt64
   ok : Bool
-  mut bar : Int
+  mut bar : Int32
 }
 
 ///|
-fn repeat_char(c : String, n : Int) -> String {
+fn repeat_char(c : String, n : Int32) -> String {
   let mut s = ""
   for _i in 0..<n {
     s = s + c

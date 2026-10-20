@@ -16,7 +16,7 @@ pub struct Changer {
   mut cfg : ChangerConfig
   mut prs : Map[String, @tracker.Progress]
   mut last_index : UInt64
-  max_inflight : Int
+  max_inflight : Int32
   max_inflight_bytes : UInt64
 }
 pub fn Changer::advance_index(Self) -> Unit
@@ -24,7 +24,7 @@ pub fn Changer::conf_state(Self) -> @raftpb.ConfState
 pub fn Changer::describe(Self) -> String
 pub fn Changer::enter_joint(Self, Bool, Array[(String, String)]) -> String?
 pub fn Changer::leave_joint(Self) -> String?
-pub fn Changer::new(last_index? : UInt64, max_inflight? : Int, max_inflight_bytes? : UInt64) -> Self
+pub fn Changer::new(last_index? : UInt64, max_inflight? : Int32, max_inflight_bytes? : UInt64) -> Self
 pub fn Changer::restore(Self, @raftpb.ConfState) -> String?
 pub fn Changer::simple(Self, Array[(String, String)]) -> String?
 
@@ -100,9 +100,9 @@ pub fn Membership::is_learner(Self, String) -> Bool
 pub fn Membership::leave_joint(Self) -> Unit
 pub fn Membership::new(Array[String]) -> Self
 pub fn Membership::nodes(Self) -> Array[String]
-pub fn Membership::quorum(Self) -> Int
+pub fn Membership::quorum(Self) -> Int32
 pub fn Membership::remove(Self, String) -> Unit
-pub fn Membership::size(Self) -> Int
+pub fn Membership::size(Self) -> Int32
 pub fn Membership::vote_result(Self, Map[String, Bool]) -> @quorum.VoteState
 pub fn Membership::voters(Self) -> Array[String]
 

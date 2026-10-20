@@ -20,11 +20,11 @@
 
 ///|
 fn cs(
-  voters? : Array[String] = [],
-  learners? : Array[String] = [],
-  voters_outgoing? : Array[String] = [],
-  learners_next? : Array[String] = [],
-  auto_leave? : Bool = false,
+  voters~ : Array[String] = [],
+  learners~ : Array[String] = [],
+  voters_outgoing~ : Array[String] = [],
+  learners_next~ : Array[String] = [],
+  auto_leave~ : Bool = false,
 ) -> ConfState {
   { voters, learners, voters_outgoing, learners_next, auto_leave, }
 }

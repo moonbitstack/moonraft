@@ -23,7 +23,7 @@
 ///|
 /// Tick a node `n` times, discarding whatever it emits; used to expire a
 /// follower's lease deterministically.
-fn tick_n(r : RaftNode, n : Int) -> Unit {
+fn tick_n(r : RaftNode, n : Int32) -> Unit {
   for _i in 0..<n {
     r.tick() |> ignore
   }

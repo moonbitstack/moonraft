@@ -184,7 +184,7 @@ fn check_stable_to(
   term : UInt64,
   woffset : UInt64,
   woip : UInt64,
-  wlen : Int,
+  wlen : Int32,
 ) -> Unit raise {
   let u = us(entries, offset, snap, oip, false)
   u.stable_to({ term, index, })

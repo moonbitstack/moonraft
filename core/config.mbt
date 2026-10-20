@@ -45,16 +45,16 @@ pub struct Config {
   // The other voters at start-up.
   peers : Array[String]
   // Ticks between elections; must exceed `heartbeat_tick`.
-  election_tick : Int
+  election_tick : Int32
   // Ticks between heartbeats; must be greater than 0.
-  heartbeat_tick : Int
+  heartbeat_tick : Int32
   // Byte cap on a single AppendEntries batch (etcd's MaxSizePerMsg).
   max_msg_bytes : UInt64
   // Byte cap on the uncommitted log tail (etcd's MaxUncommittedEntriesSize);
   // 0 disables the check (etcd maps 0 to no limit).
   max_uncommitted_size : UInt64
   // In-flight AppendEntries window per follower (etcd's MaxInflightMsgs); > 0.
-  max_inflight : Int
+  max_inflight : Int32
   // In-flight byte window per follower (etcd's MaxInflightBytes); 0 = no limit,
   // otherwise must be >= max_msg_bytes.
   max_inflight_bytes : UInt64
@@ -92,23 +92,23 @@ pub struct Config {
 pub fn Config::new(
   id : String,
   peers : Array[String],
-  election_tick? : Int = 10,
-  heartbeat_tick? : Int = 1,
-  max_msg_bytes? : UInt64 = 18446744073709551615UL,
-  max_uncommitted_size? : UInt64 = 0,
-  max_inflight? : Int = 256,
-  max_inflight_bytes? : UInt64 = 0,
-  check_quorum? : Bool = false,
+  election_tick~ : Int32 = 10,
+  heartbeat_tick~ : Int32 = 1,
+  max_msg_bytes~ : UInt64 = 18446744073709551615UL,
+  max_uncommitted_size~ : UInt64 = 0,
+  max_inflight~ : Int32 = 256,
+  max_inflight_bytes~ : UInt64 = 0,
+  check_quorum~ : Bool = false,
   // etcd's Config.PreVote is opt-in; its zero value is false.
-  pre_vote? : Bool = false,
-  read_only_option? : ReadOnlyOption = Safe,
-  step_down_on_removal? : Bool = false,
-  disable_proposal_forwarding? : Bool = false,
-  disable_conf_change_validation? : Bool = false,
-  applied? : UInt64 = 0,
-  logger? : &Logger = NopLogger::{ },
-  tracer? : &Tracer = NopTracer::{ },
-  seed? : UInt64 = 1,
+  pre_vote~ : Bool = false,
+  read_only_option~ : ReadOnlyOption = Safe,
+  step_down_on_removal~ : Bool = false,
+  disable_proposal_forwarding~ : Bool = false,
+  disable_conf_change_validation~ : Bool = false,
+  applied~ : UInt64 = 0,
+  logger~ : &Logger = NopLogger::{ },
+  tracer~ : &Tracer = NopTracer::{ },
+  seed~ : UInt64 = 1,
 ) -> Config {
   {
     id,

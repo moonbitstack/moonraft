@@ -6,13 +6,13 @@ pub fn wnode_campaign() -> Unit
 
 pub fn wnode_drain() -> String
 
-pub fn wnode_new(Int, Int, Int) -> Unit
+pub fn wnode_new(Int32, Int32, Int32) -> Unit
 
-pub fn wnode_propose(Int) -> Unit
+pub fn wnode_propose(Int32) -> Unit
 
 pub fn wnode_recv_apply() -> Unit
 
-pub fn wnode_recv_push(Int) -> Unit
+pub fn wnode_recv_push(Int32) -> Unit
 
 pub fn wnode_recv_reset() -> Unit
 

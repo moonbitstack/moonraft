@@ -195,7 +195,7 @@ struct FailingStorage {
   mut term_err : StorageError?
   mut entries_err : StorageError?
   // -1: raise `entries_err` on every call; N>0: raise on the next N, then delegate.
-  mut entries_fails_left : Int
+  mut entries_fails_left : Int32
   mut entries_empty : Bool
 }
 

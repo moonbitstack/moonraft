@@ -7,7 +7,7 @@ pub fn Node::compact(
   self : Node,
   upto : UInt64,
   data : Bytes,
-  conf_state? : ConfState = ConfState::empty(),
+  conf_state~ : ConfState = ConfState::empty(),
 ) -> Snapshot {
   if upto <= self.snapshot_index || upto > self.commit_index {
     return {

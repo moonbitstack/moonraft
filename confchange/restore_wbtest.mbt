@@ -66,7 +66,7 @@ test "TestRestore: 1000 random valid ConfStates round-trip" {
   }
 
   // A uniform integer in [0, n).
-  fn below(n : Int) -> Int {
+  fn below(n : Int32) -> Int32 {
     (next() % n.to_uint64()).to_int()
   }
 
@@ -89,7 +89,7 @@ test "TestRestore: 1000 random valid ConfStates round-trip" {
       ids[j] = tmp
       si = si - 1
     }
-    fn slice(from : Int, len : Int) -> Array[String] {
+    fn slice(from : Int32, len : Int32) -> Array[String] {
       let out : Array[String] = []
       for i in 0..<len {
         out.push(ids[from + i])

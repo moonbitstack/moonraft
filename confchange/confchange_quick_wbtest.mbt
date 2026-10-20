@@ -61,7 +61,7 @@ test "TestConfChangeQuick: simple and joint reach the same config" {
     rng[0] >> 33
   }
 
-  fn below(n : Int) -> Int {
+  fn below(n : Int32) -> Int32 {
     (next() % n.to_uint64()).to_int()
   }
 

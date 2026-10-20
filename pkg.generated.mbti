@@ -16,7 +16,7 @@ pub fn committed_index(Array[String], Array[String], Map[String, UInt64]) -> UIn
 
 pub fn demo_report_lines(@core.DemoReport) -> Array[String]
 
-pub fn demo_run(Array[String], UInt64, Int, Int, Int) -> @core.DemoReport
+pub fn demo_run(Array[String], UInt64, Int32, Int32, Int32) -> @core.DemoReport
 
 pub fn describe(Array[String], Map[String, UInt64]) -> String
 
@@ -38,7 +38,7 @@ pub fn hard_state_equal(@raftpb.HardState, @raftpb.HardState) -> Bool
 
 pub fn limit_size(ArrayView[@raftpb.Entry], UInt64) -> Array[@raftpb.Entry]
 
-pub fn must_sync(@raftpb.HardState, @raftpb.HardState, Int) -> Bool
+pub fn must_sync(@raftpb.HardState, @raftpb.HardState, Int32) -> Bool
 
 pub let no_limit : UInt64
 

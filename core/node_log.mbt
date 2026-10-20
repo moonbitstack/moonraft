@@ -40,7 +40,7 @@ pub fn Node::last_log_term(self : Node) -> UInt64 {
 ///|
 /// The number of entries physically held in memory (those after the snapshot
 /// baseline). Useful for compaction bookkeeping and tests.
-pub fn Node::log_len(self : Node) -> Int {
+pub fn Node::log_len(self : Node) -> Int32 {
   self.log.length()
 }
 

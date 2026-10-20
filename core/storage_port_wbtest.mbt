@@ -101,7 +101,7 @@ test "TestStorageTerm" {
 ///|
 test "TestStorageEntries" {
   let ents = ents_at(3, [3, 4, 5, 6])
-  let sz = fn(i : Int) { entry_encoding_size(ents[i]) }
+  let sz = fn(i : Int32) { entry_encoding_size(ents[i]) }
   let big = no_limit
   // {2, 6, max, ErrCompacted, nil}
   let s = MemoryStorage::from_ents(ents)

@@ -31,10 +31,10 @@ pub(all) struct Inflight {
 /// which is what stops a leader from flooding a lagging follower. Callers check
 /// `full` before sending, `add` on each send, and `free_le` on each ack.
 pub struct Inflights {
-  mut start : Int
-  mut count : Int
+  mut start : Int32
+  mut count : Int32
   mut bytes : UInt64
-  size : Int
+  size : Int32
   max_bytes : UInt64
   mut buffer : Array[Inflight]
 }
@@ -48,7 +48,7 @@ fn zero_inflight() -> Inflight {
 /// A tracker allowing up to `size` in-flight messages and up to `max_bytes`
 /// total bytes. `max_bytes` of 0 means no byte limit. The byte limit is soft:
 /// one message that crosses it is still accepted.
-pub fn Inflights::new(size : Int, max_bytes : UInt64) -> Inflights {
+pub fn Inflights::new(size : Int32, max_bytes : UInt64) -> Inflights {
   { start: 0, count: 0, bytes: 0, size, max_bytes, buffer: [], }
 }
 
@@ -77,7 +77,7 @@ pub fn Inflights::full(self : Inflights) -> Bool {
 
 ///|
 /// The number of in-flight messages.
-pub fn Inflights::count(self : Inflights) -> Int {
+pub fn Inflights::count(self : Inflights) -> Int32 {
   self.count
 }
 

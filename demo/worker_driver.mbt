@@ -12,8 +12,8 @@
 ///|
 priv struct WCtx {
   mut raw : RawNode?
-  out : Array[Array[Int]]
-  inbuf : Array[Int]
+  out : Array[Array[Int32]]
+  inbuf : Array[Int32]
 }
 
 ///|
@@ -23,7 +23,7 @@ let wctx : WCtx = { raw: None, out: [], inbuf: [], }
 /// Create this worker's node: server `self_idx` (0-based) of `n`, with the other
 /// n-1 as peers. `seed` should differ per node so randomized election timeouts
 /// spread out instead of colliding into split votes.
-pub fn wnode_new(n : Int, self_idx : Int, seed : Int) -> Unit {
+pub fn wnode_new(n : Int32, self_idx : Int32, seed : Int32) -> Unit {
   let count = if n < 1 { 1 } else if n > 9 { 9 } else { n }
   let si = if self_idx < 0 {
     0
@@ -79,7 +79,7 @@ pub fn wnode_campaign() -> Unit {
 ///|
 /// Propose command `cmd` (a small integer) on this node. It only takes effect
 /// on a leader; elsewhere the core drops it.
-pub fn wnode_propose(cmd : Int) -> Unit {
+pub fn wnode_propose(cmd : Int32) -> Unit {
   if wctx.raw is Some(raw) {
     raw.propose(int_bytes(cmd))
   }
@@ -94,7 +94,7 @@ pub fn wnode_recv_reset() -> Unit {
 
 ///|
 /// Push one integer of the inbound message's flat encoding.
-pub fn wnode_recv_push(v : Int) -> Unit {
+pub fn wnode_recv_push(v : Int32) -> Unit {
   wctx.inbuf.push(v)
 }
 
@@ -197,13 +197,13 @@ pub fn wnode_state() -> String {
 ///|
 /// A UInt64 protocol value narrowed to Int for the wire. Demo terms and indices
 /// stay well inside the positive i32 range.
-fn u2i(v : UInt64) -> Int {
+fn u2i(v : UInt64) -> Int32 {
   v.to_int()
 }
 
 ///|
 /// The integer after the 'S' in a node id ("S3" -> 3), 0 on a malformed id.
-fn id_num(s : String) -> Int {
+fn id_num(s : String) -> Int32 {
   let mut acc = 0
   let mut seen = false
   for c in s {
@@ -222,7 +222,7 @@ fn id_num(s : String) -> Int {
 
 ///|
 /// Encode a command int as 4 big-endian bytes, matching `dec_bytes`.
-fn int_bytes(v : Int) -> Bytes {
+fn int_bytes(v : Int32) -> Bytes {
   Bytes::from_array([
     ((v >> 24) & 0xff).to_byte(),
     ((v >> 16) & 0xff).to_byte(),
@@ -244,7 +244,7 @@ fn wrole(r : Role) -> String {
 ///|
 /// Append a command's bytes to the buffer, length-prefixed, so any command
 /// (including a leader's empty no-op entry) round-trips.
-fn enc_bytes(out : Array[Int], data : Bytes) -> Unit {
+fn enc_bytes(out : Array[Int32], data : Bytes) -> Unit {
   out.push(data.length())
   for i in 0..<data.length() {
     out.push(data[i].to_int())
@@ -254,7 +254,7 @@ fn enc_bytes(out : Array[Int], data : Bytes) -> Unit {
 ///|
 /// Read a length-prefixed byte run starting at `pos`; return the bytes and the
 /// index just past them.
-fn dec_bytes(buf : Array[Int], pos : Int) -> (Bytes, Int) {
+fn dec_bytes(buf : Array[Int32], pos : Int32) -> (Bytes, Int32) {
   let len = buf[pos]
   let arr : Array[Byte] = []
   for i in 0..<len {
@@ -267,10 +267,10 @@ fn dec_bytes(buf : Array[Int], pos : Int) -> (Bytes, Int) {
 /// Flatten one message to `[kind, from, to, term, ...payload]`. Snapshot traffic
 /// (kinds that would need a full state image on the wire) never arises in this
 /// demo — it has no log compaction — so it is dropped rather than encoded.
-fn enc_msg(m : Message) -> Array[Int] {
+fn enc_msg(m : Message) -> Array[Int32] {
   let from = id_num(m.from)
   let to = id_num(m.to)
-  let out : Array[Int] = []
+  let out : Array[Int32] = []
   match m.payload {
     PreVote(a) => {
       out.push(1)
@@ -364,7 +364,7 @@ fn enc_msg(m : Message) -> Array[Int] {
 ///|
 /// Rebuild a `Message` from its flat encoding, or `None` for a kind this demo
 /// does not carry.
-fn dec_msg(buf : Array[Int]) -> Message? {
+fn dec_msg(buf : Array[Int32]) -> Message? {
   if buf.length() < 4 {
     return None
   }

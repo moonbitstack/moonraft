@@ -3,7 +3,7 @@
 /// delivered, a monotonic sequence number for deterministic tie-breaking, and
 /// the message itself.
 struct InFlight {
-  deliver_at : Int
+  deliver_at : Int32
   msg : Message
 }
 
@@ -18,12 +18,12 @@ pub struct Cluster {
   nodes : Map[String, RaftNode]
   ids : Array[String]
   mut inflight : Array[InFlight]
-  mut now : Int
-  part : Map[String, Int]
+  mut now : Int32
+  part : Map[String, Int32]
   down : Map[String, Bool]
-  mut drop_permil : Int
-  mut max_delay : Int
-  mut next_group : Int
+  mut drop_permil : Int32
+  mut max_delay : Int32
+  mut next_group : Int32
   mut rng : UInt64
 }
 
@@ -32,9 +32,9 @@ pub struct Cluster {
 /// peer and starts in one network partition (fully connected). `seed` fixes the
 /// network's PRNG; per-node election jitter is seeded from each id so a run is
 /// fully reproducible.
-pub fn Cluster::new(ids : Array[String], seed? : UInt64 = 42) -> Cluster {
+pub fn Cluster::new(ids : Array[String], seed~ : UInt64 = 42) -> Cluster {
   let nodes : Map[String, RaftNode] = Map([])
-  let part : Map[String, Int] = Map([])
+  let part : Map[String, Int32] = Map([])
   let down : Map[String, Bool] = Map([])
   let mut s = seed
   for id in ids {
@@ -78,14 +78,14 @@ pub fn Cluster::node(self : Cluster, id : String) -> RaftNode {
 
 ///|
 /// Set the per-message drop probability, in parts per thousand.
-pub fn Cluster::set_drop(self : Cluster, permil : Int) -> Unit {
+pub fn Cluster::set_drop(self : Cluster, permil : Int32) -> Unit {
   self.drop_permil = permil
 }
 
 ///|
 /// Set the maximum extra delivery delay, in ticks. Any value above zero also
 /// reorders traffic, since messages sent together can arrive apart.
-pub fn Cluster::set_delay(self : Cluster, max_delay : Int) -> Unit {
+pub fn Cluster::set_delay(self : Cluster, max_delay : Int32) -> Unit {
   self.max_delay = max_delay
 }
 
@@ -216,7 +216,7 @@ pub fn Cluster::tick(self : Cluster) -> Unit {
 
 ///|
 /// Advance the cluster by `ticks` ticks.
-pub fn Cluster::run(self : Cluster, ticks : Int) -> Unit {
+pub fn Cluster::run(self : Cluster, ticks : Int32) -> Unit {
   for _ in 0..<ticks {
     self.tick()
   }
@@ -318,7 +318,7 @@ pub fn Cluster::leader(self : Cluster) -> String? {
 
 ///|
 /// Tick until a leader emerges or `max_ticks` elapse; returns the leader id.
-pub fn Cluster::run_until_leader(self : Cluster, max_ticks : Int) -> String? {
+pub fn Cluster::run_until_leader(self : Cluster, max_ticks : Int32) -> String? {
   for _ in 0..<max_ticks {
     self.tick()
     let ls = self.leaders()
@@ -335,7 +335,7 @@ pub fn Cluster::run_until_leader(self : Cluster, max_ticks : Int) -> String? {
 pub fn Cluster::run_until_committed(
   self : Cluster,
   index : UInt64,
-  max_ticks : Int,
+  max_ticks : Int32,
 ) -> Bool {
   for _ in 0..<max_ticks {
     self.tick()
@@ -364,7 +364,7 @@ pub fn Cluster::all_committed(self : Cluster, index : UInt64) -> Bool {
 /// watches is the run a test asserts against.
 pub struct DemoReport {
   seed : UInt64
-  node_count : Int
+  node_count : Int32
   first_leader : String?
   proposal_accepted : Bool
   committed : Bool
@@ -390,9 +390,9 @@ pub struct DemoReport {
 pub fn demo_run(
   ids : Array[String],
   seed : UInt64,
-  elect_ticks : Int,
-  commit_ticks : Int,
-  reelect_ticks : Int,
+  elect_ticks : Int32,
+  commit_ticks : Int32,
+  reelect_ticks : Int32,
 ) -> DemoReport {
   let c = Cluster::new(ids, seed~)
   let first = c.run_until_leader(elect_ticks)

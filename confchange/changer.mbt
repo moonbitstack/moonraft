@@ -79,7 +79,7 @@ pub struct Changer {
   mut cfg : ChangerConfig
   mut prs : Map[String, Progress]
   mut last_index : UInt64
-  max_inflight : Int
+  max_inflight : Int32
   max_inflight_bytes : UInt64
 }
 
@@ -89,9 +89,9 @@ pub struct Changer {
 /// non-zero, `max_inflight_bytes` bytes (etcd's `MakeProgressTracker`
 /// (maxInflight, maxBytes); 0 = no byte limit).
 pub fn Changer::new(
-  last_index? : UInt64 = 0,
-  max_inflight? : Int = 256,
-  max_inflight_bytes? : UInt64 = 0,
+  last_index~ : UInt64 = 0,
+  max_inflight~ : Int32 = 256,
+  max_inflight_bytes~ : UInt64 = 0,
 ) -> Changer {
   {
     cfg: ChangerConfig::empty(),
@@ -299,7 +299,7 @@ fn check_invariants(
 }
 
 ///|
-fn symdiff(a : Array[String], b : Array[String]) -> Int {
+fn symdiff(a : Array[String], b : Array[String]) -> Int32 {
   let mut n = 0
   for x in a {
     if !b.contains(x) {

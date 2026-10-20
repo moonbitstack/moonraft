@@ -41,7 +41,7 @@ fn app_index_commit(m : Message) -> (UInt64, UInt64) {
 /// `next_index` instead would wrongly decrement and probe.
 test "TestLeaderAppResp" {
   // (index, reject, wmatch, wnext, wmsg_num, windex, wcommitted)
-  let cases : Array[(UInt64, Bool, UInt64, UInt64, Int, UInt64, UInt64)] = [
+  let cases : Array[(UInt64, Bool, UInt64, UInt64, Int32, UInt64, UInt64)] = [
     (3, true, 0, 3, 0, 0, 0), // stale resp; no replies
     (2, true, 0, 2, 1, 1, 0), // denied; decrease next and send a probe
     (2, false, 2, 4, 2, 2, 2), // accepted; commit and broadcast with the commit

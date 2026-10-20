@@ -96,7 +96,7 @@ pub fn Membership::nodes(self : Membership) -> Array[String] {
 /// The majority size of the current (incoming) configuration. Meaningful for a
 /// simple configuration; in a joint configuration use `has_majority`, which
 /// accounts for both halves.
-pub fn Membership::quorum(self : Membership) -> Int {
+pub fn Membership::quorum(self : Membership) -> Int32 {
   self.members.length() / 2 + 1
 }
 
@@ -109,7 +109,7 @@ pub fn Membership::contains(self : Membership, id : String) -> Bool {
 
 ///|
 /// The number of servers in the incoming configuration.
-pub fn Membership::size(self : Membership) -> Int {
+pub fn Membership::size(self : Membership) -> Int32 {
   self.members.length()
 }
 
@@ -121,7 +121,7 @@ pub fn Membership::is_joint(self : Membership) -> Bool {
 
 ///|
 /// The number of `granted` ids that are voters in `voters`.
-fn count_in(voters : Array[String], granted : Array[String]) -> Int {
+fn count_in(voters : Array[String], granted : Array[String]) -> Int32 {
   let mut n = 0
   for id in voters {
     if granted.contains(id) {

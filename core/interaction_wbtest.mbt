@@ -59,7 +59,7 @@ fn InteractionCluster::at(self : InteractionCluster, id : String) -> RawNode {
 ///|
 /// Drive every node's Ready and deliver every message it emits, until the
 /// cluster is quiescent (etcd's `stabilize`). Returns the number of rounds.
-fn InteractionCluster::stabilize(self : InteractionCluster) -> Int {
+fn InteractionCluster::stabilize(self : InteractionCluster) -> Int32 {
   let mut rounds = 0
   let mut active = true
   while active && rounds < 1000 {

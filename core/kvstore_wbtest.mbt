@@ -19,7 +19,7 @@ fn KVStore::get(self : KVStore, key : String) -> String? {
 }
 
 ///|
-fn KVStore::len(self : KVStore) -> Int {
+fn KVStore::len(self : KVStore) -> Int32 {
   self.data.length()
 }
 

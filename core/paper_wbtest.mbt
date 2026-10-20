@@ -113,7 +113,7 @@ test "testNonleaderStartElection (follower)" {
 ///|
 test "TestLeaderElectionInOneRoundRPC" {
   // (size, granting voter ids, expected state) — every etcd table case.
-  let cases : Array[(Int, Array[String], String)] = [
+  let cases : Array[(Int32, Array[String], String)] = [
     (1, [], "leader"),
     (3, ["2", "3"], "leader"),
     (3, ["2"], "leader"),
@@ -147,7 +147,7 @@ test "TestLeaderElectionInOneRoundRPC" {
     assert_eq(r.term(), 1)
   }
   // Denials by a majority send the candidate back to follower.
-  let denials : Array[(Int, Array[String])] = [
+  let denials : Array[(Int32, Array[String])] = [
     (3, ["2", "3"]),
     (5, ["2", "3", "4", "5"]),
   ]
@@ -301,7 +301,7 @@ test "TestLeaderCommitEntry" {
 ///|
 test "TestLeaderAcknowledgeCommit" {
   // (size, acceptor ids, expect commit advanced)
-  let cases : Array[(Int, Array[String], Bool)] = [
+  let cases : Array[(Int32, Array[String], Bool)] = [
     (1, [], true),
     (3, [], false),
     (3, ["2"], true),

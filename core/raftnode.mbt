@@ -36,11 +36,11 @@ pub struct RaftNode {
   mut check_quorum : Bool
   mut in_pre_campaign : Bool
   mut leader_id : String?
-  mut election_elapsed : Int
-  mut heartbeat_elapsed : Int
-  election_timeout : Int
-  heartbeat_timeout : Int
-  mut randomized_election_timeout : Int
+  mut election_elapsed : Int32
+  mut heartbeat_elapsed : Int32
+  election_timeout : Int32
+  heartbeat_timeout : Int32
+  mut randomized_election_timeout : Int32
   // Byte cap on a single outbound AppendEntries batch (etcd's MaxSizePerMsg).
   max_msg_bytes : UInt64
   // Byte cap on the uncommitted log tail (etcd's MaxUncommittedEntriesSize); 0
@@ -51,7 +51,7 @@ pub struct RaftNode {
   // outstanding AppendEntries and, when non-zero, at most `max_inflight_bytes`
   // outstanding payload bytes (etcd's MaxInflightMsgs / MaxInflightBytes). Both
   // are handed to each follower's `Progress` so its `Inflights` enforces them.
-  max_inflight : Int
+  max_inflight : Int32
   max_inflight_bytes : UInt64
   mut rng : UInt64
   // Highest log index whose configuration change has been folded into the live
@@ -108,23 +108,23 @@ pub struct RaftNode {
 pub fn RaftNode::new(
   id : String,
   peers : Array[String],
-  seed? : UInt64 = 1,
-  election_timeout? : Int = 10,
-  heartbeat_timeout? : Int = 1,
-  max_msg_bytes? : UInt64 = 18446744073709551615UL,
-  max_uncommitted_size? : UInt64 = 0,
-  max_inflight? : Int = 256,
-  max_inflight_bytes? : UInt64 = 0,
-  check_quorum? : Bool = false,
+  seed~ : UInt64 = 1,
+  election_timeout~ : Int32 = 10,
+  heartbeat_timeout~ : Int32 = 1,
+  max_msg_bytes~ : UInt64 = 18446744073709551615UL,
+  max_uncommitted_size~ : UInt64 = 0,
+  max_inflight~ : Int32 = 256,
+  max_inflight_bytes~ : UInt64 = 0,
+  check_quorum~ : Bool = false,
   // etcd's Config.PreVote is opt-in (zero value false); default off to match.
-  pre_vote? : Bool = false,
-  step_down_on_removal? : Bool = false,
-  disable_conf_change_validation? : Bool = false,
+  pre_vote~ : Bool = false,
+  step_down_on_removal~ : Bool = false,
+  disable_conf_change_validation~ : Bool = false,
   // etcd's zero value is ReadOnlySafe ("default and suggested"); a LeaseBased
   // default without check-quorum is a configuration etcd's validate() rejects.
-  read_only_option? : ReadOnlyOption = Safe,
-  logger? : &Logger = NopLogger::{ },
-  tracer? : &Tracer = NopTracer::{ },
+  read_only_option~ : ReadOnlyOption = Safe,
+  logger~ : &Logger = NopLogger::{ },
+  tracer~ : &Tracer = NopTracer::{ },
 ) -> RaftNode {
   // Reject an unusable configuration at construction, as etcd's newRaft panics on
   // an invalid Config.validate() (raft.go:440). This convenience constructor
@@ -253,7 +253,7 @@ pub fn RaftNode::role(self : RaftNode) -> Role {
 ///|
 /// The randomized election timeout this server is currently counting toward, in
 /// ticks. Exposed for tests that check the timeout stays within its band.
-pub fn RaftNode::election_deadline(self : RaftNode) -> Int {
+pub fn RaftNode::election_deadline(self : RaftNode) -> Int32 {
   self.randomized_election_timeout
 }
 
@@ -421,7 +421,7 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
 ///|
 fn RaftNode::start_real_campaign(
   self : RaftNode,
-  force? : Bool = false,
+  force~ : Bool = false,
 ) -> Array[Message] {
   self.in_pre_campaign = false
   self.core.become_candidate()
