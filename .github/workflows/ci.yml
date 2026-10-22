@@ -48,8 +48,8 @@ jobs:
         run: |
           moon test --target all
 
-      # The demo's worker driver is exercised by the differential harness on the
-      # difftest branch, not by the unit tests, so it drags the total down here.
+      # The demo's worker driver is exercised by the differential harness kept at
+      # e5dd7bd, not by the unit tests, so it drags the total down here.
       - name: coverage must be 100%
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |

@@ -94,7 +94,7 @@ Three independent methods cross-check behaviour against `etcd-io/raft@26647d5`:
 | --- | --- |
 | **Transliteration** | The 258 upstream tests ported over. **723 tests** pass on the **wasm / wasm-gc / js** backends, with **[100% line _and_ branch coverage](https://moonbitstack.github.io/moonraft/coverage/)** (3094/3094 points) and zero warnings under `moon check --deny-warn` — CI fails the build if either coverage number regresses. |
 | **Adversarial audit** | An audit whose sole instruction is to *falsify* — to find implemented-but-unwired code: a field nobody fills, a parameter forever default, a method with no caller, an ADT variant never constructed. |
-| **Differential trace** ([`difftest`](https://github.com/moonbitstack/moonraft/tree/difftest)) | The same scenarios drive etcd's `RawNode` and this port, compared event-by-event with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to **zero trace drift**. |
+| **Differential trace** ([`e5dd7bd`](https://github.com/moonbitstack/moonraft/tree/e5dd7bde781a7ffe666aaeee5b22a1d70f454466)) | The same scenarios drive etcd's `RawNode` and this port, compared event-by-event with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to **zero trace drift**. |
 
 Together they surfaced **24 correctness defects** in the consensus, log and storage layers — safety, liveness, behavioural and accounting — plus 2 default-configuration mismatches, each fixed under a red-then-green regression test that is still in the suite. Several defect classes were then made *unrepresentable*: narrowing a storage error to a single-variant type turned a whole class of mistaken `catch` into a compile error, and exhaustive matching flags any never-constructed variant at build time.
 
@@ -158,8 +158,8 @@ The code follows the upstream `etcd-io/raft` package layout so a reader can audi
 | `core/` | The consensus engine: `RaftNode` / `Node` step & dispatch, election, replication, snapshots, ReadIndex, leader lease, check-quorum, `RawNode` / `Ready`, `Config`, and the simulator |
 | `demo/` | The browser bridge: a flat wasm API over `Cluster`, one Web Worker per node |
 
-## License
+## Licence
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors); the protocol core, storage model and test suite are derived from it. What this port adds is the MoonBit data model — algebraic data types and exhaustive matching in place of Go structs and switches — a deterministic simulation harness with built-in safety-invariant checks, and a WebAssembly browser demo that runs each node in its own Web Worker.
 
-> The differential-testing harness lives on the [`difftest`](https://github.com/moonbitstack/moonraft/tree/difftest) branch.
+> The differential-testing harness is kept in the history at [`e5dd7bd`](https://github.com/moonbitstack/moonraft/tree/e5dd7bde781a7ffe666aaeee5b22a1d70f454466); its branch was merged into `master` and retired.
