@@ -86,7 +86,7 @@ moon run examples/04-kvstore        # a replicated key-value store on a StateMac
 
 ## Correctness
 
-This is a line-by-line port, and it is verified as one. The porting census ([`PORTING.md`](PORTING.md)) tracks every upstream `Test*` function and has **no `PARTIAL` or `TODO` rows left** — every test that does not depend on Go's runtime is ported assertion-for-assertion, with no simplified cases, no skipped table rows and no weakened assertions; each remaining `N/A` (a goroutine/channel shell, a benchmark, or a Go struct-memory-layout assert) states its MoonBit equivalent.
+This is a line-by-line port, and it is verified as one. The porting census ([`docs/porting.md`](docs/porting.md)) tracks every upstream `Test*` function and has **no `PARTIAL` or `TODO` rows left** — every test that does not depend on Go's runtime is ported assertion-for-assertion, with no simplified cases, no skipped table rows and no weakened assertions; each remaining `N/A` (a goroutine/channel shell, a benchmark, or a Go struct-memory-layout assert) states its MoonBit equivalent.
 
 Three independent methods cross-check behaviour against `etcd-io/raft@26647d5`:
 

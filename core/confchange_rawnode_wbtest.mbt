@@ -21,7 +21,7 @@
 // joint) rather than etcd's `Transition` enum, so the tests are re-expressed as
 // assertions on the resulting `ConfState` (voters / voters_outgoing / learners /
 // learners_next) reached through `RawNode::propose_conf_v2` + `conf_state`. See
-// PORTING.md for the two residual gaps (the simple-`Auto` single-change apply and
+// docs/porting.md for the two residual gaps (the simple-`Auto` single-change apply and
 // the transient `auto_leave` flag).
 
 ///|

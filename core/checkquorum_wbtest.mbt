@@ -90,3 +90,36 @@ test "B3: once the lease expires the vote is granted again" {
   }
   assert_eq(r.term(), 6)
 }
+
+///|
+/// FINDINGS_LEDGER #16: a check-quorum leader that adds a voter must survive the
+/// election window that immediately follows, because the newcomer's progress
+/// starts recently-active (etcd's `initProgress` sets `RecentActive: true`). It
+/// only steps down after a further full election timeout without hearing from the
+/// newcomer.
+test "TestAddNodeCheckQuorum" {
+  let et = 10
+  let r = RaftNode::new(
+    "1",
+    [],
+    pre_vote=false,
+    check_quorum=true,
+    election_timeout=et,
+  )
+  r.node().become_candidate()
+  r.become_leader()
+  for _i in 0..<(et - 1) {
+    let _ = r.tick()
+  }
+  r.propose_conf(ConfChange::add("2")) |> ignore
+  assert_true(r.config.contains("2"))
+  // The election-timeout tick runs the quorum check; the newcomer's fresh
+  // recent-active flag keeps node 1 in the lead.
+  let _ = r.tick()
+  assert_true(r.is_leader())
+  // Without hearing from node 2, a further election timeout forces the step-down.
+  for _i in 0..<et {
+    let _ = r.tick()
+  }
+  assert_true(r.role() == Follower)
+}

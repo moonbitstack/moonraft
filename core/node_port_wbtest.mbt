@@ -17,7 +17,7 @@
 // channels; RawNode is its documented goroutine-free equivalent, so the tests
 // that assert protocol behaviour (rather than channel/goroutine plumbing) port
 // directly. The ones that test channel blocking, context cancellation, or the
-// run() goroutine are registered N/A in PORTING.md with per-function reasons.
+// run() goroutine are registered N/A in docs/porting.md with per-function reasons.
 
 // TestSoftStateEqual: a soft state differs from the zero value when either the
 // leader or the role differs.
@@ -181,7 +181,7 @@ test "TestNodeAdvance" {
 // TestNodeStart: the HardState progression of a starting node — vote and first
 // commit on election, commit bump on a proposal, and a final apply-only Ready
 // that needs no sync. Adapted from the StartNode/faux-ConfChange bootstrap (see
-// PORTING.md); the durable-state transitions are the invariant being checked.
+// docs/porting.md); the durable-state transitions are the invariant being checked.
 
 ///|
 test "TestNodeStart" {

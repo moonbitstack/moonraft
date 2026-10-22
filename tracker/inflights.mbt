@@ -14,7 +14,7 @@
 // limitations under the License.
 
 // Ported from etcd-io/raft (Apache-2.0): tracker/inflights.go.
-// See PORTING.md for the source-test correspondence.
+// See docs/porting.md for the source-test correspondence.
 
 ///|
 /// One in-flight AppendEntries message: the index of its last entry and the

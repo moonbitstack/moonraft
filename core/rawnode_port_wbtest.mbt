@@ -115,7 +115,7 @@ test "TestRawNodeStep every network payload routes through Step" {
 // TestRawNodeProposeAndConfChange (V1 case): propose a command and a simple
 // AddNode change, drive until it commits, and check the resulting voter set and
 // that the log holds the command followed by the conf change. The joint /
-// ConfChangeV2 / learner cases are registered N/A in PORTING.md — they depend on
+// ConfChangeV2 / learner cases are registered N/A in docs/porting.md — they depend on
 // membership.mbt / confchange.mbt machinery owned by another agent.
 
 ///|
@@ -320,7 +320,7 @@ test "TestRawNodeRestartFromSnapshot" {
 // TestRawNodeStatus: before campaigning the node is a follower with no leader;
 // after it wins and the Ready is drained it reports itself leader at term 1.
 // (etcd additionally asserts on the Progress map and the tracker.Config; those
-// live behind membership.mbt and are registered N/A in PORTING.md.)
+// live behind membership.mbt and are registered N/A in docs/porting.md.)
 
 ///|
 test "TestRawNodeStatus" {

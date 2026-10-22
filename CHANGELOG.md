@@ -18,7 +18,7 @@ adheres to semantic versioning.
 ## [0.5.0]
 
 Closes the transliteration of `etcd-io/raft@26647d5`: the porting census
-(`PORTING.md`) has no `PARTIAL` / `TODO` / `PORT-pending` rows left — only `DONE`
+(`docs/porting.md`) has no `PARTIAL` / `TODO` / `PORT-pending` rows left — only `DONE`
 and the three acceptable `N/A` kinds (Go-concurrency shells, benchmarks, Go
 struct-memory-layout asserts), each with a named equivalent. 723 tests pass on
 all four backends; line and branch coverage are both 100% (3094/3094). The
@@ -114,7 +114,7 @@ deviations from `etcd-io/raft` are removed so the behaviour matches upstream.
 ### Fixed
 
 Twenty-one correctness defects surfaced during the port were fixed under
-red-then-green regression tests; see `PORTING.md` and the differential report.
+red-then-green regression tests; see `docs/porting.md` and the differential report.
 Line and branch coverage reach 100%.
 
 ## [0.3.0]

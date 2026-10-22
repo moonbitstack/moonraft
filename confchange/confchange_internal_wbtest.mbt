@@ -17,7 +17,7 @@
 // internal voter/learner/joint state a batch of changes produces. Change codes
 // mirror the datadriven DSL: v=add voter, l=demote/add learner, r=remove.
 // (`learners_next` — a voter demoted *during* a joint change — is the one
-// confchange-package case beyond this live model; see PORTING.md.)
+// confchange-package case beyond this live model; see docs/porting.md.)
 
 ///|
 fn sorted_join(a : Array[String]) -> String {

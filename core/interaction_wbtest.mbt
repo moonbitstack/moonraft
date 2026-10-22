@@ -23,7 +23,7 @@
 // RawNode API the harness uses, asserting the Ready contents and end state the
 // script encodes. Scripts needing the off-limits core, membership, snapshots, a
 // multi-node network beyond the Ready contract, or async storage are mapped,
-// file by file, in PORTING.md.
+// file by file, in docs/porting.md.
 
 ///|
 /// A cluster of `RawNode`s addressed by id, driven purely through the public
