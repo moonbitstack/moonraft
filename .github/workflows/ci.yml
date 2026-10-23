@@ -55,8 +55,9 @@ jobs:
         run: |
           moon test --enable-coverage
           echo "--- line coverage ---"
-          moon coverage analyze | tee analyze.txt
-          grep -q "All source files are fully covered" analyze.txt \
+          set -o pipefail
+          moon coverage analyze -- -f caret | tee analyze.txt
+          ! grep -q "no test coverage" analyze.txt \
             || { echo "::error::line coverage is below 100%"; exit 1; }
           echo "--- branch coverage ---"
           moon coverage report -f summary | tee summary.txt
