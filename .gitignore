@@ -1,8 +1,8 @@
 .*
 !.git*
 !.moonignore
+_*
 
-_build/
 _coverage/
 _site/
 target/
