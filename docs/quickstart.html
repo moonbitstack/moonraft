@@ -194,7 +194,7 @@ committed agree     : true</pre>
             <p class="sub" style="margin-top: 14px">
               The full program - with <code>kv_delete</code> and a self-check that
               every replica holds the same commands - is
-              <a href="https://github.com/moonbitstack/moonraft/tree/master/examples/04-kvstore">examples/04-kvstore</a>.
+              <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/04-kvstore">src/examples/04-kvstore</a>.
             </p>
           </div>
         </li>
@@ -215,24 +215,24 @@ committed agree     : true</pre>
           package.
         </p>
         <p class="sub" style="margin-top: 18px">
-          The <a href="https://github.com/moonbitstack/moonraft/tree/master/examples">examples/</a>
+          The <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples">src/examples/</a>
           directory is a guided tour - each program shows one idea through either
           the deterministic <code>Cluster</code> simulator or the message-driven
           <code>RawNode</code>, so you can pick the layer you care about:
         </p>
         <ul class="examples">
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/00-helloworld">00-helloworld</a> — a minimal system: elect a leader</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/01-replicate">01-replicate</a> — propose commands, confirm every node commits</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/02-fault-tolerance">02-fault-tolerance</a> — crash, partition, drop packets; safety holds</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/03-operations">03-operations</a> — progress, leadership transfer, compaction</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/04-kvstore">04-kvstore</a> — a complete replicated key-value store on a StateMachine</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/05-membership">05-membership</a> — add &amp; remove voters at runtime</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/06-learner">06-learner</a> — a non-voting learner, then promote it to a voter</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/07-checkquorum">07-checkquorum</a> — check-quorum: a leader steps down when it loses its majority</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/08-snapshot">08-snapshot</a> — compact the log; a restarted node catches up</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/09-rawnode">09-rawnode</a> — the RawNode tick → Ready → Advance loop, by hand</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/10-storage">10-storage</a> — persist Raft state to MemoryStorage and recover it</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/11-readindex">11-readindex</a> — a linearizable (ReadOnlySafe) read, confirmed by quorum</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/00-helloworld">00-helloworld</a> — a minimal system: elect a leader</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/01-replicate">01-replicate</a> — propose commands, confirm every node commits</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/02-fault-tolerance">02-fault-tolerance</a> — crash, partition, drop packets; safety holds</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/03-operations">03-operations</a> — progress, leadership transfer, compaction</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/04-kvstore">04-kvstore</a> — a complete replicated key-value store on a StateMachine</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/05-membership">05-membership</a> — add &amp; remove voters at runtime</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/06-learner">06-learner</a> — a non-voting learner, then promote it to a voter</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/07-checkquorum">07-checkquorum</a> — check-quorum: a leader steps down when it loses its majority</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/08-snapshot">08-snapshot</a> — compact the log; a restarted node catches up</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/09-rawnode">09-rawnode</a> — the RawNode tick → Ready → Advance loop, by hand</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/10-storage">10-storage</a> — persist Raft state to MemoryStorage and recover it</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/11-readindex">11-readindex</a> — a linearizable (ReadOnlySafe) read, confirmed by quorum</li>
         </ul>
         <div class="cta">
           <a class="btn primary" href="demo.html">▶ See it running</a>
@@ -249,8 +249,8 @@ committed agree     : true</pre>
           <code>docs/</code> over http - an ES-module / <code>fetch</code> of
           <code>.wasm</code> needs <code>http(s)</code>, not <code>file://</code>.
         </p>
-        <pre class="code">moon build --target wasm --release
-cp _build/wasm/release/build/demo/demo.wasm docs/moonraft.wasm
+        <pre class="code">moon build --target wasm --release src/examples/browser
+cp _build/wasm/release/build/examples/browser/browser.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs   <span class="c"># open http://localhost:8099/demo.html</span></pre>
         <div class="cta">
           <a class="btn primary" href="demo.html">▶ See it running</a>

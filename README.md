@@ -4,14 +4,12 @@
 
 **A production-grade Raft consensus library in MoonBit.**
 
-[![mooncakes](https://img.shields.io/badge/mooncakes-0.6.0-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
+[![mooncakes](https://img.shields.io/badge/mooncakes-moonbitstack%2Fmoonraft-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **[▶ Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[Docs](https://moonbitstack.github.io/moonraft/)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Quickstart](https://moonbitstack.github.io/moonraft/quickstart.html)**
 
 </div>
-
-> moonraft moved to the `moonbitstack` mooncakes organisation; install it as `moonbitstack/moonraft`.
 
 Raft keeps a cluster of nodes agreeing on the order of a command log even when nodes crash and the network drops, delays and reorders messages — the foundation of the replicated state machines behind distributed stores, schedulers and coordination services. This library implements the full protocol — election, replication, membership, persistence and reads — as a self-contained MoonBit package you drive from one of two fronts.
 
@@ -45,7 +43,7 @@ Or run the bundled example — a five-node cluster elects, replicates, loses its
 
 ```
 git clone https://github.com/moonbitstack/moonraft && cd moonraft
-moon run cmd/example
+moon run src/cmd/example
 ```
 
 <details><summary>Deterministic output (same seed → same transcript)</summary>
@@ -61,39 +59,39 @@ committed prefixes agree : true
 safety invariants hold : true
 ```
 
-Source: [`cmd/example/main.mbt`](cmd/example/main.mbt). The lower-level `Node` / `RaftNode` APIs are used directly in the tests — see `raftnode_wbtest.mbt` (message-driven) and `cluster_wbtest.mbt` (synchronous).
+Source: [`src/cmd/example/main.mbt`](src/cmd/example/main.mbt). The lower-level `Node` / `RaftNode` APIs are used directly in the tests — see `raftnode_wbtest.mbt` (message-driven) and `cluster_wbtest.mbt` (synchronous).
 
 </details>
 
-New to the library? [`examples/`](examples/) is a guided tour of short, runnable programs — each one showcasing a different feature, from a first election up to a replicated key-value store and the lower-level `RawNode` deployment loop. They are meant to overlap on purpose: some show the same idea through the high-level `Cluster` simulator, others through the message-driven `RawNode`, so you can pick the layer you care about.
+New to the library? [`src/examples/`](src/examples/) is a guided tour of short, runnable programs — each one showcasing a different feature, from a first election up to a replicated key-value store and the lower-level `RawNode` deployment loop. They are meant to overlap on purpose: some show the same idea through the high-level `Cluster` simulator, others through the message-driven `RawNode`, so you can pick the layer you care about.
 
 ```
 # The high-level, deterministic Cluster simulator — the easiest place to start
-moon run examples/00-helloworld      # a minimal system: elect a leader
-moon run examples/01-replicate       # propose commands, confirm every node commits
-moon run examples/02-fault-tolerance # crash, partition, drop packets — safety holds
-moon run examples/03-operations      # progress, leadership transfer, compaction
-moon run examples/04-kvstore         # a complete replicated key-value store on a StateMachine
+moon run src/examples/00-helloworld      # a minimal system: elect a leader
+moon run src/examples/01-replicate       # propose commands, confirm every node commits
+moon run src/examples/02-fault-tolerance # crash, partition, drop packets — safety holds
+moon run src/examples/03-operations      # progress, leadership transfer, compaction
+moon run src/examples/04-kvstore         # a complete replicated key-value store on a StateMachine
 
 # Membership and the two roles a node can play
-moon run examples/05-membership      # add and remove voters (ConfChange) at runtime
-moon run examples/06-learner         # a non-voting learner, then promote it to a voter
+moon run src/examples/05-membership      # add and remove voters (ConfChange) at runtime
+moon run src/examples/06-learner         # a non-voting learner, then promote it to a voter
 
 # Fault handling and log management
-moon run examples/07-checkquorum     # check-quorum: a leader steps down when it loses its majority
-moon run examples/08-snapshot        # compact the log; a restarted node catches up from a snapshot
+moon run src/examples/07-checkquorum     # check-quorum: a leader steps down when it loses its majority
+moon run src/examples/08-snapshot        # compact the log; a restarted node catches up from a snapshot
 
 # The message-driven RawNode — the API you use to deploy Raft on a real transport
-moon run examples/09-rawnode         # the RawNode tick → Ready → Advance loop, by hand
-moon run examples/10-storage         # persist Raft state to MemoryStorage and recover it
-moon run examples/11-readindex       # a linearizable (ReadOnlySafe) read, confirmed by quorum
+moon run src/examples/09-rawnode         # the RawNode tick → Ready → Advance loop, by hand
+moon run src/examples/10-storage         # persist Raft state to MemoryStorage and recover it
+moon run src/examples/11-readindex       # a linearizable (ReadOnlySafe) read, confirmed by quorum
 ```
 
-The `Cluster` simulator ([`examples/00`–`08`](examples/)) gives you a seeded, deterministic cluster in a single process. `RawNode` ([`examples/09`–`11`](examples/)) is the same consensus core driven by your own ticks and messages — that is the layer you wire to a network and a real storage backend.
+The `Cluster` simulator ([`src/examples/00`–`08`](src/examples/)) gives you a seeded, deterministic cluster in a single process. `RawNode` ([`src/examples/09`–`11`](src/examples/)) is the same consensus core driven by your own ticks and messages — that is the layer you wire to a network and a real storage backend.
 
 ## How it stays correct
 
-Raft's value is its safety properties, and the library checks them as it runs rather than only on paper. The deterministic simulator (`Cluster`) re-checks, on every step, that there is at most one leader per term, that every committed prefix agrees across the cluster, and that the logs stay consistent — the same three invariants the in-browser demo re-checks on every frame. Each feature below is exercised by a runnable example, and every public type is documented in the [API reference](api.html).
+Raft's value is its safety properties, and the library checks them as it runs rather than only on paper. The deterministic simulator (`Cluster`) re-checks, on every step, that there is at most one leader per term, that every committed prefix agrees across the cluster, and that the logs stay consistent — the same three invariants the in-browser demo re-checks on every frame. Each feature below is exercised by a runnable example, and every public type is documented in the [API reference](https://moonbitstack.github.io/moonraft/api.html).
 
 ## Live demo — real consensus in your browser
 
@@ -103,13 +101,13 @@ Five nodes, five Web Workers. Each worker instantiates its own copy of this cons
 
 Click **Split 2 | 3** and you can watch two nodes lead *different* terms at once - and **Election Safety still holds**, because two leaders only contradict Raft if they share a term, and the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
-It is not a JavaScript re-implementation — messages cross the boundary as flat integers, node state is a JSON string read straight out of the wasm module's linear memory, and every transition happens inside the same MoonBit code the tests exercise (`worker_driver.mbt`). Honest scope: five workers on one machine model *concurrency*, not a distributed deployment, and a restarted node catches up from the leader since the workers have no persistent storage.
+It is not a JavaScript re-implementation — messages cross the boundary as flat integers, node state is a JSON string read straight out of the wasm module's linear memory, and every transition happens inside the same MoonBit code the tests exercise (`src/examples/browser`). Five workers on one machine model *concurrency*, not a distributed deployment, and a restarted node catches up from the leader since the workers have no persistent storage.
 
 <details><summary>Build and run the site locally</summary>
 
 ```
-moon build --target wasm --release              # -> _build/wasm/release/build/demo/demo.wasm
-cp _build/wasm/release/build/demo/demo.wasm docs/moonraft.wasm
+moon build --target wasm --release src/examples/browser
+cp _build/wasm/release/build/examples/browser/browser.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 
@@ -140,7 +138,7 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 
 ## Architecture
 
-The public surface is a pure facade: the root `raft.mbt` re-exports the symbols so consumers write `@raft.X` regardless of where a type lives. The implementation is split into focused packages, each owning one concern:
+The public surface is a pure facade: the root package re-exports the symbols so consumers write `@raft.X` regardless of where a type lives. The implementation is split into focused packages, each owning one concern:
 
 | Package | Responsibility |
 | --- | --- |
@@ -151,7 +149,6 @@ The public surface is a pure facade: the root `raft.mbt` re-exports the symbols 
 | `storage/` | `MemoryStorage`, the write-ahead log, and the `LogStore` / `RaftStorage` traits |
 | `log/` | `RaftLog`, the unstable tail, term lookup and bounded slices |
 | `core/` | The consensus engine: `RaftNode` / `Node` step & dispatch, election, replication, snapshots, ReadIndex, leader lease, check-quorum, `RawNode` / `Ready`, `Config`, and the simulator |
-| `demo/` | The browser bridge: a flat wasm API over `Cluster`, one Web Worker per node |
 
 ## Licence
 

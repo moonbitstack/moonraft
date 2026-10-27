@@ -247,8 +247,8 @@
           The demo isn't a JavaScript re-implementation and isn't a
           single-threaded animation. Each of the five nodes is a separate
           WebAssembly instance in its own Web Worker, ticking on its own timer,
-          exchanging messages through <code>postMessage</code> - genuinely
-          concurrent, genuinely non-deterministic. Cut the network and watch two
+          exchanging messages through <code>postMessage</code>, so the run is
+          concurrent and non-deterministic. Cut the network and watch two
           terms diverge; heal it and watch them reconcile.
         </p>
         <div class="cta">

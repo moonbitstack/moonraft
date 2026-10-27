@@ -48,18 +48,10 @@ jobs:
         run: |
           moon test --target all
 
-      # The library (the `moonraft` package and its sub-packages) must keep 100%
-      # line coverage. The `examples/` directory holds executable demo programs,
-      # not library code, so they are outside the library's coverage obligation
-      # and are checked separately by the "runnable examples" step below.
       - name: coverage must be 100%
         if: ${{ runner.os == 'Linux' }}
         run: |
           moon test --enable-coverage
-          echo "--- coverage (library only; examples/ are runnable demos, excluded) ---"
-          # `moon coverage report` lists examples/ (executable demos) as 0/X.
-          # Those are validated by the runnable-examples step, not by the
-          # library's 100% line-coverage obligation, so drop them here.
           moon coverage report -f summary > summary.txt || true
           cat summary.txt
           lib_uncovered="$(grep -vE 'examples[\\/]|^Total:' summary.txt | grep -oE '[0-9]+/[0-9]+' | awk -F/ '$1 != $2' || true)"
@@ -68,21 +60,13 @@ jobs:
           fi
           echo "library coverage: 100%"
 
-      - name: runnable examples
+      - name: examples run
+        shell: bash
         run: |
-          moon run cmd/example
-          moon run examples/00-helloworld
-          moon run examples/01-replicate
-          moon run examples/02-fault-tolerance
-          moon run examples/03-operations
-          moon run examples/04-kvstore
-          moon run examples/05-membership
-          moon run examples/06-learner
-          moon run examples/07-checkquorum
-          moon run examples/08-snapshot
-          moon run examples/09-rawnode
-          moon run examples/10-storage
-          moon run examples/11-readindex
+          moon run src/cmd/example
+          for dir in src/examples/[0-9]*/; do
+            moon run "$dir" > /dev/null
+          done
 
       - name: lint
         run: |
@@ -91,5 +75,5 @@ jobs:
 
       - name: API reference must match the generator
         run: |
-          node docs/gen-api.mjs
+          node scripts/gen_api.mjs
           git diff --exit-code docs/api.html

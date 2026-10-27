@@ -17,3 +17,5 @@ keywords = [
 ]
 
 description = "Raft consensus algorithm implemented in MoonBit."
+
+source = "src"
