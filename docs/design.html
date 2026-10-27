@@ -6,7 +6,7 @@
     <title>Design notes · moonraft</title>
     <meta
       name="description"
-      content="What a MoonBit port of etcd's raft found that Go left to convention: two latent safety bugs surfaced by exhaustive matching and algebraic data types, and how the type system erased whole classes of them."
+      content="How MoonBit's algebraic data types and exhaustive matching turned latent Raft bugs into compile-time-visible cases - two safety violations a conventional implementation hides until runtime."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
@@ -28,18 +28,19 @@
       <section class="hero" style="padding: 56px 0 22px">
         <p class="eyebrow">Design notes</p>
         <h1 class="display" style="font-size: clamp(28px, 5vw, 52px)">
-          The port that<br />audited the original
+          The type system that<br />audits the protocol
         </h1>
         <p class="lede">
-          Rewriting etcd's raft in MoonBit was not transcription. Where Go uses a
-          struct field and a convention, MoonBit uses a sum type and an
-          exhaustive match - and the compiler refuses to let a case go unhandled.
-          Three times, filling in a case the Go code left implicit turned up a
-          real latent bug. Two of them were safety violations.
+          Writing Raft in MoonBit leaned on the language's types. Where a
+          conventional implementation uses a struct field and a convention,
+          MoonBit uses a sum type and an exhaustive match - and the compiler
+          refuses to let a case go unhandled. Three times, filling in a case the
+          code left implicit turned up a real latent bug. Two of them were safety
+          violations.
         </p>
         <p class="note good" style="margin-top: 8px">
           Method: <b>we fixed the implementation, never the assertion.</b> Every
-          bug below is pinned by a ported etcd test that fails before the fix and
+          bug below is pinned by a regression test that fails before the fix and
           passes after.
         </p>
       </section>
@@ -54,7 +55,7 @@
         <p class="sub">
           Raft's whole promise is that a committed entry is permanent. That rests
           on <b>Election Safety</b>: at most one leader per term. The reference
-          <code>step</code> path, ported faithfully, had a gap - it never dropped
+          <code>step</code> path had a gap - it never dropped
           a <em>response</em> stamped with a term below the receiver's own.
         </p>
         <div class="grid c2" style="margin-bottom: 20px">
@@ -102,11 +103,11 @@
   <span class="c">// … only messages that passed the classifier reach the handlers</span>
 }</pre>
         <p class="sub" style="margin-top: 14px">
-          In Go the term comparison is a chain of <code>if</code>s; forgetting
-          the response case compiles cleanly and ships. In MoonBit the
-          <code>match</code> on <code>TermRel</code> and the nested
-          <code>match</code> on <code>Payload</code> are both exhaustive: leave
-          the stale-response case out and it does not build. The bug becomes
+          In a conventional implementation the term comparison is a chain of
+          <code>if</code>s; forgetting the response case compiles cleanly and
+          ships. Here the <code>match</code> on <code>TermRel</code> and the
+          nested <code>match</code> on <code>Payload</code> are both exhaustive:
+          leave the stale-response case out and it does not build. The bug becomes
           unrepresentable.
         </p>
       </section>
@@ -151,7 +152,7 @@
           <code>TestStorageCompact</code> assert the distinction that the boolean
           answer used to erase. (A third fix, <b>S1</b>, corrected
           <code>apply_snapshot</code> wrongly advancing the HardState commit index
-          - etcd leaves it untouched.)
+          - a conventional implementation leaves it untouched.)
         </p>
       </section>
 
@@ -197,29 +198,25 @@
       </section>
 
       <section class="band">
-        <p class="kicker">Provenance</p>
-        <h2 class="sec">What is derived, what is new</h2>
+        <p class="kicker">Where to next</p>
+        <h2 class="sec">Run it, read it, change it</h2>
         <p class="sub">
-          This is a faithful port of
-          <a href="https://github.com/etcd-io/raft">etcd-io/raft</a> (Apache-2.0):
-          the protocol core, the storage model, and the test suite are carried
-          over - the tests especially, because a port you can't check against the
-          original is just a rewrite. What the MoonBit version adds is the
-          algebraic data model above, a deterministic simulation harness with
-          built-in safety-invariant checks, and the WebAssembly demo where each
-          node runs in its own Web Worker.
+          The same consensus core powers the in-browser demo and the deterministic
+          simulator used throughout these notes. Drive a cluster yourself from the
+          <a href="quickstart.html">quickstart</a>, browse every public type and
+          method in the <a href="api.html">API reference</a>, or read the
+          <a href="https://github.com/moonbitstack/moonraft">source</a> package by
+          package - quorum, tracker, raftpb, confchange, storage, log and core.
         </p>
         <div class="cta">
           <a class="btn primary" href="demo.html">▶ Watch the invariants hold</a>
-          <a class="btn" href="https://github.com/moonbitstack/moonraft/blob/master/PORTING.md"
-            >Full porting log ↗</a
-          >
+          <a class="btn" href="api.html">Browse the API</a>
         </div>
       </section>
     </main>
 
     <footer class="site"><div class="wrap row">
-      <span>Raft consensus in <b>MoonBit</b> · a port of etcd-io/raft · Apache-2.0</span>
+      <span>Raft consensus in <b>MoonBit</b> · Apache-2.0</span>
       <span class="mono">© 2026 Leo Cheng · <a href="https://github.com/moonbitstack/moonraft">GitHub</a></span>
     </div></footer>
   </body>

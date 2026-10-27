@@ -82,3 +82,8 @@ jobs:
         run: |
           moon fmt && git diff --exit-code
           moon info && git diff --exit-code
+
+      - name: API reference must match the generator
+        run: |
+          node docs/gen-api.mjs
+          git diff --exit-code docs/api.html

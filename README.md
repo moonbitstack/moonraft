@@ -2,38 +2,29 @@
 
 # moonraft
 
-**A production-grade Raft consensus library in MoonBit — a faithful, line-by-line port of [`etcd-io/raft`](https://github.com/etcd-io/raft).**
+**A production-grade Raft consensus library in MoonBit.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/moonbitstack/moonraft/ci.yml?branch=master&label=CI&logo=github)](https://github.com/moonbitstack/moonraft/actions)
-[![tests](https://img.shields.io/badge/tests-723%20passing-2ea44f)](#correctness)
-[![coverage](https://img.shields.io/badge/coverage-100%25%20line%20%26%20branch-2ea44f)](https://moonbitstack.github.io/moonraft/coverage/)
 [![mooncakes](https://img.shields.io/badge/mooncakes-0.6.0-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **[▶ Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[Docs](https://moonbitstack.github.io/moonraft/)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Quickstart](https://moonbitstack.github.io/moonraft/quickstart.html)**
 
-<a href="https://moonbitstack.github.io/moonraft/demo.html"><img src="docs/site-home.png" alt="moonraft home page - 'A cluster that stays in agreement - even when it shouldn't', a faithful MoonBit port of etcd's raft, with a live cluster snapshot and replicated log" width="860"></a>
-
-<sub><em>The project home - a faithful MoonBit port of etcd's raft. Click through to the live, in-browser demo.</em></sub>
-
 </div>
 
-> Moved on mooncakes from `Lfan-ke/moonraft` to `moonbitstack/moonraft`.
+> moonraft moved to the `moonbitstack` mooncakes organisation; install it as `moonbitstack/moonraft`.
 
-Raft keeps a cluster of nodes agreeing on the order of a command log even when nodes crash and the network drops, delays and reorders messages — the foundation of the replicated state machines behind systems such as **etcd, TiKV and Consul**. This library ports the Go [`etcd-io/raft`](https://github.com/etcd-io/raft) (Apache-2.0) to MoonBit, carrying over its protocol core, storage model and **test suite**; see [NOTICE](NOTICE) for what is derived and what is new.
+Raft keeps a cluster of nodes agreeing on the order of a command log even when nodes crash and the network drops, delays and reorders messages — the foundation of the replicated state machines behind distributed stores, schedulers and coordination services. This library implements the full protocol — election, replication, membership, persistence and reads — as a self-contained MoonBit package you drive from one of two fronts.
 
 It ships two ways to drive one consensus core:
 
 - a **synchronous driver** (`run_election`, `replicate`) that composes the RPC handlers into whole rounds — small and easy to read or embed; and
-- a **message-driven server** (`RaftNode`) that speaks only in `Message`s through `tick` and `step`, so a real transport — or the bundled deterministic simulator — can drive it exactly the way etcd separates protocol logic from I/O.
+- a **message-driven server** (`RaftNode`) that speaks only in `Message`s through `tick` and `step`, so a real transport — or the bundled deterministic simulator — can drive it.
 
 ## Install
 
 ```
 moon add moonbitstack/moonraft
 ```
-
-Previously published as `Lfan-ke/raft-moonbit`; the repository moved from `Lfan-ke/raft-moonbit` to `moonbitstack/moonraft`.
 
 ## Quick example
 
@@ -61,10 +52,10 @@ moon run cmd/example
 
 ```
 cluster of 5 nodes, seed 1
-elected leader: b
+elected leader: c
 committed 'set x = 1' on a majority
 crashed the leader
-new leader: c
+new leader: a
 one leader per term : true
 committed prefixes agree : true
 safety invariants hold : true
@@ -81,30 +72,18 @@ moon run examples/00-helloworld     # elect a leader
 moon run examples/01-replicate      # propose commands, confirm every node commits
 moon run examples/02-fault-tolerance # crash, partition, drop packets - safety holds
 moon run examples/03-operations     # progress, leadership transfer, compaction
-moon run examples/04-kvstore        # a replicated key-value store on a StateMachine
+moon run examples/04-kvstore      # a replicated key-value store on a StateMachine
 ```
 
-## Correctness
+## How it stays correct
 
-This is a line-by-line port, and it is verified as one. The porting census ([`docs/porting.md`](docs/porting.md)) tracks every upstream `Test*` function and has **no `PARTIAL` or `TODO` rows left** — every test that does not depend on Go's runtime is ported assertion-for-assertion, with no simplified cases, no skipped table rows and no weakened assertions; each remaining `N/A` (a goroutine/channel shell, a benchmark, or a Go struct-memory-layout assert) states its MoonBit equivalent.
-
-Three independent methods cross-check behaviour against `etcd-io/raft@26647d5`:
-
-| Method | What it does |
-| --- | --- |
-| **Transliteration** | The 258 upstream tests ported over. **723 tests** pass on the **wasm / wasm-gc / js** backends, with **[100% line _and_ branch coverage](https://moonbitstack.github.io/moonraft/coverage/)** (3094/3094 points) and zero warnings under `moon check --deny-warn` — CI fails the build if either coverage number regresses. |
-| **Adversarial audit** | An audit whose sole instruction is to *falsify* — to find implemented-but-unwired code: a field nobody fills, a parameter forever default, a method with no caller, an ADT variant never constructed. |
-| **Differential trace** ([`e5dd7bd`](https://github.com/moonbitstack/moonraft/tree/e5dd7bde781a7ffe666aaeee5b22a1d70f454466)) | The same scenarios drive etcd's `RawNode` and this port, compared event-by-event with upstream pinned as a git submodule. Directory restructuring and idiomatic cleanup are held to **zero trace drift**. |
-
-Together they surfaced **24 correctness defects** in the consensus, log and storage layers — safety, liveness, behavioural and accounting — plus 2 default-configuration mismatches, each fixed under a red-then-green regression test that is still in the suite. Several defect classes were then made *unrepresentable*: narrowing a storage error to a single-variant type turned a whole class of mistaken `catch` into a compile error, and exhaustive matching flags any never-constructed variant at build time.
+Raft's value is its safety properties, and the library checks them as it runs rather than only on paper. The deterministic simulator (`Cluster`) re-checks, on every step, that there is at most one leader per term, that every committed prefix agrees across the cluster, and that the logs stay consistent — the same three invariants the in-browser demo re-checks on every frame. Each feature below is exercised by a runnable example, and every public type is documented in the [API reference](api.html).
 
 ## Live demo — real consensus in your browser
 
 ### ▶ https://moonbitstack.github.io/moonraft/demo.html
 
 Five nodes, five Web Workers. Each worker instantiates its own copy of this consensus core compiled to **WebAssembly**, ticks on its own wall-clock timer, and talks to peers only by `postMessage`. The main thread is the network — drop packets, add delay, **split** the cluster, **isolate** or **crash** the leader — and it holds no Raft state of its own. Elections race, messages reorder, nothing about the schedule is deterministic; a panel re-checks the safety invariants (*one leader per term*, *committed prefixes agree*) on every frame.
-
-<a href="https://moonbitstack.github.io/moonraft/demo.html"><img src="docs/demo.png" alt="The live demo: five WebAssembly nodes in Web Workers, with interactive fault controls and per-frame safety-invariant checks" width="860"></a>
 
 Click **Split 2 | 3** and you can watch two nodes lead *different* terms at once - and **Election Safety still holds**, because two leaders only contradict Raft if they share a term, and the stale one cannot reach a majority, so it cannot commit. Heal the partition and it steps down.
 
@@ -134,8 +113,8 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 - **Learners** (§4.2.1): non-voting members that receive the log, never campaign and never count toward a quorum, with promotion to voter and `learners_next`-staged demotion across a joint change.
 - **Flow control**: a sliding-window `Inflights` limit, a byte cap per batch (`MaxSizePerMsg`), and a bound on the uncommitted tail (`MaxUncommittedEntriesSize`).
 - **`raftLog` split into stable storage and an `unstable` tail** with in-progress bookkeeping and byte-level pagination, so a caller knows exactly what to persist and what to apply.
-- **`RawNode` with `Ready` / `Advance`**: ask whether there is work, take a batch (entries to persist, `HardState`/`SoftState` if changed, messages, committed entries, read states), do it, acknowledge — no threads, no async, exactly as etcd's contract describes.
-- **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and an etcd-style `MemoryStorage` engine. Storage reads report `Compacted`, `Unavailable` and `SnapOutOfDate` as distinct errors, so a caller can tell "send a snapshot" from "wait".
+- **`RawNode` with `Ready` / `Advance`**: ask whether there is work, take a batch (entries to persist, `HardState`/`SoftState` if changed, messages, committed entries, read states), do it, acknowledge — no threads, no async.
+- **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and a `MemoryStorage` engine. Storage reads report `Compacted`, `Unavailable` and `SnapOutOfDate` as distinct errors, so a caller can tell "send a snapshot" from "wait".
 - **Linearizable reads** in both modes — `ReadOnlySafe` (fresh quorum round-trip) and lease-based — plus **check-quorum**, which steps a leader down when it loses a majority and makes followers refuse disruptive votes.
 - **Leadership transfer** (`TimeoutNow`, §3.10): the target is caught up first, proposals are blocked mid-transfer, and it aborts on timeout, step-down or removal.
 - **Pluggable `StateMachine`, `Transport`, `LogStore` and `RaftStorage`** traits, with a replicated key-value store as the worked example.
@@ -145,7 +124,7 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 
 ## Architecture
 
-The code follows the upstream `etcd-io/raft` package layout so a reader can audit the port package-by-package. The root `raft.mbt` is a pure facade that re-exports the public surface, so consumers write `@raft.X` regardless of where a symbol lives.
+The public surface is a pure facade: the root `raft.mbt` re-exports the symbols so consumers write `@raft.X` regardless of where a type lives. The implementation is split into focused packages, each owning one concern:
 
 | Package | Responsibility |
 | --- | --- |
@@ -160,6 +139,4 @@ The code follows the upstream `etcd-io/raft` package layout so a reader can audi
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). A MoonBit port of [etcd-io/raft](https://github.com/etcd-io/raft) (Copyright 2015 The etcd Authors); the protocol core, storage model and test suite are derived from it. What this port adds is the MoonBit data model — algebraic data types and exhaustive matching in place of Go structs and switches — a deterministic simulation harness with built-in safety-invariant checks, and a WebAssembly browser demo that runs each node in its own Web Worker.
-
-> The differential-testing harness is kept in the history at [`e5dd7bd`](https://github.com/moonbitstack/moonraft/tree/e5dd7bde781a7ffe666aaeee5b22a1d70f454466); its branch was merged into `master` and retired.
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
