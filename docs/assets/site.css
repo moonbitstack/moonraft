@@ -969,3 +969,5 @@ h1.display .hl {
     scroll-behavior: auto;
   }
 }
+
+html, button, input, textarea, select { font-variant-ligatures: no-contextual; }
