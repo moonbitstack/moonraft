@@ -16,6 +16,6 @@ keywords = [
   "state-machine",
 ]
 
-description = "Raft consensus algorithm implemented in MoonBit."
+description = "Raft consensus in MoonBit."
 
 source = "src"
