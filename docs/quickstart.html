@@ -214,6 +214,26 @@ committed agree     : true</pre>
           <a href="https://github.com/moonbitstack/moonraft">source</a> package by
           package.
         </p>
+        <p class="sub" style="margin-top: 18px">
+          The <a href="https://github.com/moonbitstack/moonraft/tree/master/examples">examples/</a>
+          directory is a guided tour - each program shows one idea through either
+          the deterministic <code>Cluster</code> simulator or the message-driven
+          <code>RawNode</code>, so you can pick the layer you care about:
+        </p>
+        <ul class="examples">
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/00-helloworld">00-helloworld</a> — a minimal system: elect a leader</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/01-replicate">01-replicate</a> — propose commands, confirm every node commits</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/02-fault-tolerance">02-fault-tolerance</a> — crash, partition, drop packets; safety holds</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/03-operations">03-operations</a> — progress, leadership transfer, compaction</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/04-kvstore">04-kvstore</a> — a complete replicated key-value store on a StateMachine</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/05-membership">05-membership</a> — add &amp; remove voters at runtime</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/06-learner">06-learner</a> — a non-voting learner, then promote it to a voter</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/07-checkquorum">07-checkquorum</a> — check-quorum: a leader steps down when it loses its majority</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/08-snapshot">08-snapshot</a> — compact the log; a restarted node catches up</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/09-rawnode">09-rawnode</a> — the RawNode tick → Ready → Advance loop, by hand</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/10-storage">10-storage</a> — persist Raft state to MemoryStorage and recover it</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/examples/11-readindex">11-readindex</a> — a linearizable (ReadOnlySafe) read, confirmed by quorum</li>
+        </ul>
         <div class="cta">
           <a class="btn primary" href="demo.html">▶ See it running</a>
           <a class="btn" href="api.html">Full API</a>
@@ -278,6 +298,38 @@ python3 -m http.server 8099 --directory docs   <span class="c"># open http://loc
         .qs .steps > li {
           grid-template-columns: 1fr;
           gap: 8px;
+        }
+      }
+      .examples {
+        list-style: none;
+        margin: 14px 0 4px;
+        padding: 16px 18px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 26px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .examples li {
+        min-width: 0;
+      }
+      .examples a {
+        font-family: var(--mono);
+        font-weight: 600;
+        color: var(--replicate);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .examples a:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 640px) {
+        .examples {
+          grid-template-columns: 1fr;
+          padding: 14px;
         }
       }
     </style>

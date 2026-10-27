@@ -65,15 +65,31 @@ Source: [`cmd/example/main.mbt`](cmd/example/main.mbt). The lower-level `Node` /
 
 </details>
 
-New to the library? [`examples/`](examples/) is a guided tour in five short, runnable programs - from a first election up to a replicated key-value store:
+New to the library? [`examples/`](examples/) is a guided tour of short, runnable programs — each one showcasing a different feature, from a first election up to a replicated key-value store and the lower-level `RawNode` deployment loop. They are meant to overlap on purpose: some show the same idea through the high-level `Cluster` simulator, others through the message-driven `RawNode`, so you can pick the layer you care about.
 
 ```
-moon run examples/00-helloworld     # elect a leader
-moon run examples/01-replicate      # propose commands, confirm every node commits
-moon run examples/02-fault-tolerance # crash, partition, drop packets - safety holds
-moon run examples/03-operations     # progress, leadership transfer, compaction
-moon run examples/04-kvstore      # a replicated key-value store on a StateMachine
+# The high-level, deterministic Cluster simulator — the easiest place to start
+moon run examples/00-helloworld      # a minimal system: elect a leader
+moon run examples/01-replicate       # propose commands, confirm every node commits
+moon run examples/02-fault-tolerance # crash, partition, drop packets — safety holds
+moon run examples/03-operations      # progress, leadership transfer, compaction
+moon run examples/04-kvstore         # a complete replicated key-value store on a StateMachine
+
+# Membership and the two roles a node can play
+moon run examples/05-membership      # add and remove voters (ConfChange) at runtime
+moon run examples/06-learner         # a non-voting learner, then promote it to a voter
+
+# Fault handling and log management
+moon run examples/07-checkquorum     # check-quorum: a leader steps down when it loses its majority
+moon run examples/08-snapshot        # compact the log; a restarted node catches up from a snapshot
+
+# The message-driven RawNode — the API you use to deploy Raft on a real transport
+moon run examples/09-rawnode         # the RawNode tick → Ready → Advance loop, by hand
+moon run examples/10-storage         # persist Raft state to MemoryStorage and recover it
+moon run examples/11-readindex       # a linearizable (ReadOnlySafe) read, confirmed by quorum
 ```
+
+The `Cluster` simulator ([`examples/00`–`08`](examples/)) gives you a seeded, deterministic cluster in a single process. `RawNode` ([`examples/09`–`11`](examples/)) is the same consensus core driven by your own ticks and messages — that is the layer you wire to a network and a real storage backend.
 
 ## How it stays correct
 
