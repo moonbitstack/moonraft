@@ -162,7 +162,8 @@ const page = `<!doctype html>
     <meta name="description" content="The public API of moonraft, generated from the authoritative .mbti interface — ${typeCount} types, ${methodCount} methods, ${fnCount} free functions." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
-    <script src="assets/nav.js"></script>
+    
+    <script type="module" src="assets/scrollbar.js"></script><script src="assets/nav.js"></script>
   </head>
   <body>
     <header class="topbar"><div class="wrap row">
