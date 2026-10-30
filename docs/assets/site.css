@@ -780,9 +780,11 @@ button,
 }
 
 /* a slim, theme-matched scrollbar instead of the chunky default */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
 }
 ::-webkit-scrollbar {
   width: 11px;
@@ -802,14 +804,6 @@ button,
   background-clip: content-box;
 }
 
-/* home / demo / design: the scrollbar stays invisible until the reader scrolls
-   off the very top. The track (gutter) is still there, so nothing shifts. */
-html.hide-bar-top:not(.is-scrolled) {
-  scrollbar-color: transparent transparent;
-}
-html.hide-bar-top:not(.is-scrolled)::-webkit-scrollbar-thumb {
-  background: transparent;
-}
 a,
 .btn,
 .badge,
