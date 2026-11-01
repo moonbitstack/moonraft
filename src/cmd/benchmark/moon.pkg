@@ -1,0 +1,6 @@
+import {
+  "moonbitstack/moonraft" @raft,
+  "moonbitlang/core/bench",
+}
+
+pkgtype(kind: "executable")

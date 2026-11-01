@@ -68,6 +68,11 @@ jobs:
             moon run "$dir" > /dev/null
           done
 
+      - name: benchmarks run
+        shell: bash
+        run: |
+          moon run --release src/cmd/benchmark
+
       - name: lint
         run: |
           moon fmt && git diff --exit-code

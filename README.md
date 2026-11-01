@@ -93,6 +93,38 @@ The `Cluster` simulator ([`src/examples/00`–`08`](src/examples/)) gives you a 
 
 Raft's value is its safety properties, and the library checks them as it runs rather than only on paper. The deterministic simulator (`Cluster`) re-checks, on every step, that there is at most one leader per term, that every committed prefix agrees across the cluster, and that the logs stay consistent — the same three invariants the in-browser demo re-checks on every frame. Each feature below is exercised by a runnable example, and every public type is documented in the [API reference](https://moonbitstack.github.io/moonraft/api.html).
 
+## Verification
+
+Every public behaviour is exercised by the test suite — 730 tests, 100% line
+coverage of the library — and the code is reconciled against a pinned upstream
+(`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
+an in-repo interpreter: all [41 etcd-io/raft scripts](testdata/etcd/)
+(`raft/testdata/`, `confchange/testdata/`, `quorum/testdata/`) are archived
+verbatim, embedded at build time, and driven through the same `RawNode` /
+`Changer` / quorum code the library ships — in CI. The one deliberate divergence
+— upstream's expected output is dominated by the off-limits raft-core logger —
+is documented in [docs/porting.md](docs/porting.md).
+
+## Benchmarks
+
+`src/cmd/benchmark` ports upstream's `BenchmarkOneNode`, `BenchmarkStatus` and
+`BenchmarkMajorityConfig_CommittedIndex`. MoonBit ships no `go test -bench`, so
+the executable times each loop with `core/bench`'s monotonic clock and prints
+ns/op.
+
+```
+moon run --release src/cmd/benchmark
+```
+
+Representative figures (release build, one x86-64 machine; your numbers will
+differ):
+
+| Benchmark | ns/op |
+| --- | ---: |
+| `BenchmarkStatus` | ~250 |
+| `BenchmarkRawNode` (propose → persist → commit → apply) | ~5300 |
+| `BenchmarkMajorityConfig_CommittedIndex` | ~970 |
+
 ## Live demo — real consensus in your browser
 
 ### ▶ https://moonbitstack.github.io/moonraft/demo.html
