@@ -710,13 +710,13 @@ fn RaftTest::process_append_thread(self : RaftTest, i : Int32) -> Unit {
   self.out.write("Processing:\n")
   self.out.write(rt_describe_storage_append(n.id, sa, false))
   self.out.write("\n")
-  // The write is durable: acknowledge it, then hand the waiting responses back to
-  // the node, which is what publishes the vote or advances the leader's commit.
+  // The write is durable: acknowledge it, then put the waiting responses on the
+  // wire. They are delivered like any other message (a self-addressed vote
+  // response is printed and stepped when the recipient is served), which is what
+  // publishes the vote or advances the leader's commit.
   n.rn.step_append_resp(sa.resp)
   for r in sa.responses {
-    for out in n.rn.node().step(r) {
-      self.messages.push(out)
-    }
+    self.messages.push(r)
   }
 }
 
