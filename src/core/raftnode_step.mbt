@@ -76,14 +76,20 @@ pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
       // *forced* vote (a leadership transfer, etcd's campaignTransfer) is exempt:
       // the outgoing leader is deliberately handing off, so the lease must not
       // block it. Pre-vote is handled in its own dispatch (it never bumps term).
-      if self.in_lease() && msg.payload is Vote(_) && !msg.force {
-        return [
-          Message::new(
-            self.id,
-            msg.from,
-            VoteResp({ term: self.core.current_term(), vote_granted: false, }),
-          ),
-        ]
+      // The solicitation is dropped without a reply: answering would tell the
+      // challenger our term, and a disruptive candidate would only inflate it.
+      if self.in_lease() && !msg.force {
+        match msg.payload {
+          Vote(args) => {
+            self.log_lease_ignored("MsgVote", msg.from, args)
+            return []
+          }
+          PreVote(args) => {
+            self.log_lease_ignored("MsgPreVote", msg.from, args)
+            return []
+          }
+          _ => ()
+        }
       }
       self.adopt_higher_term(msg)
       self.dispatch(msg)
@@ -356,9 +362,6 @@ fn RaftNode::handle_pre_vote(
   // B3: while we still have contact with a leader (check-quorum lease), refuse
   // to encourage a challenger, so a partitioned node that keeps timing out
   // cannot force needless elections and inflate the term (§4.2.3 disruption).
-  if self.in_lease() {
-    self.log_lease_ignored("MsgPreVote", from, args)
-  }
   let granted = !self.in_lease() &&
     can_vote &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
@@ -406,9 +409,11 @@ fn RaftNode::handle_vote(
   from : String,
   args : RequestVoteArgs,
 ) -> Array[Message] {
-  // B3: reject a real vote too while leased to a leader (§4.2.3).
+  // At the *same* term a lease does not silence us: the reply is a plain refusal
+  // (etcd's `canVote` finds a leader, so the vote is not granted, and the sender
+  // learns we already follow someone).
   if self.in_lease() {
-    self.log_lease_ignored("MsgVote", from, args)
+    self.log_vote_decision("MsgVote", from, args, false, self.core.voted_for)
     return [
       Message::new(
         self.id,

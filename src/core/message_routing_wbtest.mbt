@@ -217,11 +217,8 @@ test "forget_leader lets a leased follower grant a pre-vote again" {
     last_log_index: 0,
     last_log_term: 0,
   })
-  // Leased: the pre-vote is refused.
-  match n.step(Message::new("3", "2", pv))[0].payload {
-    PreVoteResp(r) => assert_false(r.vote_granted)
-    _ => abort("expected PreVoteResp")
-  }
+  // Leased: the pre-vote is dropped outright (etcd replies to nothing here).
+  assert_eq(n.step(Message::new("3", "2", pv)).length(), 0)
   // Forget the leader: the lease is gone.
   n.forget_leader()
   assert_true(n.leader() is None)

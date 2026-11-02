@@ -169,12 +169,17 @@ test "TestNodeTick" {
 test "TestNodeAdvance" {
   let rn = single_leader()
   rn.propose(b"foo")
-  let rd = rn.ready()
-  assert_true(!rd.entries.is_empty())
-  assert_eq(rd.committed_entries.length(), 1)
-  assert_true(entry_is(rd.committed_entries[0], 1, 2, b"foo"))
-  rn.store(rd)
-  rn.advance(rd)
+  // The proposal is persisted first; it commits once that write is durable.
+  let rd1 = rn.ready()
+  assert_true(!rd1.entries.is_empty())
+  assert_eq(rd1.committed_entries.length(), 0)
+  rn.store(rd1)
+  rn.advance(rd1)
+  let rd2 = rn.ready()
+  assert_eq(rd2.committed_entries.length(), 1)
+  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
+  rn.store(rd2)
+  rn.advance(rd2)
   assert_true(!rn.has_ready())
 }
 

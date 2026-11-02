@@ -375,6 +375,10 @@ pub fn RaftNode::tick(self : RaftNode) -> Array[Message] {
       // is abandoned, so proposals are not blocked indefinitely (§3.10).
       self.lead_transferee = None
       if self.check_quorum && !self.quorum_active() {
+        self.logger.log(
+          Warning,
+          "\{self.id} stepped down to follower since quorum is not active",
+        )
         self.step_down()
         return []
       }
@@ -773,12 +777,18 @@ fn RaftNode::conf_change_refused(self : RaftNode, is_leave : Bool) -> Bool {
   if self.no_conf_change_validation {
     return false
   }
-  // etcd compares `pendingConfIndex` against the applied index. In this port a
-  // committed conf change is folded into the configuration immediately (tracked
-  // by `conf_applied`), which is the moral equivalent of etcd applying it — so a
-  // further change is allowed once the pending one has committed, and refused
-  // while it is still an uncommitted, un-folded tail entry.
-  let already_pending = self.pending_conf_index > self.conf_applied
+  // etcd compares `pendingConfIndex` against the applied index: a further change
+  // is refused while the pending one has not been applied yet (raft.go:1338).
+  // Under a Ready loop the watermark is the one the application reports, which is
+  // what lets the first change through once the leader's no-op is applied. A
+  // caller that steps the node directly has no such watermark, so the last folded
+  // change stands in for it.
+  let applied = if self.defer_responses {
+    self.core.last_applied
+  } else {
+    self.conf_applied
+  }
+  let already_pending = self.pending_conf_index > applied
   let already_joint = self.config.is_joint()
   already_pending ||
   (already_joint && !is_leave) ||
@@ -1066,10 +1076,11 @@ fn RaftNode::maybe_commit(self : RaftNode) -> Bool {
     for peer, p in self.progress {
       acked[peer] = p.match_index
     }
-    // The leader stores up to its last index regardless of what its own
-    // (self-acked) progress records, so set it after the loop rather than let a
-    // stale self entry undercount the quorum index.
-    acked[self.id] = self.core.last_log_index()
+    // The leader's own vote in the quorum is what it has made durable, which is
+    // exactly what its progress records: the self-addressed MsgAppResp that
+    // advances it is stepped on Advance, so an entry that is only in the unstable
+    // tail does not count toward the commit index yet (etcd's tracker does the
+    // same for `Progress[r.id]`).
     let mci = self.config.committed_index(acked)
     // §5.4.2: a leader only commits an index whose entry is from its own term;
     // since terms are monotonic in the log, no lower current-term index can be

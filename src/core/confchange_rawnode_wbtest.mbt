@@ -62,6 +62,15 @@ fn assert_conf_sets(
 }
 
 ///|
+/// Drive the Ready loop to quiescence and read the resulting configuration. A
+/// committed change is applied when its entry is applied, which takes a Ready
+/// cycle, so reading straight after a proposal would still see the old one.
+fn settled(rn : RawNode) -> ConfState {
+  rn.stabilize() |> ignore
+  rn.conf_state()
+}
+
+///|
 /// A single-voter leader with its no-op committed and applied — the state the
 /// etcd tests reach before proposing a conf change.
 fn conf_leader() -> RawNode {
@@ -81,8 +90,8 @@ test "TestRawNodeProposeAndConfChange: V2 add-learner settles to a simple config
   rn.propose_conf_v2(
     ConfChangeV2::enter_joint([ConfChange::add_learner("2")], auto_leave=true),
   )
-  assert_conf_sets(rn.conf_state(), ["1"], [], ["2"], [])
-  assert_false(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["1"], [], ["2"], [])
+  assert_false(settled(rn).voters_outgoing.length() > 0)
 }
 
 ///|
@@ -94,12 +103,12 @@ test "TestRawNodeProposeAndConfChange: V2 explicit joint learner, then manual le
     ConfChangeV2::enter_joint([ConfChange::add_learner("2")], auto_leave=false),
   )
   // exp: joint {voters 1, outgoing 1, learners 2}.
-  assert_conf_sets(rn.conf_state(), ["1"], ["1"], ["2"], [])
-  assert_true(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["1"], ["1"], ["2"], [])
+  assert_true(settled(rn).voters_outgoing.length() > 0)
   // Leave joint manually -> exp2: simple {voters 1, learners 2}.
   rn.propose_conf_v2(ConfChangeV2::leave_joint())
-  assert_conf_sets(rn.conf_state(), ["1"], [], ["2"], [])
-  assert_false(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["1"], [], ["2"], [])
+  assert_false(settled(rn).voters_outgoing.length() > 0)
 }
 
 ///|
@@ -109,8 +118,8 @@ test "TestRawNodeProposeAndConfChange: V2 implicit joint learner auto-leaves" {
   rn.propose_conf_v2(
     ConfChangeV2::enter_joint([ConfChange::add_learner("2")], auto_leave=true),
   )
-  assert_conf_sets(rn.conf_state(), ["1"], [], ["2"], [])
-  assert_false(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["1"], [], ["2"], [])
+  assert_false(settled(rn).voters_outgoing.length() > 0)
 }
 
 ///|
@@ -130,8 +139,8 @@ test "TestRawNodeProposeAndConfChange: V2 add-and-demote uses LearnersNext (impl
     ),
   )
   // exp: joint {voters 2, outgoing 1, learners 3, learners_next 1}.
-  assert_conf_sets(rn.conf_state(), ["2"], ["1"], ["3"], ["1"])
-  assert_true(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["2"], ["1"], ["3"], ["1"])
+  assert_true(settled(rn).voters_outgoing.length() > 0)
 }
 
 ///|
@@ -148,8 +157,8 @@ test "TestRawNodeProposeAndConfChange: V2 add-and-demote uses LearnersNext (expl
       auto_leave=false,
     ),
   )
-  assert_conf_sets(rn.conf_state(), ["2"], ["1"], ["3"], ["1"])
-  assert_true(rn.node().config.is_joint())
+  assert_conf_sets(settled(rn), ["2"], ["1"], ["3"], ["1"])
+  assert_true(settled(rn).voters_outgoing.length() > 0)
 }
 
 ///|
@@ -166,9 +175,9 @@ test "TestRawNodeJointAutoLeave: an implicit joint change settles automatically"
   rn.propose_conf_v2(
     ConfChangeV2::enter_joint([ConfChange::add_learner("2")], auto_leave=true),
   )
-  let cs = rn.conf_state()
+  let cs = settled(rn)
   assert_conf_sets(cs, ["1"], [], ["2"], [])
-  assert_false(rn.node().config.is_joint())
+  assert_false(cs.voters_outgoing.length() > 0)
   // No auto-leave remains pending once the config has settled.
   assert_false(cs.auto_leave)
 }
@@ -180,7 +189,7 @@ test "TestNodeProposeAddLearnerNode: adding a learner does not change the voters
   // committed entry is a conf change decoding to that learner add.
   let rn = conf_leader()
   rn.propose_conf(ConfChange::add_learner("2"))
-  let cs = rn.conf_state()
+  let cs = settled(rn)
   assert_conf_sets(cs, ["1"], [], ["2"], [])
   assert_true(rn.node().config.is_learner("2"))
   // The proposal is on the log at index 2 as a conf change for the learner add.
