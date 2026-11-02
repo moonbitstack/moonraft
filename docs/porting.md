@@ -35,11 +35,13 @@ script's expected block is a byte comparison rather than a shape check.
   (`datadriven: raft scripts reproduce upstream block by block`): **332 of 558**
   cases match today. The gap is the raft-core log lines this port does not emit
   yet — the append, heartbeat, snapshot and leadership-transfer paths — plus
-  three structural items: the deferred self-vote (upstream counts the candidate's
+  four structural items: the deferred self-vote (upstream counts the candidate's
   own vote only after it is persisted, which moves the leader transition out of
-  the `campaign` block), `EntryConfChangeV2` as a distinct entry type, and the
-  local `MsgStorageAppend` / `MsgStorageApply` messages that the async scripts
-  print with their nested `Responses`.
+  the `campaign` block); the configuration switch announced when a change is
+  *committed* here rather than when it is *applied*, which lands `switched to
+  configuration` in a different block; `EntryConfChangeV2` as a distinct entry
+  type; and the local `MsgStorageAppend` / `MsgStorageApply` messages that the
+  async scripts print with their nested `Responses`.
 
 The scoreboard test fails if the count drops, so a change that stops a script
 reproducing upstream is caught rather than absorbed.
