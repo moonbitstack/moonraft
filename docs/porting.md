@@ -22,18 +22,28 @@ expected blocks and drives the command sequence through the matching harness:
 | `ConfChangeTest` (`ddatest_wbtest.mbt`) | the `Changer` (`simple` / `enter-joint` / `leave-joint`) | `testdata/confchange/testdata/*.txt` |
 | `run_quorum` (`ddatest_wbtest.mbt`) | `vote_result` and `committed_index` | `testdata/quorum/testdata/*.txt` |
 
-### The one divergence: the core logger
+### Comparison against the expected blocks
 
-Upstream expected outputs are dominated by raft-core logger lines such as
-`INFO 1 became leader at term 1`. That logger lives in the off-limits core and
-is intentionally not reproduced. The replay therefore asserts that each script
-runs end to end through the interpreter, every command is recognised, and the
-run is *deterministic* (recorded twice, byte-identical) rather than comparing
-against upstream text. The rendered state (Ready dumps, raft log, hard state,
-status) is MoonBit-native. Behavioural equivalence for the logger-dependent
-scenarios is covered separately and exactly by the `*_wbtest.mbt` suites (for
-example `interaction_wbtest.mbt` for `single_node` / `campaign`, and
-`changer_wbtest.mbt` for the confchange scripts).
+The harness executes every command upstream understands and renders its output in
+upstream's own format (`src/core/rafttest_format_wbtest.mbt` is a port of
+`util.go`'s `DescribeReady` / `DescribeMessage` / `DescribeEntry` family), so a
+script's expected block is a byte comparison rather than a shape check.
+
+- The 13 `confchange` and `quorum` scripts compare case by case and match
+  exactly (`datadriven: quorum and confchange scripts reproduce upstream exactly`).
+- The 28 `raft` scripts are scored block by block
+  (`datadriven: raft scripts reproduce upstream block by block`): **332 of 558**
+  cases match today. The gap is the raft-core log lines this port does not emit
+  yet — the append, heartbeat, snapshot and leadership-transfer paths — plus
+  three structural items: the deferred self-vote (upstream counts the candidate's
+  own vote only after it is persisted, which moves the leader transition out of
+  the `campaign` block), `EntryConfChangeV2` as a distinct entry type, and the
+  local `MsgStorageAppend` / `MsgStorageApply` messages that the async scripts
+  print with their nested `Responses`.
+
+The scoreboard test fails if the count drops, so a change that stops a script
+reproducing upstream is caught rather than absorbed.
+
 
 ### `raft/testdata (28)`
 

@@ -13,23 +13,124 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// A behavioural replay of etcd-io/raft's `rafttest.InteractionEnv` command
-// vocabulary (testdata/*.txt) over this port's public RawNode / Ready contract.
-//
-// Upstream's expected outputs embed the raft *core* logger lines ("INFO 1 became
-// leader", ...). That logger lives in the off-limits core and is intentionally not
-// reproduced here, so this facade renders the same operations' *observable state*
-// (Ready dumps, raft log, hard state, status) in a MoonBit-native, deterministic
-// form. The 41 upstream scripts are archived verbatim under testdata/etcd/; this
-// harness drives their *command sequences* and asserts the resulting state. The
-// file-by-file mapping and the (documented) divergences live in docs/porting.md.
+// etcd-io/raft's `rafttest.InteractionEnv`: a cluster driven through the
+// Ready/Advance contract by the command vocabulary of testdata/*.txt. Every
+// command upstream understands is executed here, and the output is rendered in
+// upstream's own format (see rafttest_format_wbtest.mbt), so a script's expected
+// block can be compared byte for byte.
 
 ///|
-/// A small cluster driven through the RawNode Ready/Advance contract, mirroring
-/// etcd's InteractionEnv: nodes keyed by id, plus an in-flight message queue.
+/// The output buffer the handlers and the raft nodes share, with upstream's log
+/// level filter: at level `NONE` nothing is written at all, not even the
+/// handlers' own dumps. `stack` is a stack of buffers so a handler can indent a
+/// block it produces (`> 1 handling Ready` and its indented body), which is what
+/// upstream's `withIndent` does.
+pub struct RtOut {
+  stack : Array[StringBuilder]
+  level : Ref[Int32]
+}
+
+///|
+/// Upstream's `RedirectLogger.printf`: a level name, the message, and a newline
+/// unless the message already ends with one.
+impl Logger for RtOut with fn log(self, level : LogLevel, msg : String) {
+  let lvl = match level {
+    Debug => 0
+    Info => 1
+    Warning => 2
+    Error => 3
+    Fatal | Panic => 4
+  }
+  if lvl < self.level.val || self.level.val >= 5 {
+    return
+  }
+  let name = match lvl {
+    0 => "DEBUG"
+    1 => "INFO"
+    2 => "WARN"
+    3 => "ERROR"
+    _ => "FATAL"
+  }
+  self.write("\{name} \{msg}\n")
+}
+
+///|
+fn RtOut::new() -> RtOut {
+  { stack: [StringBuilder()], level: Ref(1), }
+}
+
+///|
+fn RtOut::write(self : RtOut, s : String) -> Unit {
+  if self.level.val >= 5 {
+    return
+  }
+  self.stack[self.stack.length() - 1].write_string(s)
+}
+
+///|
+fn RtOut::quiet(self : RtOut) -> Bool {
+  self.level.val >= 5
+}
+
+///|
+/// Run `f`, capturing what it writes and re-emitting every line with the
+/// indent upstream's `withIndent` applies. A line that is empty stays empty: the
+/// indent is prefix text, not padding.
+fn RtOut::with_indent(self : RtOut, f : () -> Unit) -> Unit {
+  self.stack.push(StringBuilder())
+  f()
+  let inner = self.stack.pop().unwrap()
+  let text = inner.to_string()
+  let lines = text.split("\n").to_array()
+  let out = StringBuilder()
+  let n = lines.length()
+  let mut i = 0
+  while i < n {
+    let line = lines[i].to_owned()
+    let last = i == n - 1
+    if !(last && line == "") {
+      out.write_string("  ")
+      out.write_string(line)
+      out.write_string("\n")
+    }
+    i = i + 1
+  }
+  self.write(out.to_string())
+}
+
+///|
+/// Set the log level by upstream's name. `NONE` silences the handlers too.
+fn RtOut::set_level(self : RtOut, name : String) -> Unit {
+  let n = name.to_lower()
+  self.level.val = match n {
+    "debug" => 0
+    "info" => 1
+    "warn" | "warning" => 2
+    "error" => 3
+    "fatal" => 4
+    _ => 5
+  }
+}
+
+///|
+/// One member of the cluster under test.
+pub struct RtNode {
+  id : String
+  rn : RawNode
+  // AsyncStorageWrites: the Ready hands its persistence to local threads, which
+  // this harness models as queues of pending directives.
+  async_mode : Bool
+  appends : Array[StorageAppend]
+  applies : Array[StorageApply]
+}
+
+///|
+/// A cluster driven through the Ready/Advance contract.
 pub struct RaftTest {
-  nodes : Map[String, RawNode]
+  nodes : Array[RtNode]
+  // In-flight messages, in the order they were produced.
   messages : Array[Message]
+  out : RtOut
 }
 
 ///|
@@ -42,8 +143,7 @@ priv struct Args {
 }
 
 ///|
-/// Split on `sep`, returning an owned `Array[String]` (the std `split` yields
-/// `StringView`).
+/// Split on `sep`, returning an owned `Array[String]`.
 fn split_str(s : String, sep : String) -> Array[String] {
   s.split(sep).map(fn(x : StringView) { x.to_owned() }).to_array()
 }
@@ -59,25 +159,24 @@ fn pos_or(a : Array[String], i : Int32, default : String) -> String {
 }
 
 ///|
-/// A small count (add-nodes N, N in 1..9) without a string-to-int dependency.
-fn small_count(s : String) -> Int32 {
-  match s.trim() {
-    "1" => 1
-    "2" => 2
-    "3" => 3
-    "4" => 4
-    "5" => 5
-    "6" => 6
-    "7" => 7
-    "8" => 8
-    "9" => 9
-    _ => 1
+/// A decimal count, as a directive's first argument spells it.
+fn parse_count(s : String) -> Int32 {
+  let mut n = 0
+  let mut any = false
+  for c in s {
+    if c >= '0' && c <= '9' {
+      n = n * 10 + (c.to_int() - '0'.to_int())
+      any = true
+    } else if any {
+      break
+    }
   }
+  n
 }
 
 ///|
 pub fn RaftTest::new() -> RaftTest {
-  { nodes: Map([], capacity=8), messages: [], }
+  { nodes: [], messages: [], out: RtOut::new(), }
 }
 
 ///|
@@ -90,8 +189,10 @@ fn parse_args(line : String) -> Args {
   for i = 1; i < toks.length(); i = i + 1 {
     let t = toks[i]
     if t.contains("=") {
-      let parts = split_str(t, "=")
-      kv[parts[0]] = strip_parens(parts[1])
+      let eq = t.find("=").unwrap()
+      let key = t[:eq].to_owned()
+      let value = t[eq + 1:].to_owned()
+      kv[key] = strip_parens(value)
     } else {
       positional.push(strip_parens(t))
     }
@@ -145,8 +246,26 @@ fn kv_get(kv : Map[String, String], key : String, default : String) -> String {
 }
 
 ///|
-/// Encode a string's code points to bytes. The datadriven payloads are ASCII,
-/// so a low-byte truncation round-trips exactly.
+fn kv_flag(kv : Map[String, String], key : String) -> Bool {
+  kv_get(kv, key, "false") == "true"
+}
+
+///|
+/// A comma or space separated id list, as `voters=(1,2,3)` or `voters=(1 2 3)`
+/// spells it.
+fn id_list(s : String) -> Array[String] {
+  let out : Array[String] = []
+  for part in s.replace(old=" ", new=",").split(",") {
+    let p = part.to_owned().trim().to_owned()
+    if p != "" {
+      out.push(p)
+    }
+  }
+  out
+}
+
+///|
+/// Encode a string's code units to bytes. The datadriven payloads are ASCII.
 fn str_to_bytes(s : String) -> Bytes {
   let arr : Array[Byte] = []
   for c in s.to_array() {
@@ -156,120 +275,18 @@ fn str_to_bytes(s : String) -> Bytes {
 }
 
 ///|
-fn bytes_to_str(b : Bytes) -> String {
-  if b.length() == 0 {
-    return ""
-  }
-  let out = StringBuilder()
-  for x in b.to_array() {
-    out.write_char(x.to_char())
-  }
-  out.to_string()
-}
-
-///|
-fn state_name(r : Role) -> String {
-  match r {
-    Follower => "StateFollower"
-    PreCandidate => "StatePreCandidate"
-    Candidate => "StateCandidate"
-    Leader => "StateLeader"
-  }
-}
-
-///|
-fn entry_type_name(t : @raftpb.EntryType) -> String {
-  match t {
-    @raftpb.EntryType::Normal => "EntryNormal"
-    @raftpb.EntryType::ConfChange => "EntryConfChange"
-  }
-}
-
-///|
-fn lead_or(id : String?) -> String {
-  match id {
-    Some(v) => v
-    None => "0"
-  }
-}
-
-///|
-fn vote_or(id : String?) -> String {
-  match id {
-    Some(v) => v
-    None => "0"
-  }
-}
-
-///|
-/// Render a Ready in a form that mirrors etcd's DescribeReady (without the
-/// off-limits core logger lines).
-fn describe_ready(rd : Ready) -> String {
-  let out = StringBuilder()
-  out.write_string("Ready MustSync=\{rd.must_sync}:\n")
-  match rd.soft_state {
-    Some(ss) =>
-      out.write_string(
-        "Lead:\{lead_or(ss.lead)} State:\{state_name(ss.state)}\n",
-      )
-    None => ()
-  }
-  match rd.hard_state {
-    Some(hs) =>
-      out.write_string(
-        "HardState Term:\{hs.term} Vote:\{vote_or(hs.vote)} Commit:\{hs.commit}\n",
-      )
-    None => ()
-  }
-  if rd.entries.length() > 0 {
-    out.write_string("Entries:\n")
-    for e in rd.entries {
-      out.write_string(
-        "  \{e.index}/\{e.term} \{entry_type_name(e.entry_type)} \"\{bytes_to_str(e.command)}\"\n",
-      )
+/// The index of the node with this id, or `-1`.
+fn RaftTest::index_of(self : RaftTest, id : String) -> Int32 {
+  for i = 0; i < self.nodes.length(); i = i + 1 {
+    if self.nodes[i].id == id {
+      return i
     }
   }
-  if rd.committed_entries.length() > 0 {
-    out.write_string("CommittedEntries:\n")
-    for e in rd.committed_entries {
-      out.write_string(
-        "  \{e.index}/\{e.term} \{entry_type_name(e.entry_type)} \"\{bytes_to_str(e.command)}\"\n",
-      )
-    }
-  }
-  if rd.messages.length() > 0 {
-    out.write_string("Messages:\n")
-    for m in rd.messages {
-      out.write_string("  \{describe_message(m)}\n")
-    }
-  }
-  match rd.snapshot {
-    Some(s) =>
-      out.write_string("Snapshot Index:\{s.last_index} Term:\{s.last_term}\n")
-    None => ()
-  }
-  if rd.read_states.length() > 0 {
-    out.write_string("ReadStates:\n")
-    for rs in rd.read_states {
-      out.write_string("  \{rs.index}\n")
-    }
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-/// Render a message the way etcd's DescribeMessage does, at a high level.
-fn describe_message(m : Message) -> String {
-  let base = "\{m.from}->\{m.to} \{m.kind()} Term:\{m.term()}"
-  match m.payload {
-    Append(a) => base + " Commit:\{a.leader_commit}"
-    Heartbeat(h) => base + " Commit:\{h.commit}"
-    _ => base
-  }
+  -1
 }
 
 // ---------------------------------------------------------------------------
-// Command handlers
+// Command dispatch
 // ---------------------------------------------------------------------------
 
 ///|
@@ -280,336 +297,600 @@ pub fn RaftTest::run(
 ) -> String {
   let a = parse_args(cmd_line)
   match a.cmd {
-    "log-level" => "ok"
-    "add-nodes" => self.add_nodes(a)
+    "log-level" => self.out.set_level(pos_or(a.positional, 0, "info"))
+    "add-nodes" => self.add_nodes(a) |> ignore
     "campaign" => {
-      self.nodes[a.positional[0]].campaign()
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.campaign()
+      }
     }
-    "stabilize" => self.stabilize()
+    "stabilize" => self.stabilize(a.positional) |> ignore
     "propose" => {
-      self.nodes[a.positional[0]].propose(str_to_bytes(a.positional[1]))
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.propose(str_to_bytes(pos_or(a.positional, 1, "")))
+      }
     }
-    "process-ready" => self.process_ready(a.positional)
-    "deliver-msgs" => self.deliver(a)
-    "raft-log" =>
-      if a.positional.length() == 0 {
-        self.raft_log_all()
-      } else {
-        self.raft_log(a.positional[0])
-      }
-    "raft-state" =>
-      if a.positional.length() == 0 {
-        self.raft_state_all()
-      } else {
-        self.raft_state(a.positional[0])
-      }
-    "status" =>
-      if a.positional.length() == 0 {
-        self.status_all()
-      } else {
-        self.nodes[a.positional[0]].status().describe()
-      }
+    "process-ready" => self.process_ready_many(a.positional)
+    "deliver-msgs" => self.deliver(a) |> ignore
+    "raft-log" => self.raft_log(a.positional) |> ignore
+    "raft-state" => self.raft_state() |> ignore
+    "status" => self.status(a.positional) |> ignore
     "tick" => {
-      self.nodes[a.positional[0]].tick()
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.tick()
+      }
     }
     "tick-heartbeat" => {
-      self.nodes[a.positional[0]].tick()
-      "ok"
+      // One heartbeat interval: HeartbeatTick is 1 in the config stub.
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.tick()
+      }
     }
     "tick-election" => {
-      self.nodes[a.positional[0]].tick()
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.tick()
+      }
     }
-    "send-snapshot" => "ok"
     "transfer-leadership" => {
       let from = kv_get(a.kv, "from", pos_or(a.positional, 0, "1"))
-      let to = kv_get(a.kv, "to", pos_or(a.positional, 1, "1"))
-      self.nodes[from].transfer_leader(to)
-      "ok"
+      let to = kv_get(a.kv, "to", pos_or(a.positional, 1, ""))
+      let i = self.index_of(from)
+      if i >= 0 && to != "" {
+        self.nodes[i].rn.transfer_leader(to)
+      }
     }
     "read-index" => {
-      self.nodes[a.positional[0]].read_index(str_to_bytes(a.positional[1]))
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.read_index(str_to_bytes(pos_or(a.positional, 1, "")))
+      }
     }
     "forget-leader" => {
-      self.nodes[a.positional[0]].forget_leader()
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.forget_leader()
+      }
     }
     "report-unreachable" => {
-      self.nodes[a.positional[0]].report_unreachable(a.positional[1])
-      "ok"
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.nodes[i].rn.report_unreachable(pos_or(a.positional, 1, ""))
+      }
     }
-    "set-randomized-election-timeout" => "ok"
-    "compact" => "ok"
-    "snapshot" => self.snapshot(a)
-    "propose-conf-change" => self.propose_conf_change(a, input)
-    "remove-nodes" => self.remove_nodes(a)
-    "add-learner" => self.add_learner(a)
-    "request-snapshot" => "ok"
-    "process-append-thread" => "ok"
-    "process-apply-thread" => "ok"
-    _ => "unsupported: \{a.cmd}"
+    "set-randomized-election-timeout" => {
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        let ticks = parse_count(kv_get(a.kv, "timeout", "10"))
+        self.nodes[i].rn.node().set_randomized_election_timeout(ticks)
+      }
+    }
+    "compact" => {
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        let upto = parse_count(pos_or(a.positional, 1, "0")).to_uint64()
+        self.nodes[i].rn.node().node().compact(upto, b"") |> ignore
+      }
+    }
+    "snapshot" => self.snapshot(a) |> ignore
+    "send-snapshot" => self.send_snapshot(a) |> ignore
+    "propose-conf-change" => self.propose_conf_change(a, input) |> ignore
+    "remove-nodes" => self.remove_nodes(a) |> ignore
+    "add-learner" => self.add_learner(a) |> ignore
+    "request-snapshot" => {
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        if self.nodes[i].rn.next_unstable_snapshot() is Some(s) {
+          self.out.write("Snapshot Index:\{s.last_index} Term:\{s.last_term}\n")
+        }
+      }
+    }
+    "process-append-thread" => {
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.process_append_thread(i) |> ignore
+      }
+    }
+    "process-apply-thread" => {
+      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      if i >= 0 {
+        self.process_apply_thread(i) |> ignore
+      }
+    }
+    _ => self.out.write("unknown command: \{a.cmd}\n")
+  }
+  if self.out.quiet() {
+    return "ok"
+  }
+  let text = self.out.stack[0].to_string()
+  self.out.stack[0].reset()
+  if text == "" {
+    "ok"
+  } else {
+    text.trim_end().to_owned()
   }
 }
 
+// ---------------------------------------------------------------------------
+// add-nodes
+// ---------------------------------------------------------------------------
+
 ///|
-fn RaftTest::add_nodes(self : RaftTest, a : Args) -> String {
-  let count = small_count(pos_or(a.positional, 0, "1"))
-  let voters_str = kv_get(a.kv, "voters", "")
-  let learners_str = kv_get(a.kv, "learners", "")
-  let prevote = kv_get(a.kv, "prevote", "false") == "true"
-  // New nodes take the next free ids; `voters=` names their membership, while a
-  // bare `add-nodes N` pulls N blank nodes out of thin air (empty config), to be
-  // added by a later conf change (etcd's env.AddNodes).
-  let start = self.nodes.length() + 1
-  let voters : Array[String] = if voters_str == "" {
-    []
+/// `add-nodes N [voters=(...)] [learners=(...)] [index=k] [content=c]
+/// [prevote=true] [checkquorum=true] [read-only=safe|lease-based]
+/// [step-down-on-removal=true] [disable-conf-change-validation=true]
+/// [async-storage-writes=true] [max-committed-size-per-ready=n] [inflight=n]`
+///
+/// A non-zero `index` bootstraps every new node from a snapshot at that index,
+/// as upstream does: the log starts there, the configuration comes from the
+/// snapshot's ConfState, and commit and applied both equal the index.
+fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
+  let count = parse_count(pos_or(a.positional, 0, "0"))
+  let voters = id_list(kv_get(a.kv, "voters", ""))
+  let learners = id_list(kv_get(a.kv, "learners", ""))
+  let index = parse_count(kv_get(a.kv, "index", "0")).to_uint64()
+  let content = kv_get(a.kv, "content", "")
+  let prevote = kv_flag(a.kv, "prevote")
+  let checkquorum = kv_flag(a.kv, "checkquorum")
+  let step_down = kv_flag(a.kv, "step-down-on-removal")
+  let no_validation = kv_flag(a.kv, "disable-conf-change-validation")
+  let async_mode = kv_flag(a.kv, "async-storage-writes")
+  let max_committed = parse_count(
+    kv_get(a.kv, "max-committed-size-per-ready", "0"),
+  ).to_uint64()
+  let read_only = if kv_get(a.kv, "read-only", "safe") == "lease-based" {
+    LeaseBased
   } else {
-    split_str(voters_str, ",")
+    Safe
   }
-  let learners : Array[String] = if learners_str == "" {
-    []
-  } else {
-    split_str(learners_str, ",")
-  }
-  let all : Array[String] = []
-  for v in voters {
-    all.push(v)
-  }
-  for l in learners {
-    all.push(l)
-  }
+  let base = self.nodes.length()
   for k = 0; k < count; k = k + 1 {
-    let id = "\{start + k}"
-    let peers = all.filter(fn(x) { x != id })
-    let rn = RaftNode::new(id, peers, pre_vote=prevote).raw()
-    self.nodes[id] = rn
+    let id = (base + k + 1).to_string()
+    let peers : Array[String] = []
+    for v in voters {
+      if v != id {
+        peers.push(v)
+      }
+    }
+    for l in learners {
+      if l != id {
+        peers.push(l)
+      }
+    }
+    let snap : Snapshot? = if index > 0UL {
+      Some({
+        last_index: index,
+        last_term: 1UL,
+        data: str_to_bytes(content),
+        conf_state: {
+          voters,
+          learners,
+          voters_outgoing: [],
+          learners_next: [],
+          auto_leave: false,
+        },
+      })
+    } else {
+      None
+    }
+    let r = RaftNode::new(
+      id,
+      peers,
+      pre_vote=prevote,
+      check_quorum=checkquorum,
+      election_timeout=3,
+      heartbeat_timeout=1,
+      max_inflight=2147483647,
+      read_only_option=read_only,
+      step_down_on_removal=step_down,
+      disable_conf_change_validation=no_validation,
+      logger=self.out,
+      snapshot=snap,
+    )
+    let rn = if async_mode {
+      if max_committed > 0UL {
+        r.raw_async_sized(max_committed)
+      } else {
+        r.raw_async()
+      }
+    } else if max_committed > 0UL {
+      r.raw_with_max_committed_size(max_committed)
+    } else {
+      r.raw()
+    }
+    self.nodes.push({ id, rn, async_mode, appends: [], applies: [], })
   }
-  "added \{count} nodes: voters=(\{voters_str}) learners=(\{learners_str}) prevote=\{prevote}"
 }
 
+// ---------------------------------------------------------------------------
+// Ready handling and stabilization
+// ---------------------------------------------------------------------------
+
 ///|
-fn RaftTest::process_ready_one(self : RaftTest, id : String) -> String {
-  let rn = self.nodes[id]
-  let rd = rn.ready()
-  let s = describe_ready(rd)
-  rn.store(rd)
-  rn.advance(rd)
+/// Take one Ready from node `i`, print it, hand its persistence to storage (or
+/// queue it, under async writes), and queue its messages.
+fn RaftTest::process_ready(self : RaftTest, i : Int32) -> Unit {
+  let n = self.nodes[i]
+  let rd = n.rn.ready()
+  self.out.write(rt_describe_ready(rd))
+  if n.async_mode {
+    if rd.storage_append is Some(sa) {
+      n.appends.push(sa)
+    }
+    if rd.storage_apply is Some(sa) {
+      n.applies.push(sa)
+    }
+  } else {
+    n.rn.store(rd)
+    n.rn.advance(rd)
+  }
   for m in rd.messages {
     self.messages.push(m)
   }
-  s
 }
 
 ///|
-fn RaftTest::process_ready(self : RaftTest, ids : Array[String]) -> String {
-  let targets : Array[String] = if ids.length() == 0 {
+fn RaftTest::process_ready_many(self : RaftTest, ids : Array[String]) -> Unit {
+  let targets : Array[String] = if ids.is_empty() {
     let all : Array[String] = []
-    for k, _ in self.nodes {
-      all.push(k)
+    for n in self.nodes {
+      all.push(n.id)
     }
     all
   } else {
     ids
   }
-  let out = StringBuilder()
-  let mut first = true
   for id in targets {
-    if !first {
-      out.write_string("\n")
-    }
-    first = false
-    out.write_string(self.process_ready_one(id))
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-fn RaftTest::stabilize(self : RaftTest) -> String {
-  let out = StringBuilder()
-  let mut first = true
-  let mut running = true
-  let mut rounds = 0
-  while running && rounds < 2000 {
-    rounds = rounds + 1
-    let mut progress = false
-    for id, rn in self.nodes {
-      while rn.has_ready() {
-        let s = self.process_ready_one(id)
-        if !first {
-          out.write_string("\n")
-        }
-        first = false
-        out.write_string(s)
-        progress = true
+    let i = self.index_of(id)
+    if i >= 0 {
+      if targets.length() > 1 {
+        self.out.write("> \{id} handling Ready\n")
+        self.out.with_indent(fn() { self.process_ready(i) })
+      } else {
+        self.process_ready(i)
       }
     }
-    if self.messages.length() > 0 {
-      let msgs = self.messages.copy()
-      for m in msgs {
-        match self.nodes.get(m.to) {
-          Some(t) => {
-            t.step(m)
-            progress = true
-          }
-          None => ()
-        }
-      }
-      while self.messages.length() > 0 {
-        ignore(self.messages.pop())
-      }
-    }
-    if !progress {
-      running = false
-    }
-  }
-  if first {
-    "ok"
-  } else {
-    out.to_string().trim_end().to_owned()
   }
 }
 
 ///|
-fn RaftTest::deliver(self : RaftTest, a : Args) -> String {
-  let ids = a.positional
-  let typ = a.kv.get("type")
-  let drop_set = ids.filter(fn(s) { s == "drop" }).length() > 0
-  let recipients = ids.filter(fn(s) { s != "drop" })
-  let out = StringBuilder()
+/// Deliver every in-flight message addressed to `id`, printing each one and
+/// letting the node step it.
+fn RaftTest::deliver_to(self : RaftTest, id : String) -> Int32 {
   let keep : Array[Message] = []
-  let mut handled = false
+  let pass : Array[Message] = []
   for m in self.messages {
-    let is_target = recipients.length() == 0 || recipients.contains(m.to)
-    let type_ok = match typ {
-      Some(t) => m.kind() == t
-      None => true
-    }
-    if is_target && type_ok {
-      out.write_string(describe_message(m) + "\n")
-      handled = true
-      if !drop_set {
-        match self.nodes.get(m.to) {
-          Some(t) => t.step(m)
-          None => ()
-        }
-      }
+    if m.to == id {
+      pass.push(m)
     } else {
       keep.push(m)
     }
   }
-  while self.messages.length() > 0 {
-    ignore(self.messages.pop())
-  }
+  self.messages.clear()
   for m in keep {
     self.messages.push(m)
   }
-  if !handled {
-    "no messages"
+  for m in pass {
+    self.out.write(rt_describe_message(m))
+    self.out.write("\n")
+    let i = self.index_of(id)
+    if i >= 0 {
+      self.nodes[i].rn.step(m)
+    }
+  }
+  pass.length()
+}
+
+///|
+/// Run Ready handling and message delivery on the given nodes (all of them when
+/// none are named) until nothing is left to do, printing upstream's headers.
+fn RaftTest::stabilize(self : RaftTest, ids : Array[String]) -> Unit {
+  let targets : Array[String] = if ids.is_empty() {
+    let all : Array[String] = []
+    for n in self.nodes {
+      all.push(n.id)
+    }
+    all
   } else {
-    out.to_string().trim_end().to_owned()
+    ids
   }
-}
-
-///|
-fn RaftTest::raft_log(self : RaftTest, id : String) -> String {
-  let node = self.nodes[id].node().node()
-  let last = node.last_log_index()
-  let out = StringBuilder()
-  let mut i = 1UL
-  while i <= last {
-    match node.entry_at(i) {
-      Some(e) =>
-        out.write_string(
-          "\{i}/\{e.term} \{entry_type_name(e.entry_type)} \"\{bytes_to_str(e.command)}\"\n",
-        )
-      None => ()
-    }
-    i = i + 1UL
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-fn RaftTest::raft_state(self : RaftTest, id : String) -> String {
-  let st = self.nodes[id].status()
-  "Term:\{st.term} Commit:\{st.commit}"
-}
-
-///|
-fn RaftTest::all_ids(self : RaftTest) -> Array[String] {
-  let ids : Array[String] = []
-  for k, _ in self.nodes {
-    ids.push(k)
-  }
-  ids
-}
-
-///|
-fn RaftTest::raft_state_all(self : RaftTest) -> String {
-  let out = StringBuilder()
-  for id in self.all_ids() {
-    out.write_string("\{id}: " + self.raft_state(id) + "\n")
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-fn RaftTest::raft_log_all(self : RaftTest) -> String {
-  let out = StringBuilder()
-  for id in self.all_ids() {
-    out.write_string("\{id}:\n" + self.raft_log(id) + "\n")
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-fn RaftTest::status_all(self : RaftTest) -> String {
-  let out = StringBuilder()
-  for id in self.all_ids() {
-    out.write_string(self.nodes[id].status().describe() + "\n")
-  }
-  out.to_string().trim_end().to_owned()
-}
-
-///|
-fn RaftTest::snapshot(self : RaftTest, a : Args) -> String {
-  let id = pos_or(a.positional, 0, "1")
-  match self.nodes[id].next_unstable_snapshot() {
-    Some(s) => "Snapshot Index:\{s.last_index} Term:\{s.last_term}"
-    None => "ok"
-  }
-}
-
-///|
-fn RaftTest::propose_conf_change(
-  self : RaftTest,
-  a : Args,
-  input : String,
-) -> String {
-  let id = a.positional[0]
-  let rn = self.nodes[id]
-  let is_v1 = kv_get(a.kv, "v1", "false") == "true"
-  // The block input names the change(s): `v<id>` add voter, `r<id>` remove,
-  // `l<id>` learner.
-  let changes = parse_changes(input)
-  if changes.length() > 0 {
-    if is_v1 {
-      let (kind, target) = changes[0]
-      rn.propose_conf(conf_change(kind, target))
-    } else {
-      let ccs : Array[ConfChange] = []
-      for ch in changes {
-        let (kind, target) = ch
-        ccs.push(conf_change(kind, target))
+  let mut done = false
+  // A fixed point is reached in a handful of rounds; the bound only stops a
+  // harness-level bug (a node that keeps producing work) from hanging a run.
+  let mut rounds = 0
+  while !done && rounds < 500 {
+    rounds = rounds + 1
+    done = true
+    for id in targets {
+      let i = self.index_of(id)
+      if i >= 0 && self.nodes[i].rn.has_ready() {
+        self.out.write("> \{id} handling Ready\n")
+        self.out.with_indent(fn() { self.process_ready(i) })
+        done = false
       }
-      rn.propose_conf_v2(ConfChangeV2::auto(ccs))
+    }
+    for id in targets {
+      let mut pending = false
+      for m in self.messages {
+        if m.to == id {
+          pending = true
+        }
+      }
+      if pending {
+        self.out.write("> \{id} receiving messages\n")
+        self.out.with_indent(fn() { self.deliver_to(id) |> ignore })
+        done = false
+      }
+    }
+    for id in targets {
+      let i = self.index_of(id)
+      if i >= 0 && !self.nodes[i].appends.is_empty() {
+        self.out.write("> \{id} processing append thread\n")
+        while !self.nodes[i].appends.is_empty() {
+          self.out.with_indent(fn() { self.process_append_thread(i) |> ignore })
+        }
+        done = false
+      }
+    }
+    for id in targets {
+      let i = self.index_of(id)
+      if i >= 0 && !self.nodes[i].applies.is_empty() {
+        self.out.write("> \{id} processing apply thread\n")
+        while !self.nodes[i].applies.is_empty() {
+          self.out.with_indent(fn() { self.process_apply_thread(i) |> ignore })
+        }
+        done = false
+      }
     }
   }
-  "ok"
+}
+
+// ---------------------------------------------------------------------------
+// Async storage threads
+// ---------------------------------------------------------------------------
+
+///|
+fn RaftTest::process_append_thread(self : RaftTest, i : Int32) -> Unit {
+  let n = self.nodes[i]
+  if n.appends.is_empty() {
+    return
+  }
+  let sa = n.appends.remove(0)
+  self.out.write("Processing:\n")
+  self.out.write(
+    "  \{n.id}->AppendThread MsgStorageAppend Term:\{sa.resp.term} Log:\{sa.resp.log_term}/\{sa.resp.index}",
+  )
+  if sa.entries.length() > 0 {
+    self.out.write(" Entries:[")
+    for e in sa.entries {
+      self.out.write("\n  \{@log.describe_entry(e, None)}")
+    }
+    self.out.write("\n  ]")
+  }
+  self.out.write("\n")
+  n.rn.step_append_resp(sa.resp)
+}
+
+///|
+fn RaftTest::process_apply_thread(self : RaftTest, i : Int32) -> Unit {
+  let n = self.nodes[i]
+  if n.applies.is_empty() {
+    return
+  }
+  let sa = n.applies.remove(0)
+  self.out.write("Processing:\n")
+  self.out.write("  \{n.id}->ApplyThread MsgStorageApply Term:0 Log:0/0")
+  if sa.entries.length() > 0 {
+    self.out.write(" Entries:[")
+    for e in sa.entries {
+      self.out.write("\n  \{@log.describe_entry(e, None)}")
+    }
+    self.out.write("\n  ]")
+  }
+  self.out.write("\n")
+  n.rn.step_apply_resp(sa.resp)
+}
+
+// ---------------------------------------------------------------------------
+// Query commands
+// ---------------------------------------------------------------------------
+
+///|
+/// `deliver-msgs <id>... [type=MsgX] [drop=(id,...)]`
+fn RaftTest::deliver(self : RaftTest, a : Args) -> Unit {
+  let typ = kv_get(a.kv, "type", "")
+  let drop = id_list(kv_get(a.kv, "drop", ""))
+  let recipients : Array[(String, Bool)] = []
+  for id in a.positional {
+    recipients.push((id, false))
+  }
+  for id in drop {
+    recipients.push((id, true))
+  }
+  let keep : Array[Message] = []
+  let mut handled = 0
+  for m in self.messages {
+    let mut matched = false
+    for r in recipients {
+      let (id, is_drop) = r
+      let type_ok = if typ == "" { true } else { rt_msg_type(m) == typ }
+      if m.to == id && type_ok {
+        matched = true
+        handled = handled + 1
+        if is_drop {
+          self.out.write("dropped: ")
+        }
+        self.out.write(rt_describe_message(m))
+        self.out.write("\n")
+        if !is_drop {
+          let i = self.index_of(id)
+          if i >= 0 {
+            self.nodes[i].rn.step(m)
+          }
+        }
+      }
+    }
+    if !matched {
+      keep.push(m)
+    }
+  }
+  self.messages.clear()
+  for m in keep {
+    self.messages.push(m)
+  }
+  if handled == 0 {
+    self.out.write("no messages\n")
+  }
+}
+
+///|
+fn RaftTest::raft_log(self : RaftTest, ids : Array[String]) -> Unit {
+  for id in ids {
+    let i = self.index_of(id)
+    if i < 0 {
+      continue
+    }
+    let node = self.nodes[i].rn.node().node()
+    let first = node.snapshot_index + 1UL
+    let last = node.last_log_index()
+    if last < first {
+      self.out.write("log is empty: first index=\{first}, last index=\{last}")
+      self.out.write("\n")
+      continue
+    }
+    let mut ix = first
+    while ix <= last {
+      if node.entry_at(ix) is Some(e) {
+        self.out.write(@log.describe_entry(e, None))
+        self.out.write("\n")
+      }
+      ix = ix + 1UL
+    }
+  }
+}
+
+///|
+fn RaftTest::raft_state(self : RaftTest) -> Unit {
+  for n in self.nodes {
+    let st = n.rn.status()
+    let full = n.rn.node().full_status()
+    let is_voter = full.config.voters.contains(n.id)
+    let kind = if is_voter { "(Voter)" } else { "(Non-Voter)" }
+    self.out.write(
+      "\{st.id}: \{rt_state_name(st.role)} \{kind} Term:\{st.term} Lead:\{rt_lead(st.leader)}\n",
+    )
+  }
+}
+
+///|
+fn RaftTest::status(self : RaftTest, ids : Array[String]) -> Unit {
+  for id in ids {
+    let i = self.index_of(id)
+    if i < 0 {
+      continue
+    }
+    let progress = self.nodes[i].rn.node().progress_status()
+    let ids_sorted : Array[String] = []
+    for p in progress {
+      ids_sorted.push(p.id)
+    }
+    ids_sorted.sort()
+    for pid in ids_sorted {
+      for p in progress {
+        if p.id == pid {
+          let state = match p.state {
+            Probe => "StateProbe"
+            Replicate => "StateReplicate"
+            Snapshot => "StateSnapshot"
+          }
+          self.out.write(
+            "\{p.id}: \{state} match=\{p.match_index} next=\{p.next_index}",
+          )
+          if p.is_learner {
+            self.out.write(" learner")
+          }
+          if p.paused {
+            self.out.write(" paused")
+          }
+          if p.pending_snapshot > 0UL {
+            self.out.write(" pendingSnap=\{p.pending_snapshot}")
+          }
+          self.out.write("\n")
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot, membership and proposal commands
+// ---------------------------------------------------------------------------
+
+///|
+fn RaftTest::snapshot(self : RaftTest, a : Args) -> Unit {
+  let i = self.index_of(pos_or(a.positional, 0, "1"))
+  if i >= 0 {
+    if self.nodes[i].rn.next_unstable_snapshot() is Some(s) {
+      self.out.write("Snapshot Index:\{s.last_index} Term:\{s.last_term}\n")
+    }
+  }
+}
+
+///|
+/// `send-snapshot <from> <to>`: queue a snapshot message from one node to
+/// another, as upstream's handler does, without delivering it.
+fn RaftTest::send_snapshot(self : RaftTest, a : Args) -> Unit {
+  let from = pos_or(a.positional, 0, "1")
+  let to = pos_or(a.positional, 1, "")
+  if to == "" {
+    return
+  }
+  let i = self.index_of(from)
+  if i < 0 {
+    return
+  }
+  // Hand the follower the leader's current baseline; upstream reaches through
+  // the storage for the latest snapshot it holds.
+  let node = self.nodes[i].rn.node()
+  let snap : Snapshot = {
+    last_index: node.node().snapshot_index,
+    last_term: node.node().snapshot_term,
+    data: b"",
+    conf_state: node.conf_state(),
+  }
+  self.messages.push(
+    Message::new(
+      from,
+      to,
+      Snapshot(
+        InstallSnapshotArgs::whole(self.nodes[i].rn.status().term, from, snap),
+      ),
+    ),
+  )
+}
+
+///|
+/// The block input of a conf-change directive: `v1 v3 l4 r5` — add voter, add
+/// learner, remove.
+fn rt_parse_changes(input : String) -> Array[(String, String)] {
+  let out : Array[(String, String)] = []
+  for word in input.split("\n") {
+    for part in word.to_owned().split(" ") {
+      let t = part.to_owned().trim().to_owned()
+      if t.length() >= 2 {
+        let kind = t[:1].to_owned()
+        let target = t[1:].to_owned()
+        if target != "" && (kind == "v" || kind == "r" || kind == "l") {
+          out.push((kind, target))
+        }
+      }
+    }
+  }
+  out
 }
 
 ///|
@@ -622,21 +903,56 @@ fn conf_change(kind : String, target : String) -> ConfChange {
 }
 
 ///|
-fn RaftTest::remove_nodes(self : RaftTest, a : Args) -> String {
-  let id = a.positional[0]
-  let target = pos_or(a.positional, 1, "")
-  if target != "" {
-    self.nodes[id].propose_conf(ConfChange::remove(target))
+fn RaftTest::propose_conf_change(
+  self : RaftTest,
+  a : Args,
+  input : String,
+) -> Unit {
+  let i = self.index_of(pos_or(a.positional, 0, "1"))
+  if i < 0 {
+    return
   }
-  "ok"
+  let is_v1 = kv_flag(a.kv, "v1")
+  let changes = rt_parse_changes(input)
+  if changes.is_empty() {
+    return
+  }
+  if is_v1 {
+    let (kind, target) = changes[0]
+    self.nodes[i].rn.propose_conf(conf_change(kind, target))
+  } else {
+    let ccs : Array[ConfChange] = []
+    for ch in changes {
+      let (kind, target) = ch
+      ccs.push(conf_change(kind, target))
+    }
+    // `transition=auto` applies the batch as one change; `explicit` enters the
+    // joint configuration and waits for a leave; `implicit` enters it with
+    // auto-leave off and leaves on the next committed change.
+    let transition = kv_get(a.kv, "transition", "auto")
+    let cc = match transition {
+      "explicit" => ConfChangeV2::enter_joint(ccs, auto_leave=false)
+      "implicit" => ConfChangeV2::enter_joint(ccs, auto_leave=true)
+      _ => ConfChangeV2::auto(ccs)
+    }
+    self.nodes[i].rn.propose_conf_v2(cc)
+  }
 }
 
 ///|
-fn RaftTest::add_learner(self : RaftTest, a : Args) -> String {
-  let id = a.positional[0]
+fn RaftTest::remove_nodes(self : RaftTest, a : Args) -> Unit {
+  let i = self.index_of(pos_or(a.positional, 0, "1"))
   let target = pos_or(a.positional, 1, "")
-  if target != "" {
-    self.nodes[id].propose_conf(ConfChange::add_learner(target))
+  if i >= 0 && target != "" {
+    self.nodes[i].rn.propose_conf(ConfChange::remove(target))
   }
-  "ok"
+}
+
+///|
+fn RaftTest::add_learner(self : RaftTest, a : Args) -> Unit {
+  let i = self.index_of(pos_or(a.positional, 0, "1"))
+  let target = pos_or(a.positional, 1, "")
+  if i >= 0 && target != "" {
+    self.nodes[i].rn.propose_conf(ConfChange::add_learner(target))
+  }
 }
