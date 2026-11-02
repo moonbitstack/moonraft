@@ -56,11 +56,57 @@ fn RaftNode::term_rel(self : RaftNode, msg : Message) -> TermRel {
 /// exactly what let a late `VoteResp` be miscounted into a false majority
 /// (double leader) or a late `AppendResp` inflate a follower's progress.
 pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
+  let out = self.step_message(msg)
+  if !self.defer_responses {
+    return out
+  }
+  self.split_responses(out)
+}
+
+///|
+/// Whether `m` is a response whose publication depends on state being durable
+/// (etcd's `send`: `MsgAppResp`, `MsgVoteResp`, `MsgPreVoteResp`). Publishing a
+/// vote before it is on disk would let a server vote twice across a restart, and
+/// acknowledging an append before the entry is on disk would let a committed
+/// entry be lost — so these wait (Raft thesis §3.8).
+fn is_durability_response(m : Message) -> Bool {
+  match m.payload {
+    VoteResp(_) | PreVoteResp(_) | AppendResp(_) => true
+    _ => false
+  }
+}
+
+///|
+/// Route the durability responses in `out` to the queue that `RawNode` drains
+/// once the Ready they were decided in has been handled (etcd's
+/// `msgsAfterAppend`), and return the messages that may go out at once.
+fn RaftNode::split_responses(
+  self : RaftNode,
+  out : Array[Message],
+) -> Array[Message] {
+  let immediate : Array[Message] = []
+  for m in out {
+    if is_durability_response(m) {
+      self.deferred.push(m)
+    } else {
+      immediate.push(m)
+    }
+  }
+  immediate
+}
+
+///|
+/// The message dispatch behind `step`: term handling, then the role's handler.
+fn RaftNode::step_message(self : RaftNode, msg : Message) -> Array[Message] {
   self.tracer.on_event(ReceiveMessage(msg))
   // Local, routable messages (etcd's Term-0 messages) bypass the term check: a
   // client request carries no term, so it is neither stale nor ahead. The read-
   // index *reply* does carry a term and is dispatched normally below.
   match msg.payload {
+    // Storage-thread replies are driver-level: the log cursors they advance live
+    // in the Ready driver, not in the core, so a core that is stepped directly
+    // has nothing to do with them.
+    StorageAppendResp(_) | StorageApplyResp(_) => return []
     Propose(entries) => return self.step_propose(msg.from, entries)
     ReadIndex(ctx) => return self.step_read_index(msg.from, ctx)
     TransferLeader(target) => return self.step_transfer_leader(msg.from, target)
@@ -122,8 +168,12 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     }
     // Local, routable messages are intercepted term-free in `step` and never
     // reach the term classifier, so one arriving here is a routing bug.
-    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader =>
-      abort("local message reached on_stale")
+    Propose(_)
+    | ReadIndex(_)
+    | TransferLeader(_)
+    | ForgetLeader
+    | StorageAppendResp(_)
+    | StorageApplyResp(_) => abort("local message reached on_stale")
   }
 }
 
@@ -172,8 +222,12 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     ReadIndexResp(reply) => self.handle_read_index_resp(reply)
     // Local, routable messages are handled term-free in `step` and never reach
     // dispatch, so one arriving here is a routing bug.
-    Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader =>
-      abort("local message reached dispatch")
+    Propose(_)
+    | ReadIndex(_)
+    | TransferLeader(_)
+    | ForgetLeader
+    | StorageAppendResp(_)
+    | StorageApplyResp(_) => abort("local message reached dispatch")
   }
 }
 

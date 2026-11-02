@@ -562,12 +562,10 @@ fn RaftNode::start_real_campaign(
       ),
     )
   } else if self.config.has_majority(self.granted()) {
+    // No durability boundary to wait for: winning with only our own vote means
+    // there are no peers, so the campaign returns the (empty) append round.
     self.become_leader()
-    let all = out
-    for m in self.bcast_append() {
-      all.push(m)
-    }
-    return all
+    return self.bcast_append()
   }
   out
 }

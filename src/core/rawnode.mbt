@@ -42,6 +42,12 @@ pub struct RawNode {
   // with the same pagination after a snapshot install.
   max_committed : UInt64
   msgs : Array[Message]
+  // Requests and responses that must be stepped only once the Ready that
+  // produced them has been handled (etcd's `stepsOnAdvance`, in older versions
+  // `msgsAfterAppend`): a follower's append acknowledgement is held until its
+  // entries are durable, which is what puts the ack in the Ready *after* the
+  // write. Captured by `accept_ready`, drained by `advance`.
+  steps_on_advance : Array[Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : HardState
@@ -101,6 +107,7 @@ pub fn RawNode::new_sized(
     log,
     max_committed: max_committed_size,
     msgs: [],
+    steps_on_advance: [],
     read_states: [],
     prev_soft: raft.soft_state(),
     prev_hard: node.hard_state(),
@@ -304,6 +311,20 @@ pub fn RawNode::conf_state(self : RawNode) -> ConfState {
 ///|
 /// Feed one received message to the core, buffering the replies it produces.
 pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
+  // A storage thread's reply is not a protocol message: it releases the cursors
+  // that only this driver can move (etcd handles MsgStorageAppendResp and
+  // MsgStorageApplyResp in `raft.Step` for the same reason).
+  match msg.payload {
+    StorageAppendResp(resp) => {
+      self.step_append_resp(resp)
+      return
+    }
+    StorageApplyResp(resp) => {
+      self.step_apply_resp(resp)
+      return
+    }
+    _ => ()
+  }
   for m in self.raft.step(msg) {
     self.msgs.push(m)
   }
@@ -462,6 +483,17 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
       })
     }
   }
+  // Outbound work first, then the acknowledgements that were waiting for the
+  // state they attest (etcd appends `msgsAfterAppend` to `Messages` in the same
+  // order). Under async writes they travel inside the append directive instead.
+  let messages = self.msgs.copy()
+  if !self.async_storage {
+    for m in self.raft.deferred_responses() {
+      if m.to != self.raft.id {
+        messages.push(m)
+      }
+    }
+  }
   {
     soft_state: if soft == self.prev_soft {
       None
@@ -477,7 +509,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     entries,
     snapshot,
     committed_entries: committed,
-    messages: self.msgs.copy(),
+    messages,
     must_sync: must_sync(hard, self.prev_hard, entries.length()),
     storage_append,
     storage_apply,
@@ -518,6 +550,16 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     // no longer holds them: the storage thread steps them when the write is
     // durable.
     self.raft.take_deferred() |> ignore
+  } else {
+    // A response addressed to ourselves is stepped at the advance boundary —
+    // that is what makes a persisted vote turn into a leader and a persisted
+    // append turn into a commit *after* the Ready that carried them (etcd's
+    // `stepsOnAdvance`). The ones addressed to peers already left in `Messages`.
+    for m in self.raft.take_deferred() {
+      if m.to == self.raft.id {
+        self.steps_on_advance.push(m)
+      }
+    }
   }
 }
 
@@ -600,9 +642,10 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
   if self.async_storage {
     return
   }
-  for m in self.raft.take_deferred() {
+  for m in self.steps_on_advance {
     self.record(self.raft.step(m))
   }
+  self.steps_on_advance.clear()
   let c = rd.committed_entries.length()
   if c != 0 {
     let last = rd.committed_entries[c - 1].index

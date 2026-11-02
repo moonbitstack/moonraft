@@ -68,6 +68,8 @@ fn rt_msg_type(m : Message) -> String {
     ReadIndex(_) => "MsgReadIndex"
     TransferLeader(_) => "MsgTransferLeader"
     ForgetLeader => "MsgForgetLeader"
+    StorageAppendResp(_) => "MsgStorageAppendResp"
+    StorageApplyResp(_) => "MsgStorageApplyResp"
   }
 }
 
@@ -85,6 +87,9 @@ fn rt_log_position(m : Message) -> (UInt64, UInt64) {
       let index = if r.success { r.match_index } else { r.reject_index }
       (term, index)
     }
+    // A storage acknowledgement names the prefix it made durable; an apply
+    // acknowledgement names no position (committed entries are term-free).
+    StorageAppendResp(r) => (r.log_term, r.index)
     _ => (0UL, 0UL)
   }
 }
@@ -101,8 +106,10 @@ fn rt_describe_message(m : Message) -> String {
   )
   match m.payload {
     AppendResp(r) =>
+      // A rejection carries the index the leader should retry from: the last
+      // entry the follower could match (etcd's reject hint).
       if !r.success {
-        buf.write_string(" Rejected (Hint: \{r.match_index})")
+        buf.write_string(" Rejected (Hint: \{r.conflict_index})")
       }
     VoteResp(r) =>
       if !r.vote_granted {
@@ -142,6 +149,19 @@ fn rt_describe_message(m : Message) -> String {
         buf.write_string("\n]")
       }
     }
+    // The apply acknowledgement carries the entries it applied.
+    StorageApplyResp(r) => {
+      let ents = r.entries
+      if ents.length() == 1 {
+        buf.write_string(" Entries:[\{rt_describe_entry(ents[0])}]")
+      } else if ents.length() > 1 {
+        buf.write_string(" Entries:[")
+        for e in ents {
+          buf.write_string("\n  \{rt_describe_entry(e)}")
+        }
+        buf.write_string("\n]")
+      }
+    }
     Snapshot(s) =>
       buf.write_string(
         "\n  Snapshot: Index:\{s.last_index} Term:\{s.last_term} ConfState:\{@log.describe_conf_state(s.conf_state)}",
@@ -162,9 +182,14 @@ fn rt_describe_storage_append(
   nested : Bool,
 ) -> String {
   let buf = StringBuilder()
-  buf.write_string(
-    "\{id}->AppendThread MsgStorageAppend Term:\{sa.resp.term} Log:\{sa.resp.log_term}/\{sa.resp.index}",
-  )
+  // A MsgStorageAppend carries no term of its own: the fields are assigned from
+  // the HardState only when there is one to write, and `Index`/`LogTerm` are left
+  // unset (they describe entries, which travel in `Entries`).
+  let term = match sa.hard_state {
+    Some(hs) => hs.term
+    None => 0UL
+  }
+  buf.write_string("\{id}->AppendThread MsgStorageAppend Term:\{term} Log:0/0")
   match sa.hard_state {
     Some(hs) => {
       if hs.commit != 0UL {
@@ -178,35 +203,60 @@ fn rt_describe_storage_append(
     None => ()
   }
   buf.write_string(rt_describe_entries_attr(sa.entries))
-  if !sa.responses.is_empty() {
-    if nested {
+  // The append thread acknowledges the write when there are entries or a snapshot
+  // to make durable (etcd's `needStorageAppendRespMsg`), and that acknowledgement
+  // is the last response in the batch.
+  let needs_ack = sa.resp.index != 0UL || sa.snapshot is Some(_)
+  let ack_term = sa.resp.term
+  let ack_log = sa.resp.log_term
+  let ack_index = sa.resp.index
+  let ack = "AppendThread->\{id} MsgStorageAppendResp Term:\{ack_term} Log:\{ack_log}/\{ack_index}"
+  if nested {
+    // Inside a Ready the responses are a bracketed list, printed only when there
+    // is at least one (an append that writes nothing but a commit says nothing).
+    if !sa.responses.is_empty() || needs_ack {
       buf.write_string(" Responses:[")
       for r in sa.responses {
         buf.write_string("\n  \{rt_describe_message(r)}")
       }
-      buf.write_string("\n]")
-    } else {
-      buf.write_string("\nResponses:")
-      for r in sa.responses {
-        buf.write_string("\n\{rt_describe_message(r)}")
+      if needs_ack {
+        buf.write_string("\n  " + ack)
       }
+      buf.write_string("\n]")
     }
-  } else if nested {
-    buf.write_string(" Responses:[]")
+  } else {
+    // The append thread's own dump always names the section, even when empty.
+    buf.write_string("\nResponses:")
+    for r in sa.responses {
+      buf.write_string("\n\{rt_describe_message(r)}")
+    }
+    if needs_ack {
+      buf.write_string("\n" + ack)
+    }
   }
   buf.to_string()
 }
 
 ///|
 /// The apply directive as upstream's `MsgStorageApply` prints it.
-fn rt_describe_storage_apply(id : String, sa : StorageApply) -> String {
+fn rt_describe_storage_apply(
+  id : String,
+  sa : StorageApply,
+  nested : Bool,
+) -> String {
   let buf = StringBuilder()
   buf.write_string("\{id}->ApplyThread MsgStorageApply Term:0 Log:0/0")
   buf.write_string(rt_describe_entries_attr(sa.entries))
-  buf.write_string(" Responses:[")
-  buf.write_string("\n  ApplyThread->\{id} MsgStorageApplyResp Term:0 Log:0/0")
-  buf.write_string(rt_describe_entries_attr(sa.resp.entries))
-  buf.write_string("\n]")
+  let ack = "ApplyThread->\{id} MsgStorageApplyResp Term:0 Log:0/0" +
+    rt_describe_entries_attr(sa.resp.entries)
+  if nested {
+    buf.write_string(" Responses:[")
+    buf.write_string("\n  " + ack)
+    buf.write_string("\n]")
+  } else {
+    buf.write_string("\nResponses:")
+    buf.write_string("\n" + ack)
+  }
   buf.to_string()
 }
 

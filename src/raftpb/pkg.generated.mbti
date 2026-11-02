@@ -155,6 +155,8 @@ pub(all) enum Payload {
   ReadIndexResp(ReadIndexResp)
   TransferLeader(String)
   ForgetLeader
+  StorageAppendResp(StorageAppendResp)
+  StorageApplyResp(StorageApplyResp)
 }
 pub fn Payload::is_local(Self) -> Bool
 
@@ -192,6 +194,18 @@ pub fn Snapshot::empty() -> Self
 pub fn Snapshot::equal(Self, Self) -> Bool
 pub fn Snapshot::is_empty(Self) -> Bool
 pub fn Snapshot::not_equal(Self, Self) -> Bool
+
+pub(all) struct StorageAppendResp {
+  index : UInt64
+  log_term : UInt64
+  term : UInt64
+} derive(Eq)
+pub fn StorageAppendResp::equal(Self, Self) -> Bool
+pub fn StorageAppendResp::not_equal(Self, Self) -> Bool
+
+pub(all) struct StorageApplyResp {
+  entries : Array[Entry]
+}
 
 // Type aliases
 

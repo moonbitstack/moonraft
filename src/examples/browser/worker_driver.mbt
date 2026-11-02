@@ -356,7 +356,9 @@ fn enc_msg(m : Message) -> Array[Int32] {
     | ReadIndex(_)
     | ReadIndexResp(_)
     | TransferLeader(_)
-    | ForgetLeader => ()
+    | ForgetLeader
+    | StorageAppendResp(_)
+    | StorageApplyResp(_) => ()
   }
   out
 }

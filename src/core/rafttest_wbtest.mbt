@@ -413,18 +413,24 @@ pub fn RaftTest::run(
         }
       }
     }
-    "process-append-thread" => {
-      let i = self.index_of(pos_or(a.positional, 0, "1"))
-      if i >= 0 {
-        self.process_append_thread(i) |> ignore
+    "process-append-thread" =>
+      // Each named node's append thread handles its next directive, under the
+      // header the stabilize loop also prints.
+      for id in a.positional {
+        let i = self.index_of(id)
+        if i >= 0 {
+          self.out.write("> \{id} processing append thread\n")
+          self.out.with_indent(fn() { self.process_append_thread(i) |> ignore })
+        }
       }
-    }
-    "process-apply-thread" => {
-      let i = self.index_of(pos_or(a.positional, 0, "1"))
-      if i >= 0 {
-        self.process_apply_thread(i) |> ignore
+    "process-apply-thread" =>
+      for id in a.positional {
+        let i = self.index_of(id)
+        if i >= 0 {
+          self.out.write("> \{id} processing apply thread\n")
+          self.out.with_indent(fn() { self.process_apply_thread(i) |> ignore })
+        }
       }
-    }
     _ => self.out.write("unknown command: \{a.cmd}\n")
   }
   if self.out.quiet() {
@@ -560,7 +566,7 @@ fn RaftTest::process_ready(self : RaftTest, i : Int32) -> Unit {
       extra.push(rt_describe_storage_append(n.id, sa, true))
     }
     if rd.storage_apply is Some(sa) {
-      extra.push(rt_describe_storage_apply(n.id, sa))
+      extra.push(rt_describe_storage_apply(n.id, sa, true))
     }
   }
   self.out.write(rt_describe_ready(rd, extra))
@@ -710,13 +716,17 @@ fn RaftTest::process_append_thread(self : RaftTest, i : Int32) -> Unit {
   self.out.write("Processing:\n")
   self.out.write(rt_describe_storage_append(n.id, sa, false))
   self.out.write("\n")
-  // The write is durable: acknowledge it, then put the waiting responses on the
-  // wire. They are delivered like any other message (a self-addressed vote
-  // response is printed and stepped when the recipient is served), which is what
-  // publishes the vote or advances the leader's commit.
-  n.rn.step_append_resp(sa.resp)
+  // The write is durable: put the waiting responses on the wire, then the
+  // acknowledgement itself. All of them are delivered like any other message, so
+  // the order is the one upstream's scripts record — a self-addressed vote
+  // response is printed and stepped when the recipient is served.
   for r in sa.responses {
     self.messages.push(r)
+  }
+  if sa.resp.index != 0UL || sa.snapshot is Some(_) {
+    self.messages.push(
+      Message::new("AppendThread", n.id, StorageAppendResp(sa.resp)),
+    )
   }
 }
 
@@ -728,9 +738,13 @@ fn RaftTest::process_apply_thread(self : RaftTest, i : Int32) -> Unit {
   }
   let sa = n.applies.remove(0)
   self.out.write("Processing:\n")
-  self.out.write(rt_describe_storage_apply(n.id, sa))
+  self.out.write(rt_describe_storage_apply(n.id, sa, false))
   self.out.write("\n")
-  n.rn.step_apply_resp(sa.resp)
+  // The batch is applied: the acknowledgement goes on the wire like any other
+  // message, and the node advances its applied cursor when it arrives.
+  self.messages.push(
+    Message::new("ApplyThread", n.id, StorageApplyResp(sa.resp)),
+  )
 }
 
 // ---------------------------------------------------------------------------

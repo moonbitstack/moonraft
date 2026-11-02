@@ -165,11 +165,11 @@ pub using @core {type SoftState}
 
 pub using @core {type StorageAppend}
 
-pub using @core {type StorageAppendResp}
+pub using @raftpb {type StorageAppendResp}
 
 pub using @core {type StorageApply}
 
-pub using @core {type StorageApplyResp}
+pub using @raftpb {type StorageApplyResp}
 
 pub using @storage {type StorageError}
 
