@@ -93,6 +93,7 @@ pub fn Membership::add_learner(Self, String) -> Unit
 pub fn Membership::begin_joint(Self, Array[String]) -> Unit
 pub fn Membership::committed_index(Self, Map[String, UInt64]) -> UInt64
 pub fn Membership::contains(Self, String) -> Bool
+pub fn Membership::describe(Self) -> String
 pub fn Membership::enter_joint(Self, Array[String]) -> Unit
 pub fn Membership::has_majority(Self, Array[String]) -> Bool
 pub fn Membership::is_joint(Self) -> Bool

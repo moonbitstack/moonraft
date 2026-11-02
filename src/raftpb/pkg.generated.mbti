@@ -137,6 +137,7 @@ pub fn Message::is_response(Self) -> Bool
 pub fn Message::kind(Self) -> String
 pub fn Message::new(String, String, Payload, force? : Bool) -> Self
 pub fn Message::term(Self) -> UInt64
+pub fn Message::type_name(Self) -> String
 
 pub(all) enum Payload {
   PreVote(RequestVoteArgs)

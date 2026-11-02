@@ -106,6 +106,30 @@ pub fn Message::is_response(self : Message) -> Bool {
 }
 
 ///|
+/// The protobuf message-type name, as etcd's `pb.MessageType` prints it. A log
+/// record that names the message kind (`ignored a MsgApp message`) uses this,
+/// so the name a reader sees is the one the wire format and the scripts use.
+pub fn Message::type_name(self : Message) -> String {
+  match self.payload {
+    PreVote(_) => "MsgPreVote"
+    PreVoteResp(_) => "MsgPreVoteResp"
+    Vote(_) => "MsgVote"
+    VoteResp(_) => "MsgVoteResp"
+    Append(_) => "MsgApp"
+    AppendResp(_) => "MsgAppResp"
+    Heartbeat(_) => "MsgHeartbeat"
+    HeartbeatResp(_) => "MsgHeartbeatResp"
+    Snapshot(_) => "MsgSnap"
+    TimeoutNow(_) => "MsgTimeoutNow"
+    ReadIndexResp(_) => "MsgReadIndexResp"
+    Propose(_) => "MsgProp"
+    ReadIndex(_) => "MsgReadIndex"
+    TransferLeader(_) => "MsgTransferLeader"
+    ForgetLeader => "MsgForgetLeader"
+  }
+}
+
+///|
 /// A short, stable tag for the payload kind, for logs and scenario traces.
 pub fn Message::kind(self : Message) -> String {
   match self.payload {

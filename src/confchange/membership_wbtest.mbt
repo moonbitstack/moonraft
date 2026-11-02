@@ -121,3 +121,24 @@ test "vote_result needs both halves to win a joint election" {
     @quorum.VoteWon,
   )
 }
+
+///|
+/// The configuration line a log record carries: sorted majorities, the joint
+/// half after `&&`, learners and staged learners only when present, and the
+/// auto-leave flag as a trailing word.
+test "describe prints the configuration in upstream's shape" {
+  let m = Membership::new(["3", "1", "2"])
+  assert_eq(m.describe(), "voters=(1 2 3)")
+  m.add_learner("4")
+  assert_eq(m.describe(), "voters=(1 2 3) learners=(4)")
+  m.enter_joint(["3", "4"])
+  assert_eq(m.describe(), "voters=(3 4)&&(1 2 3) learners=(4)")
+  m.auto_leave = true
+  assert_eq(m.describe(), "voters=(3 4)&&(1 2 3) learners=(4) autoleave")
+  // A voter demoted inside the joint configuration is staged, not removed.
+  m.add_learner("1")
+  assert_eq(
+    m.describe(),
+    "voters=(3 4)&&(1 2 3) learners=(4) learners_next=(1) autoleave",
+  )
+}

@@ -182,15 +182,10 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
     read_only_option=config.read_only_option,
     logger=config.logger,
     tracer=config.tracer,
+    applied=config.applied,
   )
   if config.disable_proposal_forwarding {
     r.disable_proposal_forwarding()
-  }
-  // Seed the applied watermark on a restart (etcd's Config.Applied), so the core
-  // does not re-deliver entries the application already applied. A no-op on a
-  // fresh start (empty log, applied 0).
-  if config.applied > 0 {
-    r.advance_applied(config.applied)
   }
   r
 }

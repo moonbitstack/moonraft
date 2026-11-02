@@ -107,8 +107,13 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     | HeartbeatResp(_)
     | ReadIndexResp(_)
     | TimeoutNow(_) => []
-    PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) =>
+    PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) => {
+      self.logger.log(
+        Info,
+        "\{self.id} [term: \{self.core.current_term()}] ignored a \{msg.type_name()} message with lower term from \{msg.from} [term: \{msg.term()}]",
+      )
       self.dispatch(msg)
+    }
     // Local, routable messages are intercepted term-free in `step` and never
     // reach the term classifier, so one arriving here is a routing bug.
     Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader =>
@@ -124,6 +129,10 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
   match msg.payload {
     PreVote(_) | PreVoteResp(_) => ()
     _ => {
+      self.logger.log(
+        Info,
+        "\{self.id} [term: \{self.core.current_term()}] received a \{msg.type_name()} message with higher term from \{msg.from} [term: \{msg.term()}]",
+      )
       self.core.become_follower(msg.term())
       self.in_pre_campaign = false
       // Stepping down abandons any in-flight leadership transfer (etcd's reset →
@@ -348,6 +357,7 @@ fn RaftNode::handle_pre_vote(
     can_vote &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
   let term = if granted { args.term } else { self.core.current_term() }
+  self.log_vote_decision("MsgPreVote", from, args, granted, self.core.voted_for)
   [Message::new(self.id, from, PreVoteResp({ term, vote_granted: granted, }))]
 }
 
@@ -365,6 +375,7 @@ fn RaftNode::handle_pre_vote_resp(
     self.in_pre_campaign = false
     return []
   }
+  self.log_vote_response(from, reply.vote_granted, "MsgPreVoteResp")
   self.record_vote(from, reply.vote_granted)
   match self.config.vote_result(self.votes) {
     @quorum.VoteWon => self.start_real_campaign()
@@ -394,12 +405,78 @@ fn RaftNode::handle_vote(
       ),
     ]
   }
+  let vote_before = self.core.voted_for
   let reply = self.core.handle_request_vote(args)
+  self.log_vote_decision("MsgVote", from, args, reply.vote_granted, vote_before)
   if reply.vote_granted {
     self.election_elapsed = 0
     self.leader_id = None
   }
   [Message::new(self.id, from, VoteResp(reply))]
+}
+
+///|
+/// Announce one (pre-)vote acknowledgement, as etcd's `poll` does. A rejection
+/// is logged as such: a run of rejections is how a candidate discovers it cannot
+/// win, and the count that follows says by how much.
+fn RaftNode::log_vote_response(
+  self : RaftNode,
+  from : String,
+  granted : Bool,
+  kind : String,
+) -> Unit {
+  if granted {
+    self.logger.log(
+      Info,
+      "\{self.id} received \{kind} from \{from} at term \{self.core.current_term()}",
+    )
+  } else {
+    self.logger.log(
+      Info,
+      "\{self.id} received \{kind} rejection from \{from} at term \{self.core.current_term()}",
+    )
+  }
+}
+
+///|
+/// Announce a (pre-)vote decision in upstream's shape:
+/// `1 [logterm: 1, index: 2, vote: 0] cast MsgVote for 2 [logterm: 1, index: 2]
+/// at term 1`. The leading bracket is this node's own log position and vote, the
+/// trailing one the candidate's, so one line says whether the candidate was up
+/// to date and which way the vote went.
+fn RaftNode::log_vote_decision(
+  self : RaftNode,
+  kind : String,
+  from : String,
+  args : RequestVoteArgs,
+  granted : Bool,
+  vote_before : String?,
+) -> Unit {
+  let vote = match vote_before {
+    Some(v) => v
+    None => "0"
+  }
+  let verdict = if granted { "cast" } else { "rejected" }
+  self.logger.log(
+    Info,
+    "\{self.id} [logterm: \{self.core.last_log_term()}, index: \{self.core.last_log_index()}, vote: \{vote}] \{verdict} \{kind} for \{from} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] at term \{self.core.current_term()}",
+  )
+}
+
+///|
+/// How many (pre-)votes were granted and how many were rejected, as etcd's
+/// tracker `TallyVotes` reports them.
+fn RaftNode::vote_tally(self : RaftNode) -> (Int32, Int32) {
+  let mut granted = 0
+  let mut rejected = 0
+  for _, v in self.votes {
+    if v {
+      granted = granted + 1
+    } else {
+      rejected = rejected + 1
+    }
+  }
+  (granted, rejected)
 }
 
 ///|
@@ -430,9 +507,15 @@ fn RaftNode::handle_vote_resp(
   reply : RequestVoteReply,
 ) -> Array[Message] {
   guard self.core.role() == Candidate else { return [] }
+  self.log_vote_response(from, reply.vote_granted, "MsgVoteResp")
   self.record_vote(from, reply.vote_granted)
   // Count with the quorum's three-valued result so a candidate that is denied
   // by a majority steps down at once instead of waiting out its timer.
+  let (granted, rejected) = self.vote_tally()
+  self.logger.log(
+    Info,
+    "\{self.id} has received \{granted} MsgVoteResp votes and \{rejected} vote rejections",
+  )
   match self.config.vote_result(self.votes) {
     @quorum.VoteWon => {
       self.become_leader()

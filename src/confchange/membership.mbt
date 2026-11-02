@@ -256,3 +256,30 @@ pub fn Membership::vote_result(
   let out = if self.joint { self.outgoing } else { [] }
   @quorum.vote_result(self.members, out, votes)
 }
+
+///|
+/// The configuration as etcd's `tracker.Config.String` prints it:
+/// `voters=(1 2 3)[&&(1)] [learners=(4)] [learners_next=(5)] [autoleave]`. The
+/// members of a majority are space-separated and sorted, so the line a log
+/// record or a diagnostic carries does not depend on the order they were added.
+pub fn Membership::describe(self : Membership) -> String {
+  let majority = fn(ids : Array[String]) {
+    let s = ids.copy()
+    s.sort()
+    "(" + s.join(" ") + ")"
+  }
+  let mut out = "voters=" + majority(self.members)
+  if self.joint {
+    out = out + "&&" + majority(self.outgoing)
+  }
+  if !self.learners.is_empty() {
+    out = out + " learners=" + majority(self.learners)
+  }
+  if !self.learners_next.is_empty() {
+    out = out + " learners_next=" + majority(self.learners_next)
+  }
+  if self.auto_leave {
+    out = out + " autoleave"
+  }
+  out
+}

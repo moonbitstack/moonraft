@@ -85,3 +85,78 @@ test "responses are recognised" {
   assert_eq(r.term(), 4)
   assert_eq(r.kind(), "AppendResp")
 }
+
+///|
+/// The name a log line uses for a message: the protobuf type name, so a reader
+/// comparing a trace against a script sees the same words in both.
+test "type_name names every payload kind" {
+  let entry = Entry::normal(1UL, 1UL, b"")
+  let vote = {
+    term: 1UL,
+    candidate_id: "1",
+    last_log_index: 0UL,
+    last_log_term: 0UL,
+  }
+  let reply = { term: 1UL, vote_granted: true, }
+  let append = {
+    term: 1UL,
+    leader_id: "1",
+    prev_log_index: 0UL,
+    prev_log_term: 0UL,
+    entries: [],
+    leader_commit: 0UL,
+  }
+  let app_reply = {
+    term: 1UL,
+    success: true,
+    match_index: 0UL,
+    conflict_index: 0UL,
+    conflict_term: 0UL,
+    reject_index: 0UL,
+  }
+  let beat = { term: 1UL, leader_id: "1", commit: 0UL, context: b"", }
+  let beat_reply = { term: 1UL, context: b"", }
+  let snap = InstallSnapshotArgs::whole(1UL, "1", {
+    last_index: 0UL,
+    last_term: 0UL,
+    data: b"",
+    conf_state: ConfState::empty(),
+  })
+  assert_eq(Message::new("1", "2", PreVote(vote)).type_name(), "MsgPreVote")
+  assert_eq(
+    Message::new("1", "2", PreVoteResp(reply)).type_name(),
+    "MsgPreVoteResp",
+  )
+  assert_eq(Message::new("1", "2", Vote(vote)).type_name(), "MsgVote")
+  assert_eq(Message::new("1", "2", VoteResp(reply)).type_name(), "MsgVoteResp")
+  assert_eq(Message::new("1", "2", Append(append)).type_name(), "MsgApp")
+  assert_eq(
+    Message::new("1", "2", AppendResp(app_reply)).type_name(),
+    "MsgAppResp",
+  )
+  assert_eq(Message::new("1", "2", Heartbeat(beat)).type_name(), "MsgHeartbeat")
+  assert_eq(
+    Message::new("1", "2", HeartbeatResp(beat_reply)).type_name(),
+    "MsgHeartbeatResp",
+  )
+  assert_eq(Message::new("1", "2", Snapshot(snap)).type_name(), "MsgSnap")
+  assert_eq(
+    Message::new("1", "2", TimeoutNow(1UL)).type_name(),
+    "MsgTimeoutNow",
+  )
+  assert_eq(
+    Message::new(
+      "1",
+      "2",
+      ReadIndexResp({ term: 1UL, index: 0UL, context: b"", }),
+    ).type_name(),
+    "MsgReadIndexResp",
+  )
+  assert_eq(Message::new("1", "2", Propose([entry])).type_name(), "MsgProp")
+  assert_eq(Message::new("1", "2", ReadIndex(b"")).type_name(), "MsgReadIndex")
+  assert_eq(
+    Message::new("1", "2", TransferLeader("2")).type_name(),
+    "MsgTransferLeader",
+  )
+  assert_eq(Message::new("1", "2", ForgetLeader).type_name(), "MsgForgetLeader")
+}

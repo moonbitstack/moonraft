@@ -105,6 +105,13 @@ pub struct RaftNode {
 /// seed. Election timeouts randomize in [election_timeout, 2*election_timeout),
 /// the spread that keeps split votes rare (Raft §5.2). Heartbeats go out every
 /// `heartbeat_timeout` ticks, which must be well below the election timeout.
+///
+/// `snapshot` starts the server on a compacted log: the snapshot's index and
+/// term become the log's baseline, its commit index and applied watermark, and
+/// its `ConfState` the configuration, exactly as etcd's `newRaft` reads them
+/// back from `Storage.InitialState` (raft.go:439). A server restored that way
+/// has no entries to replay, which is what makes a bootstrap at a non-zero index
+/// reproducible in a test.
 pub fn RaftNode::new(
   id : String,
   peers : Array[String],
@@ -125,6 +132,8 @@ pub fn RaftNode::new(
   read_only_option~ : ReadOnlyOption = Safe,
   logger~ : &Logger = NopLogger::{ },
   tracer~ : &Tracer = NopTracer::{ },
+  snapshot~ : Snapshot? = None,
+  applied~ : UInt64 = 0,
 ) -> RaftNode {
   // Reject an unusable configuration at construction, as etcd's newRaft panics on
   // an invalid Config.validate() (raft.go:440). This convenience constructor
@@ -191,8 +200,43 @@ pub fn RaftNode::new(
   }
   node.read_only.safe = read_only_option is Safe
   node.tracer.on_event(InitState(id))
+  match snapshot {
+    Some(snap) => {
+      node.core.install_snapshot(snap)
+      node.restore_conf_state(snap.conf_state)
+    }
+    None => ()
+  }
+  // A restart resumes with the watermark the application has already applied
+  // (etcd's Config.Applied), set before the log position is announced.
+  if applied > 0UL {
+    node.advance_applied(applied)
+  }
   node.reset_timeout()
+  // etcd's `newRaft` announces the three facts a restart reconstructs: the
+  // configuration it restored from storage, the state it settled into, and the
+  // log position it resumes at (raft.go:439-497).
+  node.logger.log(
+    Info,
+    "\{id} switched to configuration \{node.config.describe()}",
+  )
+  node.logger.log(
+    Info,
+    "\{id} became follower at term \{node.core.current_term()}",
+  )
+  node.log_new_raft()
   node
+}
+
+///|
+/// The `newRaft` line: the peer list, term, commit, applied and log tail a
+/// server starts from. One line, because a restart is a single event in a log.
+fn RaftNode::log_new_raft(self : RaftNode) -> Unit {
+  let voters = self.voter_nodes()
+  self.logger.log(
+    Info,
+    "newRaft \{self.id} [peers: [\{voters.join(",")}], term: \{self.core.current_term()}, commit: \{self.core.commit_index}, applied: \{self.core.last_applied}, lastindex: \{self.core.last_log_index()}, lastterm: \{self.core.last_log_term()}]",
+  )
 }
 
 ///|
@@ -352,12 +396,24 @@ pub fn RaftNode::set_pre_vote(self : RaftNode, on : Bool) -> Unit {
 }
 
 ///|
+/// Pin this server's randomized election timeout, as etcd's test helper
+/// `SetRandomizedElectionTimeout` does. A run that has to be reproducible needs
+/// the timeout to be a number the test chose, not one the election PRNG drew;
+/// the node draws a fresh one on its next state change, so a caller that wants
+/// it held sets it immediately before the ticks it means to control.
+pub fn RaftNode::set_randomized_election_timeout(
+  self : RaftNode,
+  ticks : Int32,
+) -> Unit {
+  self.randomized_election_timeout = ticks
+}
+
+///|
 /// Stand down to follower in the current term, e.g. on losing quorum contact.
+/// This is etcd's `becomeFollower`, so it announces the transition like every
+/// other state change does.
 fn RaftNode::step_down(self : RaftNode) -> Unit {
-  self.core.become_follower(self.core.current_term())
-  self.leader_id = None
-  self.lead_transferee = None
-  self.reset_timeout()
+  self.become_follower(self.core.current_term())
 }
 
 ///|
@@ -370,19 +426,29 @@ pub fn RaftNode::campaign(self : RaftNode) -> Array[Message] {
   // A leader ignores a fresh campaign (etcd's `hup`: "already leader"): it must
   // not step itself down to candidate and inflate the term.
   if self.core.role() == Leader {
+    self.logger.log(Debug, "\{self.id} ignoring MsgHup because already leader")
     return []
   }
   // Only a promotable voter may stand for election; a learner or a node no
   // longer in the configuration never campaigns (§4.2.1, promotable).
   if !self.promotable() {
+    self.logger.log(Warning, "\{self.id} is unpromotable and can not campaign")
     return []
   }
   // Do not campaign while a committed configuration change is still unapplied:
   // electing a leader under a stale view of the membership could split the
   // quorum (etcd's `hup`/`hasUnappliedConfChanges`, raft.go:983).
   if self.has_unapplied_conf_changes() {
+    self.logger.log(
+      Warning,
+      "\{self.id} cannot campaign at term \{self.core.current_term()} since there are still pending configuration changes to apply",
+    )
     return []
   }
+  self.logger.log(
+    Info,
+    "\{self.id} is starting a new election at term \{self.core.current_term()}",
+  )
   self.reset_timeout()
   if self.pre_vote {
     self.start_pre_campaign()
@@ -397,6 +463,10 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
   // core changes role without adopting the hypothetical term. `in_pre_campaign`
   // stays as the pre-vote bookkeeping flag, kept in step with the role.
   self.core.become_pre_candidate()
+  self.logger.log(
+    Info,
+    "\{self.id} became pre-candidate at term \{self.core.current_term()}",
+  )
   self.leader_id = None
   self.in_pre_campaign = true
   self.votes.clear()
@@ -409,6 +479,10 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
     last_log_term: self.core.last_log_term(),
   }
   for p in self.peers {
+    self.logger.log(
+      Info,
+      "\{self.id} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] sent MsgPreVote request to \{p} at term \{self.core.current_term()}",
+    )
     out.push(Message::new(self.id, p, PreVote(args)))
   }
   // A single-node cluster wins its own pre-vote immediately.
@@ -425,6 +499,10 @@ fn RaftNode::start_real_campaign(
 ) -> Array[Message] {
   self.in_pre_campaign = false
   self.core.become_candidate()
+  self.logger.log(
+    Info,
+    "\{self.id} became candidate at term \{self.core.current_term()}",
+  )
   self.leader_id = None
   self.votes.clear()
   self.votes[self.id] = true
@@ -434,6 +512,10 @@ fn RaftNode::start_real_campaign(
   // instead of stalling out a full election timeout (§3.10).
   let args = self.core.request_vote_args()
   for p in self.peers {
+    self.logger.log(
+      Info,
+      "\{self.id} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] sent MsgVote request to \{p} at term \{self.core.current_term()}",
+    )
     out.push(Message::new(self.id, p, Vote(args), force~))
   }
   if self.config.has_majority(self.granted()) {
@@ -1255,10 +1337,6 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
   if self.core.role() == Leader &&
     self.step_down_on_removal &&
     (!self.config.contains(self.id) || self.config.is_learner(self.id)) {
-    self.logger.log(
-      Info,
-      "\{self.id} stepping down: removed from configuration",
-    )
     self.step_down()
   }
 }
