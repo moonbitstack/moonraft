@@ -76,6 +76,10 @@ pub fn RawNode::new_sized(
   raft : RaftNode,
   max_committed_size : UInt64,
 ) -> RawNode {
+  // The driver knows when a Ready became durable, so responses that depend on
+  // durability wait for `advance` rather than taking effect inside the call that
+  // produced them.
+  raft.enable_deferred_responses()
   let node = raft.node()
   let storage = MemoryStorage::new()
   if node.snapshot_index > 0 {
@@ -232,6 +236,14 @@ pub fn RawNode::node(self : RawNode) -> RaftNode {
 pub fn RawNode::next_unstable_snapshot(self : RawNode) -> Snapshot? {
   self.sync_log()
   self.log.next_unstable_snapshot()
+}
+
+///|
+/// Buffer messages the core emitted so the next `Ready` carries them.
+fn RawNode::record(self : RawNode, msgs : Array[Message]) -> Unit {
+  for m in msgs {
+    self.msgs.push(m)
+  }
 }
 
 ///|
@@ -419,7 +431,12 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
     // thread. The response attests the current last (index, term) — not the last
     // of `entries` — so that a response arriving after a term change is dropped
     // (see StorageAppendResp / newStorageAppendResp).
-    if !entries.is_empty() || hard_changed || snapshot is Some(_) {
+    // A response waiting for durability needs an append to ride on, even when
+    // nothing else is being written (etcd's `needStorageAppendMsg`).
+    if !entries.is_empty() ||
+      hard_changed ||
+      snapshot is Some(_) ||
+      self.raft.has_deferred() {
       let resp : StorageAppendResp = if self.log.has_next_or_in_progress_unstable_ents() {
         let last = self.log.last_entry_id()
         { index: last.index, log_term: last.term, term: node.current_term(), }
@@ -435,6 +452,7 @@ pub fn RawNode::ready_without_accept(self : RawNode) -> Ready {
         },
         snapshot,
         resp,
+        responses: self.raft.deferred_responses(),
       })
     }
     if !committed.is_empty() {
@@ -495,6 +513,12 @@ fn RawNode::accept_ready(self : RawNode, rd : Ready) -> Unit {
     self.read_states.clear()
   }
   self.msgs.clear()
+  if self.async_storage {
+    // The deferred responses travelled with the append directive, so the node
+    // no longer holds them: the storage thread steps them when the write is
+    // durable.
+    self.raft.take_deferred() |> ignore
+  }
 }
 
 ///|
@@ -524,7 +548,7 @@ pub fn RawNode::has_ready(self : RawNode) -> Bool {
   if self.log.has_next_unstable_snapshot() {
     return true
   }
-  if !self.msgs.is_empty() {
+  if !self.msgs.is_empty() || self.raft.has_deferred() {
     return true
   }
   if !self.next_unstable().is_empty() {
@@ -566,10 +590,18 @@ pub fn RawNode::store(self : RawNode, rd : Ready) -> Unit {
 /// Notify the driver that the last `Ready` has been handled (etcd's `Advance`):
 /// its entries were persisted (by `store`) and its committed entries applied, so
 /// move the applied cursor past them. The stable watermark already moved in
-/// `store`. A no-op under async writes (the responses drive the cursors).
+/// `store`. Under async writes the responses drive the cursors instead, and the
+/// deferred responses travel with the append directive.
+///
+/// The self-addressed responses that waited for durability are stepped here (etcd
+/// keeps them in `stepsOnAdvance`), which is what turns a just-persisted vote into
+/// a leader or a just-persisted append into a commit.
 pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
   if self.async_storage {
     return
+  }
+  for m in self.raft.take_deferred() {
+    self.record(self.raft.step(m))
   }
   let c = rd.committed_entries.length()
   if c != 0 {

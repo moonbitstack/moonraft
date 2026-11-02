@@ -279,3 +279,21 @@ pub extend ConfChangeType with Eq::{not_equal, equal}
 
 ///|
 pub extend ConfChangeV2 with Eq::{not_equal, equal}
+
+///|
+/// Render a batch of changes the way etcd's `ConfChangesToString` does:
+/// `v1 v3 l4 r5`, a voter added, a learner added, a voter removed. A log entry's
+/// payload is rendered with this, so a diagnostic reads `EntryConfChange r1`
+/// instead of the serialized bytes.
+pub fn describe_changes(changes : Array[ConfChange]) -> String {
+  let out : Array[String] = []
+  for c in changes {
+    let tag = match c.change_type {
+      AddNode => "v"
+      RemoveNode => "r"
+      AddLearnerNode => "l"
+    }
+    out.push(tag + c.node_id)
+  }
+  out.join(" ")
+}

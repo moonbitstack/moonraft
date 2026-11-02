@@ -92,28 +92,34 @@ fn InteractionCluster::stabilize(self : InteractionCluster) -> Int32 {
 
 ///|
 test "interaction/single_node: a single voter campaigns and commits its no-op" {
-  // testdata/single_node.txt. Bootstrap-at-index-3 is a raftLog-restore detail
-  // (covered by TestLogRestore / TestRawNodeRestartFromSnapshot); the Ready
-  // contract this script pins down — become leader, persist the no-op, then
-  // apply it — is asserted here from a fresh log.
+  // testdata/single_node.txt: campaign, persist the vote, become leader, persist
+  // the no-op, apply it — in that order, so leadership follows the Ready that
+  // made the vote durable rather than the campaign call.
   let rn = RaftNode::new("1", [], pre_vote=false).raw()
   assert_true(!rn.has_ready())
   rn.campaign()
-  // A single voter reaches leadership; the no-op is persisted then applied within
-  // one Ready (the caller stores before applying, so committed entries are not
-  // held back to the next Ready).
   let rd1 = rn.ready()
-  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader, }))
-  assert_eq(rd1.entries.length(), 1)
-  assert_true(rd1.entries[0].entry_type == Normal)
-  assert_eq(rd1.entries[0].command.length(), 0)
-  assert_eq(rd1.committed_entries.length(), 1)
-  assert_eq(rd1.committed_entries[0].index, 1)
-  assert_true(rd1.must_sync)
+  assert_true(rd1.soft_state == Some({ lead: None, state: Candidate, }))
+  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 0, }))
+  assert_eq(rd1.entries.length(), 0)
   rn.store(rd1)
   rn.advance(rd1)
-  assert_true(!rn.has_ready())
+  // The durable vote is counted on advance: now a leader, appending its no-op.
   assert_true(rn.node().is_leader())
+  let rd2 = rn.ready()
+  assert_eq(rd2.entries.length(), 1)
+  assert_true(rd2.entries[0].entry_type == Normal)
+  assert_eq(rd2.entries[0].command.length(), 0)
+  rn.store(rd2)
+  rn.advance(rd2)
+  // The no-op commits once it is durable, and is applied in the next Ready.
+  let rd3 = rn.ready()
+  assert_eq(rd3.committed_entries.length(), 1)
+  assert_eq(rd3.committed_entries[0].index, 1)
+  assert_true(!rd3.must_sync)
+  rn.store(rd3)
+  rn.advance(rd3)
+  assert_true(!rn.has_ready())
   assert_eq(rn.node().term(), 1)
   assert_eq(rn.node().commit_index(), 1)
 }

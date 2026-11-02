@@ -187,20 +187,33 @@ test "TestNodeAdvance" {
 test "TestNodeStart" {
   let rn = fresh_raw()
   rn.campaign()
+  // The vote is persisted first; leadership and the no-op follow it.
   let rd1 = rn.ready()
-  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
+  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 0, }))
   assert_true(rd1.must_sync)
   rn.store(rd1)
   rn.advance(rd1)
-  rn.propose(b"foo")
-  // The proposal bumps commit to 2 and, persisted-before-applied, surfaces the
-  // committed entry in the same Ready.
   let rd2 = rn.ready()
-  assert_true(rd2.hard_state == Some({ term: 1, vote: Some("1"), commit: 2, }))
-  assert_eq(rd2.committed_entries.length(), 1)
-  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
+  assert_eq(rd2.entries.length(), 1)
   rn.store(rd2)
   rn.advance(rd2)
+  let rd3 = rn.ready()
+  assert_true(rd3.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
+  assert_eq(rd3.committed_entries.length(), 1)
+  rn.store(rd3)
+  rn.advance(rd3)
+  rn.propose(b"foo")
+  let rd4 = rn.ready()
+  assert_eq(rd4.entries.length(), 1)
+  rn.store(rd4)
+  rn.advance(rd4)
+  // The proposal bumps commit to 2, and the committed entry surfaces next.
+  let rd5 = rn.ready()
+  assert_true(rd5.hard_state == Some({ term: 1, vote: Some("1"), commit: 2, }))
+  assert_eq(rd5.committed_entries.length(), 1)
+  assert_true(entry_is(rd5.committed_entries[0], 1, 2, b"foo"))
+  rn.store(rd5)
+  rn.advance(rd5)
   assert_true(!rn.has_ready())
 }
 

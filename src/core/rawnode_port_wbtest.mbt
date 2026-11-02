@@ -240,33 +240,49 @@ test "TestRawNodeStart" {
   let rn = fresh_raw()
   assert_true(!rn.has_ready())
 
-  // Campaign: one Ready carries the vote/HardState and the election no-op, both
-  // to persist (`entries`) and — since we persist before applying — to apply
-  // (`committed_entries`).
+  // Campaign: the first Ready persists the vote (it is a candidate, not yet a
+  // leader — leadership is counted once that vote is durable).
   rn.campaign()
   let rd1 = rn.ready()
-  assert_true(rd1.soft_state == Some({ lead: Some("1"), state: Leader, }))
-  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
-  assert_eq(rd1.entries.length(), 1)
-  assert_true(entry_is(rd1.entries[0], 1, 1, b""))
-  assert_eq(rd1.committed_entries.length(), 1)
-  assert_true(entry_is(rd1.committed_entries[0], 1, 1, b""))
+  assert_true(rd1.soft_state == Some({ lead: None, state: Candidate, }))
+  assert_true(rd1.hard_state == Some({ term: 1, vote: Some("1"), commit: 0, }))
+  assert_eq(rd1.entries.length(), 0)
   assert_true(rd1.must_sync)
-  rn.store(rd1) // persist entries
   rn.store(rd1)
-  rn.advance(rd1) // (apply happened between) then advance the cursors
+  rn.advance(rd1)
 
-  // Propose a command: persisted and applied within one Ready.
-  rn.propose(b"foo")
-  assert_true(rn.has_ready())
+  // The durable vote makes it a leader, which appends the election no-op.
+  assert_true(rn.node().is_leader())
   let rd2 = rn.ready()
+  assert_true(rd2.soft_state == Some({ lead: Some("1"), state: Leader, }))
   assert_eq(rd2.entries.length(), 1)
-  assert_true(entry_is(rd2.entries[0], 1, 2, b"foo"))
-  assert_eq(rd2.committed_entries.length(), 1)
-  assert_true(entry_is(rd2.committed_entries[0], 1, 2, b"foo"))
-  assert_true(rd2.must_sync)
+  assert_true(entry_is(rd2.entries[0], 1, 1, b""))
   rn.store(rd2)
   rn.advance(rd2)
+
+  // The no-op commits once it is durable; the commit is applied next.
+  let rd3 = rn.ready()
+  assert_true(rd3.hard_state == Some({ term: 1, vote: Some("1"), commit: 1, }))
+  assert_eq(rd3.committed_entries.length(), 1)
+  assert_true(entry_is(rd3.committed_entries[0], 1, 1, b""))
+  assert_true(!rd3.must_sync)
+  rn.store(rd3)
+  rn.advance(rd3)
+  assert_true(!rn.has_ready())
+
+  // A proposal follows the same cycle: append, then commit on the next advance.
+  rn.propose(b"foo")
+  let rd4 = rn.ready()
+  assert_eq(rd4.entries.length(), 1)
+  assert_true(entry_is(rd4.entries[0], 1, 2, b"foo"))
+  rn.store(rd4)
+  rn.advance(rd4)
+  let rd5 = rn.ready()
+  assert_eq(rd5.committed_entries.length(), 1)
+  assert_true(entry_is(rd5.committed_entries[0], 1, 2, b"foo"))
+  assert_true(!rd5.must_sync)
+  rn.store(rd5)
+  rn.advance(rd5)
   assert_true(!rn.has_ready())
 }
 
