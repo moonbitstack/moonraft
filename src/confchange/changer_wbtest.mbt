@@ -144,3 +144,15 @@ test "confchange Restore: simple config from a ConfState" {
     "3: StateProbe match=0 next=5 learner\n",
   )
 }
+
+///|
+test "a change to node 0 is skipped, as etcd zeroes one it will not apply" {
+  let c = Changer::new()
+  assert_true(
+    c.simple([("v", "1"), ("r", "0"), ("v", "0"), ("l", "0")]) is None,
+  )
+  assert_eq(
+    c.describe().trim_end().to_owned(),
+    "voters=(1)\n1: StateProbe match=0 next=1",
+  )
+}

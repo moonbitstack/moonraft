@@ -57,59 +57,190 @@ fn split_ws(s : String) -> Array[String] {
 // ---------------------------------------------------------------------------
 
 ///|
-/// The quorum datadriven harness (quorum/testdata/*.txt). Stateless: each case
-/// computes a vote result or a committed index from its own arguments.
+/// A commit index as etcd's `quorum.Index` prints it: the largest value, which
+/// an empty majority reports, is infinity.
+fn index_text(i : UInt64) -> String {
+  if i == 18446744073709551615UL {
+    "∞"
+  } else {
+    i.to_string()
+  }
+}
+
+///|
+/// `ids` then `idsj`, each id once, in the order they first appear.
+fn union_ids(ids : Array[String], idsj : Array[String]) -> Array[String] {
+  let out : Array[String] = []
+  for id in [..ids, ..idsj] {
+    if !out.contains(id) {
+      out.push(id)
+    }
+  }
+  out
+}
+
+///|
+/// The values of `input` assigned to the voters of `ids` and `idsj` in order,
+/// each voter once, with the zeros that stand for `_` left out: no entry is not
+/// the same as a zero entry.
+fn lookuper(
+  input : Array[UInt64],
+  ids : Array[String],
+  idsj : Array[String],
+) -> Map[String, UInt64] {
+  let l : Map[String, UInt64] = Map([])
+  let mut p = 0
+  for id in [..ids, ..idsj] {
+    if l.contains(id) {
+      continue
+    }
+    if p < input.length() {
+      l[id] = input[p]
+      p += 1
+    }
+  }
+  for id in l.keys().to_array() {
+    if l[id] == 0 {
+      l.remove(id)
+    }
+  }
+  l
+}
+
+///|
+/// etcd's `alternativeMajorityCommittedIndex`: the largest index a quorum has
+/// acked, found by counting rather than sorting.
+fn alternative_committed(c : Array[String], l : Map[String, UInt64]) -> UInt64 {
+  if c.is_empty() {
+    return 18446744073709551615UL
+  }
+  let acked : Array[UInt64] = []
+  for id in c {
+    if l.get(id) is Some(idx) {
+      acked.push(idx)
+    }
+  }
+  let q = c.length() / 2 + 1
+  let mut best = 0UL
+  for idy in acked {
+    let votes = acked.filter(idx => idx >= idy).length()
+    if votes >= q && idy > best {
+      best = idy
+    }
+  }
+  best
+}
+
+///|
+fn vote_text(v : @quorum.VoteState) -> String {
+  match v {
+    VoteWon => "VoteWon"
+    VoteLost => "VoteLost"
+    VotePending => "VotePending"
+  }
+}
+
+///|
+/// The quorum datadriven harness, after etcd's `quorum/datadriven_test.go`.
 pub fn run_quorum(line : String, _input : String) -> String {
   let a = parse_args(line)
-  match a.cmd {
-    "vote" => {
-      let cfg = parse_list(kv_get(a.kv, "cfg", ""))
-      let vs = parse_list(kv_get(a.kv, "votes", ""))
-      let votes : Map[String, Bool] = Map([], capacity=8)
-      for i = 0; i < cfg.length(); i = i + 1 {
-        if i < vs.length() {
-          let v = vs[i]
-          if v == "y" {
-            votes[cfg[i]] = true
-          } else if v == "n" {
-            votes[cfg[i]] = false
-          }
-        }
-      }
-      match @quorum.vote_result(cfg, [], votes) {
-        @quorum.VoteState::VoteWon => "VoteWon"
-        @quorum.VoteState::VoteLost => "VoteLost"
-        @quorum.VoteState::VotePending => "VotePending"
-      }
+  let ids = union_ids(parse_list(kv_get(a.kv, "cfg", "")), [])
+  let joint = a.kv.contains("cfgj")
+  let idsj = union_ids(parse_list(kv_get(a.kv, "cfgj", "")), [])
+  let idxs = parse_list(kv_get(a.kv, "idx", "")).map(v => {
+    if v == "_" {
+      0UL
+    } else {
+      parse_u64(v)
     }
-    "committed" => {
-      let cfg = parse_list(kv_get(a.kv, "cfg", ""))
-      let cfgj = parse_list(kv_get(a.kv, "cfgj", ""))
-      let idxs = parse_list(kv_get(a.kv, "idx", ""))
-      let ids : Array[String] = []
-      for x in cfg {
-        if !ids.contains(x) {
-          ids.push(x)
-        }
-      }
-      for x in cfgj {
-        if !ids.contains(x) {
-          ids.push(x)
-        }
-      }
-      let acked : Map[String, UInt64] = Map([], capacity=8)
-      for i = 0; i < ids.length(); i = i + 1 {
-        if i < idxs.length() {
-          let v = idxs[i]
-          if v != "_" && v != "" {
-            acked[ids[i]] = parse_u64(v)
-          }
-        }
-      }
-      "\{@quorum.committed_index(cfg, cfgj, acked)}"
+  })
+  let votes = parse_list(kv_get(a.kv, "votes", "")).map(v => {
+    match v {
+      "y" => 2UL
+      "n" => 1UL
+      _ => 0UL
     }
-    _ => "unsupported: \{a.cmd}"
+  })
+  let input = if a.cmd == "vote" { votes } else { idxs }
+  let voters = union_ids(ids, idsj)
+  if voters.length() != input.length() {
+    let shown = input.map(index_text).join(" ")
+    return "error: mismatched input (explicit or _) for voters [\{voters.join(" ")}]: [\{shown}]"
   }
+  let buf = StringBuilder()
+  match a.cmd {
+    "committed" => {
+      let l = lookuper(idxs, ids, idsj)
+      if !joint {
+        let idx = @quorum.committed_index(ids, [], l)
+        buf.write_string(@quorum.describe(ids, l))
+        let alt = alternative_committed(ids, l)
+        if alt != idx {
+          buf.write_string(
+            "\{index_text(alt)} <-- via alternative computation\n",
+          )
+        }
+        let zero = @quorum.committed_index(ids, [], l)
+        if zero != idx {
+          buf.write_string("\{index_text(zero)} <-- via zero-joint quorum\n")
+        }
+        let own = @quorum.committed_index(ids, ids, l)
+        if own != idx {
+          buf.write_string("\{index_text(own)} <-- via self-joint quorum\n")
+        }
+        for id in ids {
+          let iidx = l.get(id).unwrap_or(0)
+          if idx > iidx && iidx > 0 {
+            for lowered in [iidx - 1, 0UL] {
+              let lo : Map[String, UInt64] = Map([])
+              for iid in ids {
+                if iid == id {
+                  lo[iid] = lowered
+                } else if l.get(iid) is Some(v) {
+                  lo[iid] = v
+                }
+              }
+              let got = @quorum.committed_index(ids, [], lo)
+              if got != idx {
+                let shown = if lowered == 0 { "0" } else { iidx.to_string() }
+                buf.write_string(
+                  "\{index_text(got)} <-- overlaying \{id}->\{shown}",
+                )
+              }
+            }
+          }
+        }
+        buf.write_string(index_text(idx) + "\n")
+      } else {
+        buf.write_string(@quorum.describe(voters, l))
+        let idx = @quorum.committed_index(ids, idsj, l)
+        let swapped = @quorum.committed_index(idsj, ids, l)
+        if swapped != idx {
+          buf.write_string("\{index_text(swapped)} <-- via symmetry\n")
+        }
+        buf.write_string(index_text(idx) + "\n")
+      }
+    }
+    "vote" => {
+      let ll = lookuper(votes, ids, idsj)
+      let l : Map[String, Bool] = Map([])
+      for id, v in ll {
+        l[id] = v != 1
+      }
+      if !joint {
+        buf.write_string(vote_text(@quorum.vote_result(ids, [], l)) + "\n")
+      } else {
+        let r = @quorum.vote_result(ids, idsj, l)
+        let swapped = @quorum.vote_result(idsj, ids, l)
+        if swapped != r {
+          buf.write_string(vote_text(swapped) + " <-- via symmetry\n")
+        }
+        buf.write_string(vote_text(r) + "\n")
+      }
+    }
+    _ => return "unknown command: \{a.cmd}"
+  }
+  buf.to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +270,8 @@ fn parse_changes(input : String) -> Array[(String, String)] {
         'v' => "v"
         'r' => "r"
         'l' => "l"
-        _ => "v"
+        'u' => "u"
+        _ => "?"
       }
       let idb = StringBuilder()
       for i = 1; i < chars.length(); i = i + 1 {
@@ -159,6 +291,8 @@ pub fn ConfChangeTest::run(
 ) -> String {
   let a = parse_args(line)
   let changes = parse_changes(input)
+  // etcd's harness moves the changer's last index on after every command.
+  defer self.changer.advance_index()
   match a.cmd {
     "simple" => self.emit(self.changer.simple(changes))
     "enter-joint" => {
@@ -176,7 +310,7 @@ pub fn ConfChangeTest::run(
 ///|
 fn ConfChangeTest::emit(self : ConfChangeTest, res : String?) -> String {
   match res {
-    Some(e) => "error: \{e}"
+    Some(e) => e
     None => self.changer.describe().trim_end().to_owned()
   }
 }

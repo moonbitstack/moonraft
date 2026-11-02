@@ -246,3 +246,30 @@ test "datadriven: replay all archived etcd scripts" {
   // Sanity: the corpus is substantial.
   assert_true(cases > 500)
 }
+
+///|
+/// The quorum and confchange scripts answer exactly what upstream wrote down,
+/// case by case.
+test "datadriven: quorum and confchange scripts reproduce upstream exactly" {
+  let mut scripts = 0
+  for entry in dd_scripts {
+    let (kind, name, script) = entry
+    if kind == "raft" {
+      continue
+    }
+    scripts += 1
+    let ct = ConfChangeTest::new()
+    let handler : DdHandler = if kind == "quorum" {
+      run_quorum
+    } else {
+      (cmd, input) => ct.run(cmd, input)
+    }
+    for c in dd_parse_script(script) {
+      let got = handler(c.cmd, c.input)
+      if got.trim_end() != c.expected.trim_end() {
+        fail("\{name}: \{c.cmd}\n got: \{got}\nwant: \{c.expected}")
+      }
+    }
+  }
+  assert_eq(scripts, 13)
+}

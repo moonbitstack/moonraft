@@ -200,6 +200,10 @@ fn Changer::make_learner(self : Changer, id : String) -> Unit {
 fn Changer::apply(self : Changer, changes : Array[(String, String)]) -> String? {
   for c in changes {
     let (op, id) = c
+    // etcd zeroes the node id of a change it decided not to apply.
+    if id == "0" {
+      continue
+    }
     match op {
       "v" => self.make_voter(id)
       "l" => self.make_learner(id)

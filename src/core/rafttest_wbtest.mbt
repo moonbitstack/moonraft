@@ -83,7 +83,7 @@ pub fn RaftTest::new() -> RaftTest {
 ///|
 /// Parse a directive line into its command and arguments.
 fn parse_args(line : String) -> Args {
-  let toks = split_str(line, " ")
+  let toks = arg_tokens(line)
   let cmd = if toks.length() > 0 { toks[0] } else { "" }
   let positional : Array[String] = []
   let kv : Map[String, String] = Map([], capacity=8)
@@ -97,6 +97,38 @@ fn parse_args(line : String) -> Args {
     }
   }
   { cmd, positional, kv, }
+}
+
+///|
+/// The words of a directive line. A parenthesised list is one word even with
+/// spaces inside it, as in datadriven's `cfg=(1, 2)`.
+fn arg_tokens(line : String) -> Array[String] {
+  let out : Array[String] = []
+  let word = StringBuilder()
+  let mut depth = 0
+  for ch in line {
+    match ch {
+      '(' => {
+        depth += 1
+        word.write_char(ch)
+      }
+      ')' => {
+        depth -= 1
+        word.write_char(ch)
+      }
+      ' ' | '\t' if depth == 0 =>
+        if !word.is_empty() {
+          out.push(word.to_string())
+          word.reset()
+        }
+      ' ' => ()
+      _ => word.write_char(ch)
+    }
+  }
+  if !word.is_empty() {
+    out.push(word.to_string())
+  }
+  out
 }
 
 ///|
