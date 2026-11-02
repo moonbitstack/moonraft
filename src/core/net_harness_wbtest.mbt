@@ -112,10 +112,16 @@ fn Net::deliver(self : Net, initial : Array[Message]) -> Unit {
       continue
     }
     match self.nodes.get(m.to) {
-      Some(n) =>
+      Some(n) => {
         for r in n.step(m) {
           q.push(r)
         }
+        // This harness has no storage boundary: in-memory delivery means the
+        // responses a server holds until its Ready is durable leave at once.
+        for r in n.take_deferred() {
+          q.push(r)
+        }
+      }
       None => ()
     }
   }
@@ -124,20 +130,32 @@ fn Net::deliver(self : Net, initial : Array[Message]) -> Unit {
 ///|
 /// `id` starts an election, and the resulting traffic is delivered.
 fn Net::campaign(self : Net, id : String) -> Unit {
-  self.deliver(self.nodes[id].campaign())
+  let out = self.nodes[id].campaign()
+  for m in self.nodes[id].take_deferred() {
+    out.push(m)
+  }
+  self.deliver(out)
 }
 
 ///|
 /// `id` proposes `data`, and the resulting traffic is delivered.
 fn Net::propose(self : Net, id : String, data : Bytes) -> Unit {
-  self.deliver(self.nodes[id].propose(data))
+  let out = self.nodes[id].propose(data)
+  for m in self.nodes[id].take_deferred() {
+    out.push(m)
+  }
+  self.deliver(out)
 }
 
 ///|
 /// Tick `id` once and deliver whatever it emits (a leader's heartbeat round,
 /// which clears follower flow-control pauses — etcd's MsgBeat).
 fn Net::beat(self : Net, id : String) -> Unit {
-  self.deliver(self.nodes[id].tick())
+  let out = self.nodes[id].tick()
+  for m in self.nodes[id].take_deferred() {
+    out.push(m)
+  }
+  self.deliver(out)
 }
 
 ///|

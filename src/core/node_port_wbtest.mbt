@@ -58,8 +58,12 @@ test "TestNodeStep routes network messages through Step" {
       Vote({ term: 1, candidate_id: "2", last_log_index: 0, last_log_term: 0, }),
     ),
   )
-  assert_true(rn.msgs.length() >= 1)
-  assert_true(rn.msgs[0].is_response())
+  // A vote or append acknowledgement may not be published before the state it
+  // attests is durable, so it surfaces in the next Ready rather than in `msgs`.
+  assert_true(rn.has_ready())
+  let rd = rn.ready()
+  assert_true(rd.messages.length() >= 1)
+  assert_true(rd.messages[0].is_response())
 }
 
 // TestNodePropose: a proposal on the leader is appended to the log and surfaced

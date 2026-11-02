@@ -42,19 +42,6 @@ pub(all) struct Ready {
 }
 
 ///|
-/// The acknowledgement a storage thread sends back once a `StorageAppend` has
-/// been made durable (etcd's `MsgStorageAppendResp`). It attests the last log
-/// `(index, log_term)` written and the `term` the raft node held when the
-/// directive was issued — the two together defeat the ABA race: a response that
-/// arrives after the term has moved on, or after the unstable log at that index
-/// was overwritten, is ignored rather than mistaken for an ack of the new log.
-pub(all) struct StorageAppendResp {
-  index : UInt64
-  log_term : UInt64
-  term : UInt64
-} derive(Eq)
-
-///|
 /// A directive to the local append thread: write these unstable entries (and the
 /// hard state / snapshot, if present) to stable storage, then return `resp`
 /// (etcd's `MsgStorageAppend`).
@@ -69,15 +56,6 @@ pub(all) struct StorageAppend {
   // The storage thread steps them once the write completes, which is what keeps
   // a vote from being published before it is on disk.
   responses : Array[Message]
-}
-
-///|
-/// The acknowledgement a state machine sends back once a `StorageApply` batch has
-/// been applied (etcd's `MsgStorageApplyResp`). It carries the applied entries so
-/// the raft node can advance its applied cursor and release their quota; committed
-/// entries are term-independent, so no ABA guard is needed.
-pub(all) struct StorageApplyResp {
-  entries : Array[Entry]
 }
 
 ///|
@@ -96,6 +74,3 @@ pub(all) struct StorageApply {
 pub fn must_sync(hs : HardState, prev : HardState, entries_num : Int32) -> Bool {
   entries_num != 0 || hs.vote != prev.vote || hs.term != prev.term
 }
-
-///|
-pub extend StorageAppendResp with Eq::{not_equal, equal}

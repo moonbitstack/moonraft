@@ -29,6 +29,14 @@ pub(all) enum Payload {
   ReadIndexResp(ReadIndexResp)
   TransferLeader(String)
   ForgetLeader
+  // Local storage-thread replies (etcd's MsgStorageAppendResp and
+  // MsgStorageApplyResp): what the append and apply threads send back once a
+  // directive has been made durable or applied. They are messages rather than
+  // return values so that a driver without language-level async can queue them
+  // like any other delivery — which is exactly the ordering the async-write
+  // scenarios record.
+  StorageAppendResp(StorageAppendResp)
+  StorageApplyResp(StorageApplyResp)
 }
 
 ///|
@@ -87,6 +95,10 @@ pub fn Message::term(self : Message) -> UInt64 {
     // Local, routable messages carry no term (etcd sends MsgProp/MsgReadIndex
     // with Term 0); the read-index reply does carry the leader's term.
     ReadIndexResp(r) => r.term
+    // A storage reply carries the term the write was issued under, which is what
+    // makes a reply that arrives after a term change identifiable as stale.
+    StorageAppendResp(r) => r.term
+    StorageApplyResp(_) => 0
     Propose(_) | ReadIndex(_) | TransferLeader(_) | ForgetLeader => 0
   }
 }
@@ -126,6 +138,8 @@ pub fn Message::type_name(self : Message) -> String {
     ReadIndex(_) => "MsgReadIndex"
     TransferLeader(_) => "MsgTransferLeader"
     ForgetLeader => "MsgForgetLeader"
+    StorageAppendResp(_) => "MsgStorageAppendResp"
+    StorageApplyResp(_) => "MsgStorageApplyResp"
   }
 }
 
@@ -148,6 +162,8 @@ pub fn Message::kind(self : Message) -> String {
     ReadIndexResp(_) => "ReadIndexResp"
     TransferLeader(_) => "TransferLeader"
     ForgetLeader => "ForgetLeader"
+    StorageAppendResp(_) => "StorageAppendResp"
+    StorageApplyResp(_) => "StorageApplyResp"
   }
 }
 
@@ -165,3 +181,28 @@ pub fn Payload::is_local(self : Payload) -> Bool {
 
 ///|
 pub extend ReadIndexResp with Eq::{not_equal, equal}
+
+///|
+/// The acknowledgement a storage thread sends back once a `StorageAppend` has
+/// been made durable (etcd's `MsgStorageAppendResp`). It attests the last log
+/// `(index, log_term)` written and the `term` the raft node held when the
+/// directive was issued — the two together defeat the ABA race: a response that
+/// arrives after the term has moved on, or after the unstable log at that index
+/// was overwritten, is ignored rather than mistaken for an ack of the new log.
+pub(all) struct StorageAppendResp {
+  index : UInt64
+  log_term : UInt64
+  term : UInt64
+} derive(Eq)
+
+///|
+pub extend StorageAppendResp with Eq::{not_equal, equal}
+
+///|
+/// The acknowledgement a state machine sends back once a `StorageApply` batch has
+/// been applied (etcd's `MsgStorageApplyResp`). It carries the applied entries so
+/// the raft node can advance its applied cursor and release their quota; committed
+/// entries are term-independent, so no ABA guard is needed.
+pub(all) struct StorageApplyResp {
+  entries : Array[Entry]
+}

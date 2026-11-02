@@ -317,6 +317,7 @@ pub struct RawNode {
   mut log : @log.RaftLog
   max_committed : UInt64
   msgs : Array[@raftpb.Message]
+  steps_on_advance : Array[@raftpb.Message]
   read_states : Array[ReadState]
   mut prev_soft : SoftState
   mut prev_hard : @raftpb.HardState
@@ -347,8 +348,8 @@ pub fn RawNode::report_unreachable(Self, String) -> Unit
 pub fn RawNode::stabilize(Self) -> Array[@raftpb.Message]
 pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, @raftpb.Message) -> Unit
-pub fn RawNode::step_append_resp(Self, StorageAppendResp) -> Unit
-pub fn RawNode::step_apply_resp(Self, StorageApplyResp) -> Unit
+pub fn RawNode::step_append_resp(Self, @raftpb.StorageAppendResp) -> Unit
+pub fn RawNode::step_apply_resp(Self, @raftpb.StorageApplyResp) -> Unit
 pub fn RawNode::store(Self, Ready) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
@@ -403,25 +404,13 @@ pub(all) struct StorageAppend {
   entries : Array[@raftpb.Entry]
   hard_state : @raftpb.HardState?
   snapshot : @raftpb.Snapshot?
-  resp : StorageAppendResp
+  resp : @raftpb.StorageAppendResp
   responses : Array[@raftpb.Message]
 }
 
-pub(all) struct StorageAppendResp {
-  index : UInt64
-  log_term : UInt64
-  term : UInt64
-} derive(Eq)
-pub fn StorageAppendResp::equal(Self, Self) -> Bool
-pub fn StorageAppendResp::not_equal(Self, Self) -> Bool
-
 pub(all) struct StorageApply {
   entries : Array[@raftpb.Entry]
-  resp : StorageApplyResp
-}
-
-pub(all) struct StorageApplyResp {
-  entries : Array[@raftpb.Entry]
+  resp : @raftpb.StorageApplyResp
 }
 
 pub enum TraceEvent {

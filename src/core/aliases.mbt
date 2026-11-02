@@ -21,6 +21,8 @@ using @raftpb {
   type Snapshot,
   type HardState,
   type ConfState,
+  type StorageAppendResp,
+  type StorageApplyResp,
   no_limit,
   ents_size,
   limit_size,

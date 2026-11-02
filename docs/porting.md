@@ -32,16 +32,21 @@ script's expected block is a byte comparison rather than a shape check.
 - The 13 `confchange` and `quorum` scripts compare case by case and match
   exactly (`datadriven: quorum and confchange scripts reproduce upstream exactly`).
 - The 28 `raft` scripts are scored block by block
-  (`datadriven: raft scripts reproduce upstream block by block`): **332 of 558**
-  cases match today. The gap is the raft-core log lines this port does not emit
-  yet — the append, heartbeat, snapshot and leadership-transfer paths — plus
-  four structural items: the deferred self-vote (upstream counts the candidate's
-  own vote only after it is persisted, which moves the leader transition out of
-  the `campaign` block); the configuration switch announced when a change is
-  *committed* here rather than when it is *applied*, which lands `switched to
-  configuration` in a different block; `EntryConfChangeV2` as a distinct entry
-  type; and the local `MsgStorageAppend` / `MsgStorageApply` messages that the
-  async scripts print with their nested `Responses`.
+  (`datadriven: raft scripts reproduce upstream block by block`): **453 of 558**
+  cases match on the `core-script-parity` branch. What closed since the first
+  score is the ordering, not the wording: every vote and append acknowledgement
+  now waits for the state it attests to be durable (upstream's `msgsAfterAppend`
+  → `stepsOnAdvance`), the storage threads' replies travel as messages
+  (`MsgStorageAppendResp` / `MsgStorageApplyResp`), and a leader counts its own
+  append only once it is durable.
+
+  The remaining 105 cases cluster in four places: the async scripts' message
+  ordering once several directives are in flight; the two snapshot scripts'
+  snapshot timing; the configuration switch announced when a change is
+  *committed* here rather than when it is *applied* (which also moves the
+  `HardState` commit in the v1/v2 confchange scripts); and the raft-core log
+  lines this port does not emit yet on the append, heartbeat, snapshot and
+  leadership-transfer paths.
 
 The scoreboard test fails if the count drops, so a change that stops a script
 reproducing upstream is caught rather than absorbed.
