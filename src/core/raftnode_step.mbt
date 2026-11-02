@@ -57,6 +57,11 @@ fn RaftNode::term_rel(self : RaftNode, msg : Message) -> TermRel {
 /// (double leader) or a late `AppendResp` inflate a follower's progress.
 pub fn RaftNode::step(self : RaftNode, msg : Message) -> Array[Message] {
   let out = self.step_message(msg)
+  // A configuration change folded into the configuration can emit messages of its
+  // own — the probe to a server that just joined — so they are collected too.
+  for m in self.take_pending() {
+    out.push(m)
+  }
   if !self.defer_responses {
     return out
   }
@@ -266,6 +271,26 @@ fn RaftNode::step_propose(
             None => false
           }
           if self.conf_change_refused(is_leave) {
+            // A refused change is announced with the reason, because the client's
+            // proposal silently turns into a no-op entry and the log line is the
+            // only place that says why (etcd's `stepLeader` MsgProp).
+            let what = match ConfChangeV2::decode(e.command) {
+              Some(v2) => v2.describe()
+              None =>
+                match ConfChange::decode(e.command) {
+                  Some(cc) => cc.describe_proto()
+                  None => ""
+                }
+            }
+            let reason = if self.config.is_joint() && !is_leave {
+              "must transition out of joint config first"
+            } else {
+              "previous configuration change has not been applied yet"
+            }
+            self.logger.log(
+              Info,
+              "\{self.id} ignoring conf change \{what} at config \{self.config.describe()}: \{reason}",
+            )
             // etcd replaces a refused conf change with an empty Normal entry: the
             // log position is still consumed but no membership change is applied.
             self.core.append(self.core.current_term(), b"") |> ignore
@@ -344,6 +369,10 @@ fn RaftNode::step_transfer_leader(
   target : String,
 ) -> Array[Message] {
   if self.core.role() == Leader {
+    self.logger.log(
+      Info,
+      "\{self.id} [term \{self.core.current_term()}] starts to transfer leadership to \{target}",
+    )
     return self.transfer_leadership(target)
   }
   match self.leader_id {
@@ -625,18 +654,47 @@ fn RaftNode::handle_vote_resp(
 }
 
 ///|
+
+///|
+/// Recognise `lead` as the leader at `term` and defer our own election: a
+/// follower keeps its role, while a candidate or pre-candidate steps down and
+/// says so (`becomeFollower` logs once, and only when the role actually moves).
+fn RaftNode::adopt_leader(
+  self : RaftNode,
+  term : UInt64,
+  lead : String,
+) -> Unit {
+  if self.core.role() != Follower {
+    self.become_follower(term)
+  }
+  self.leader_id = Some(lead)
+  self.election_elapsed = 0
+  self.in_pre_campaign = false
+}
+
+///|
 fn RaftNode::handle_append(
   self : RaftNode,
   from : String,
   args : AppendEntriesArgs,
 ) -> Array[Message] {
   let reply = self.core.handle_append_entries(args)
+  if !reply.success && reply.term == args.term {
+    // Our log does not match at the anchor. Upstream names the term we hold
+    // there (zero when the index is past our log) beside the leader's, which is
+    // what makes a divergent tail diagnosable from one line.
+    self.logger.log(
+      Debug,
+      "\{self.id} [logterm: \{self.core.term_at(args.prev_log_index)}, index: \{args.prev_log_index}] rejected MsgApp [logterm: \{args.prev_log_term}, index: \{args.prev_log_index}] from \{args.leader_id}",
+    )
+  }
   // reply.term == args.term means we did not reject for being ahead: the sender
   // is a legitimate current leader, so recognise it and defer our election.
   if reply.term == args.term {
-    self.leader_id = Some(args.leader_id)
-    self.election_elapsed = 0
-    self.in_pre_campaign = false
+    // A current leader talking to us: recognise it, and step down if we were
+    // campaigning — a candidate that hears from a leader at its own term yields
+    // to it (etcd's `stepCandidate`, which calls becomeFollower for MsgApp).
+    self.adopt_leader(args.term, args.leader_id)
   }
   // A follower folds committed configuration changes into its own view of the
   // membership as its commit index advances, so every server shares one config.
@@ -653,10 +711,7 @@ fn RaftNode::handle_heartbeat(
   args : HeartbeatArgs,
 ) -> Array[Message] {
   if args.term >= self.core.current_term() {
-    self.leader_id = Some(args.leader_id)
-    self.election_elapsed = 0
-    self.in_pre_campaign = false
-    self.core.role = Follower
+    self.adopt_leader(args.term, args.leader_id)
     // Commit only up to what we actually hold; the leader already caps `commit`.
     let upto = if args.commit < self.core.last_log_index() {
       args.commit
@@ -789,6 +844,10 @@ fn RaftNode::handle_append_resp(
           // aborting the pending snapshot (etcd's StateSnapshot recovery).
           Snapshot =>
             if p.match_index >= self.core.snapshot_index {
+              self.logger.log(
+                Debug,
+                "\{self.id} recovered from needing snapshot, resumed sending replication messages to \{from} [\{progress_text(p)}]",
+              )
               p.become_probe()
               p.become_replicate()
             }
@@ -841,6 +900,13 @@ fn RaftNode::handle_append_resp(
         // feeding the carried index lets `maybe_decr_to`'s staleness guard
         // (`next_index - 1 != rejected`) discard a reordered reject for an entry
         // no longer in flight instead of driving a spurious back-off.
+        // Name the hint the follower gave before refining it (etcd logs this at
+        // the top of the rejection branch, so the raw hint and the position it
+        // was for are both visible).
+        self.logger.log(
+          Debug,
+          "\{self.id} received MsgAppResp(rejected, hint: (index \{reply.conflict_index}, term \{reply.conflict_term})) from \{from} for index \{reply.reject_index}",
+        )
         let rejected = reply.reject_index
         let next_probe = if reply.conflict_term > 0 {
           let (idx, _) = self.core.find_conflict_by_term(
@@ -852,6 +918,10 @@ fn RaftNode::handle_append_resp(
           reply.conflict_index
         }
         if p.maybe_decr_to(rejected, next_probe) {
+          self.logger.log(
+            Debug,
+            "\{self.id} decreased progress of \{from} to [\{progress_text(p)}]",
+          )
           if p.state == Replicate {
             p.become_probe()
           }
@@ -898,19 +968,44 @@ fn RaftNode::handle_snapshot(
   if !args.conf_state.is_empty() && not_in_conf_state(args.conf_state, self.id) {
     return [self.snapshot_ack(from, self.core.commit_index)]
   }
+  // The pre-install log state, as etcd's `raftLog.String()` prints it. It is
+  // captured before the install and reported with the restore, because that is
+  // the shape of upstream's line: the log that is about to be replaced.
+  let log_before = "committed=\{self.core.commit_index}, applied=\{self.core.last_applied}, applying=\{self.core.last_applied}, unstable.offset=\{self.core.last_log_index() + 1}, unstable.offsetInProgress=\{self.core.last_log_index() + 1}, len(unstable.Entries)=0"
   let before = self.core.snapshot_index
   let reply = self.core.handle_install_snapshot(args)
   if reply.term == args.term {
-    self.leader_id = Some(args.leader_id)
-    self.election_elapsed = 0
-    self.in_pre_campaign = false
+    // A current leader talking to us: recognise it, and step down if we were
+    // campaigning — a candidate that hears from a leader at its own term yields
+    // to it (etcd's `stepCandidate`, which calls becomeFollower for MsgApp).
+    self.adopt_leader(args.term, args.leader_id)
   }
   // If the snapshot was actually installed (its baseline advanced ours) and it
   // records a configuration, rebuild the live membership from it (§7) — so a
   // follower does not silently lose its voter/learner sets on restore.
   let installed = self.core.snapshot_index > before
-  if installed && !args.conf_state.is_empty() {
-    self.restore_conf_state(args.conf_state)
+  if installed {
+    self.logger.log(
+      Info,
+      "log [\{log_before}] starts to restore snapshot [index: \{args.last_index}, term: \{args.last_term}]",
+    )
+    if !args.conf_state.is_empty() {
+      self.restore_conf_state(args.conf_state)
+    }
+    // Restoring discards the log and adopts the snapshot's configuration, so the
+    // membership is announced exactly as any other switch is.
+    self.logger.log(
+      Info,
+      "\{self.id} switched to configuration \{self.config.describe()}",
+    )
+    self.logger.log(
+      Info,
+      "\{self.id} [commit: \{self.core.commit_index}, lastindex: \{self.core.last_log_index()}, lastterm: \{self.core.term_at(self.core.last_log_index())}] restored snapshot [index: \{args.last_index}, term: \{args.last_term}]",
+    )
+    self.logger.log(
+      Info,
+      "\{self.id} [commit: \{self.core.commit_index}] restored snapshot [index: \{args.last_index}, term: \{args.last_term}]",
+    )
   }
   // Answer with an `AppendResp`, as etcd's `handleSnapshot` answers `MsgSnap`
   // with `MsgAppResp` (raft.go:1848/1852): the follower's last index once the

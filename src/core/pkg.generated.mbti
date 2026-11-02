@@ -239,6 +239,8 @@ pub struct RaftNode {
   step_down_on_removal : Bool
   pending_farewell : Array[@raftpb.Message]
   deferred : Array[@raftpb.Message]
+  pending : Array[@raftpb.Message]
+  mut applying_conf : Bool
   mut defer_responses : Bool
   logger : &Logger
   tracer : &Tracer
@@ -291,6 +293,7 @@ pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
 pub fn RaftNode::step(Self, @raftpb.Message) -> Array[@raftpb.Message]
 pub fn RaftNode::take_deferred(Self) -> Array[@raftpb.Message]
+pub fn RaftNode::take_pending(Self) -> Array[@raftpb.Message]
 pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
 pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[@raftpb.Message]

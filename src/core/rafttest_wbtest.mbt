@@ -56,7 +56,9 @@ impl Logger for RtOut with fn log(self, level : LogLevel, msg : String) {
 
 ///|
 fn RtOut::new() -> RtOut {
-  { stack: [StringBuilder()], level: Ref(1), }
+  // Upstream's harness logs everything by default; the scripts that want quiet
+  // open with `log-level none`.
+  { stack: [StringBuilder()], level: Ref(0), }
 }
 
 ///|
@@ -914,12 +916,18 @@ fn RaftTest::send_snapshot(self : RaftTest, a : Args) -> Unit {
   if i < 0 {
     return
   }
-  // Hand the follower the leader's current baseline; upstream reaches through
-  // the storage for the latest snapshot it holds.
+  // Hand the follower the snapshot the leader's storage holds: the state it has
+  // applied, which is at or ahead of its last compaction (upstream reaches
+  // through `raftLog.snapshot()`, whose index is the applied one).
   let node = self.nodes[i].rn.node()
+  let snap_index = if node.node().last_applied > node.node().snapshot_index {
+    node.node().last_applied
+  } else {
+    node.node().snapshot_index
+  }
   let snap : Snapshot = {
-    last_index: node.node().snapshot_index,
-    last_term: node.node().snapshot_term,
+    last_index: snap_index,
+    last_term: node.node().term_at(snap_index),
     data: b"",
     conf_state: node.conf_state(),
   }

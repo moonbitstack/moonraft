@@ -281,6 +281,35 @@ pub extend ConfChangeType with Eq::{not_equal, equal}
 pub extend ConfChangeV2 with Eq::{not_equal, equal}
 
 ///|
+/// A single change as etcd's `%v` prints the protobuf message:
+/// `type:ConfChangeAddNode node_id:4`.
+pub fn ConfChange::describe_proto(self : ConfChange) -> String {
+  let name = match self.change_type {
+    AddNode => "ConfChangeAddNode"
+    AddLearnerNode => "ConfChangeAddLearnerNode"
+    RemoveNode => "ConfChangeRemoveNode"
+  }
+  "type:\{name} node_id:\{self.node_id}"
+}
+
+///|
+/// A batch as etcd's `%v` prints it: the transition, then one `changes:{…}` per
+/// change — the shape a diagnostic line quotes when it refuses a change.
+pub fn ConfChangeV2::describe(self : ConfChangeV2) -> String {
+  let transition = match self.transition {
+    Auto => "ConfChangeTransitionAuto"
+    JointImplicit => "ConfChangeTransitionJointImplicit"
+    JointExplicit => "ConfChangeTransitionJointExplicit"
+  }
+  let buf = StringBuilder()
+  buf.write_string("transition:\{transition}")
+  for c in self.changes {
+    buf.write_string(" changes:{\{c.describe_proto()}}")
+  }
+  buf.to_string()
+}
+
+///|
 /// Render a batch of changes the way etcd's `ConfChangesToString` does:
 /// `v1 v3 l4 r5`, a voter added, a learner added, a voter removed. A log entry's
 /// payload is rendered with this, so a diagnostic reads `EntryConfChange r1`
