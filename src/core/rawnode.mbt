@@ -325,9 +325,7 @@ pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
     }
     _ => ()
   }
-  for m in self.raft.step(msg) {
-    self.msgs.push(m)
-  }
+  self.record(self.raft.step(msg))
 }
 
 ///|
@@ -651,9 +649,13 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
     let last = rd.committed_entries[c - 1].index
     self.log.applied_to(last, ents_size(rd.committed_entries[:]))
     // Applying the committed entries releases their uncommitted-tail quota
-    // (etcd releases at apply time, not commit time); this also advances the
-    // core's applied watermark.
+    // (etcd releases at apply time, not commit time), advances the core's applied
+    // watermark, and is where a committed configuration change takes effect — so
+    // the messages it emits (a probe to a new peer) are collected here.
     self.raft.advance_applied(last)
+    for m in self.raft.take_pending() {
+      self.msgs.push(m)
+    }
   }
 }
 

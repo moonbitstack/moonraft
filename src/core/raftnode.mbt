@@ -100,6 +100,16 @@ pub struct RaftNode {
   // the advance boundary, which is what makes "became leader" land after the
   // Ready that persisted the vote rather than inside the campaign call.
   deferred : Array[Message]
+  // Messages the protocol decided to send while folding a configuration change
+  // (etcd's `switchToConfig` probes the new peers before returning, and reports
+  // any further commit). They are collected here because the fold can happen
+  // during `advance`, which returns nothing; `step` and the Ready driver drain
+  // this buffer.
+  pending : Array[Message]
+  // Whether a configuration fold is already running: `maybe_commit` re-enters it
+  // (committing a change can shrink the quorum and let more entries commit), and
+  // the fold itself calls `maybe_commit`.
+  mut applying_conf : Bool
   // Whether those responses wait for the advance boundary. A caller that drives
   // the node through `RawNode` is saying when a Ready became durable, so the
   // responses wait (the faithful ordering). A caller that steps the node
@@ -208,6 +218,8 @@ pub fn RaftNode::new(
     step_down_on_removal,
     pending_farewell: [],
     deferred: [],
+    pending: [],
+    applying_conf: false,
     defer_responses: false,
     logger,
     tracer,
@@ -743,9 +755,12 @@ pub fn RaftNode::disable_proposal_forwarding(self : RaftNode) -> Unit {
 /// it is dropped. This routes through the same `Propose` message path a remote
 /// proposal takes, so local and forwarded proposals behave identically.
 pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
-  self.step_propose(self.id, [
+  let out = self.step_propose(self.id, [
     Entry::normal(self.core.current_term(), 0, command),
   ])
+  // A proposal can commit a pending configuration change, whose effect (a probe
+  // to a server that just joined) is decided while folding it.
+  self.drain_pending(out)
 }
 
 ///|
@@ -760,9 +775,11 @@ pub fn RaftNode::propose_conf(
   // is counted against the uncommitted-log quota (etcd's appendEntry always
   // calls increaseUncommittedSize), validated against `pending_conf_index`, and
   // — on a follower — forwarded to the leader rather than silently dropped.
-  self.step_propose(self.id, [
+  let out = self.step_propose(self.id, [
     Entry::conf(self.core.current_term(), 0, change.encode()),
   ])
+  // Committing this change folds it in, which probes the servers it added.
+  self.drain_pending(out)
 }
 
 ///|
@@ -902,12 +919,37 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
   let prev = p.next_index - 1
   if prev < self.core.snapshot_index {
     if !p.is_active() {
+      self.logger.log(
+        Debug,
+        "ignore sending snapshot to \{peer} since it is not recently active",
+      )
       return None
     }
-    p.become_snapshot(self.core.snapshot_index)
+    // The snapshot that ships is the state the application has applied, which is
+    // at or ahead of the compaction point: a server that has applied past its
+    // last compaction still holds a snapshot of that state (etcd keeps the two
+    // apart — `raftLog.snapshot()` returns the storage's, whose index is the
+    // applied one, while `firstIndex()` follows the compaction).
+    let snap_index = if self.core.last_applied > self.core.snapshot_index {
+      self.core.last_applied
+    } else {
+      self.core.snapshot_index
+    }
+    let snap_term = self.core.term_at(snap_index)
+    // Report the snapshot before the progress moves into `StateSnapshot`, then
+    // report the pause it causes (etcd logs both, in that order).
+    self.logger.log(
+      Debug,
+      "\{self.id} [firstindex: \{self.core.snapshot_index + 1}, commit: \{self.core.commit_index}] sent snapshot[index: \{snap_index}, term: \{snap_term}] to \{peer} [\{progress_text(p)}]",
+    )
+    p.become_snapshot(snap_index)
+    self.logger.log(
+      Debug,
+      "\{self.id} paused sending replication messages to \{peer} [\{progress_text(p)}]",
+    )
     let snap : Snapshot = {
-      last_index: self.core.snapshot_index,
-      last_term: self.core.snapshot_term,
+      last_index: snap_index,
+      last_term: snap_term,
       data: b"",
       // Stamp the current membership so the follower rebuilds it on install.
       conf_state: self.conf_state(),
@@ -1155,6 +1197,11 @@ pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
   }
   self.core.mark_applied(index)
   self.reduce_uncommitted_size(freed)
+  // Applying the entries is also when a committed configuration change takes
+  // effect: the application has now seen the entry, so every server switches at
+  // the same point in its own apply loop (etcd's `ApplyConfChange`, which the
+  // driver calls once it has applied the entry).
+  self.apply_committed_conf()
 }
 
 ///|
@@ -1163,7 +1210,19 @@ pub fn RaftNode::advance_applied(self : RaftNode, index : UInt64) -> Unit {
 /// This is what actually makes an added server a voter, stops a removed server
 /// counting toward quorum, and steps down a leader that removed itself.
 fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
-  while self.conf_applied < self.core.commit_index {
+  if self.applying_conf {
+    return
+  }
+  self.applying_conf = true
+  // How far the configuration may have advanced. A driver tells us what it has
+  // applied (`last_applied`), and a change takes effect there; a caller without a
+  // Ready loop has no such watermark, so commitment stands in for it.
+  let upto = if self.defer_responses {
+    self.core.last_applied
+  } else {
+    self.core.commit_index
+  }
+  while self.conf_applied < upto {
     let idx = self.conf_applied + 1
     if self.core.entry_at(idx) is Some(e) && e.is_conf_change() {
       // A batch (ConfChangeV2) is tagged 'V'; anything else is a single change.
@@ -1175,6 +1234,14 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
             self.reconcile_peers()
           }
       }
+      // A change that takes effect announces the configuration it produced; one
+      // line per applied change is what a reader of the trace needs to see when
+      // the membership moved (etcd's `switchToConfig`).
+      self.logger.log(
+        Info,
+        "\{self.id} switched to configuration \{self.config.describe()}",
+      )
+      self.report_after_config()
     }
     self.conf_applied = idx
   }
@@ -1184,6 +1251,54 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
   // if the LeaveJoint is truncated before committing the leader appends it
   // again — the flag is only cleared when the LeaveJoint itself commits.
   self.maybe_append_auto_leave()
+  self.applying_conf = false
+}
+
+///|
+/// What a leader does right after a change takes effect (etcd's
+/// `switchToConfig`): if the smaller quorum let more entries commit, broadcast
+/// that; otherwise probe the peers, including the one that just joined, so it
+/// does not have to wait out a heartbeat interval or the next proposal.
+fn RaftNode::report_after_config(self : RaftNode) -> Unit {
+  if self.core.role() != Leader || self.config.voters().is_empty() {
+    return
+  }
+  if self.maybe_commit() {
+    for m in self.bcast_append() {
+      self.pending.push(m)
+    }
+  } else {
+    for peer in self.peers.copy() {
+      // `maybeSendAppend(id, sendIfEmpty=false)`: a follower with nothing to
+      // catch up on is left alone, while an append that carries entries — or the
+      // snapshot a far-behind follower needs — goes out now.
+      let msg = self.send_to(peer)
+      if msg is Some(m) && m.kind() != "Probe" {
+        self.pending.push(m)
+      }
+    }
+  }
+}
+
+///|
+/// Append the messages a configuration fold produced to `out`, so an entry point
+/// that folded a change returns them with the rest of its output.
+fn RaftNode::drain_pending(
+  self : RaftNode,
+  out : Array[Message],
+) -> Array[Message] {
+  for m in self.take_pending() {
+    out.push(m)
+  }
+  out
+}
+
+///|
+/// Hand over the messages a configuration fold produced, and clear the buffer.
+pub fn RaftNode::take_pending(self : RaftNode) -> Array[Message] {
+  let out = self.pending.copy()
+  self.pending.clear()
+  out
 }
 
 ///|
@@ -1195,6 +1310,12 @@ fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
     self.config.is_joint() &&
     self.config.auto_leave &&
     !self.has_pending_leave() {
+    // The leader announces the transition it is starting, so a reader can see
+    // which entry the leave came from (etcd's `maybeAutoLeave`).
+    self.logger.log(
+      Info,
+      "initiating automatic transition out of joint configuration \{self.config.describe()}",
+    )
     let _ = self.core.append_conf(
       self.core.current_term(),
       ConfChangeV2::leave_joint().encode(),
@@ -1472,8 +1593,13 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
         self.peers.push(id)
       }
       if self.core.role() == Leader && !self.progress.contains(id) {
+        // A server that just joined starts *optimistically* at the last index,
+        // not past it: the leader assumes it has everything but the final entry
+        // and probes with that one, so an empty follower rejects and is caught up
+        // by the ordinary (snapshot) recovery path (etcd's `Changer`, which uses
+        // `LastIndex` here).
         let p = Progress::new(
-          self.core.last_log_index() + 1,
+          self.core.last_log_index(),
           max_inflight=self.max_inflight,
           max_inflight_bytes=self.max_inflight_bytes,
         )

@@ -32,21 +32,31 @@ script's expected block is a byte comparison rather than a shape check.
 - The 13 `confchange` and `quorum` scripts compare case by case and match
   exactly (`datadriven: quorum and confchange scripts reproduce upstream exactly`).
 - The 28 `raft` scripts are scored block by block
-  (`datadriven: raft scripts reproduce upstream block by block`): **453 of 558**
+  (`datadriven: raft scripts reproduce upstream block by block`): **477 of 558**
   cases match on the `core-script-parity` branch. What closed since the first
-  score is the ordering, not the wording: every vote and append acknowledgement
-  now waits for the state it attests to be durable (upstream's `msgsAfterAppend`
-  → `stepsOnAdvance`), the storage threads' replies travel as messages
-  (`MsgStorageAppendResp` / `MsgStorageApplyResp`), and a leader counts its own
-  append only once it is durable.
+  score is mostly ordering, not wording:
 
-  The remaining 105 cases cluster in four places: the async scripts' message
-  ordering once several directives are in flight; the two snapshot scripts'
-  snapshot timing; the configuration switch announced when a change is
-  *committed* here rather than when it is *applied* (which also moves the
-  `HardState` commit in the v1/v2 confchange scripts); and the raft-core log
-  lines this port does not emit yet on the append, heartbeat, snapshot and
-  leadership-transfer paths.
+  - every vote and append acknowledgement waits for the state it attests to be
+    durable (upstream's `msgsAfterAppend` → `stepsOnAdvance`), the storage
+    threads' replies travel as messages (`MsgStorageAppendResp` /
+    `MsgStorageApplyResp`), and a leader counts its own append only once it is
+    durable;
+  - a committed configuration change takes effect when it is *applied*, and the
+    leader then announces the new configuration and probes the servers it added
+    (etcd's `applyConfChange` → `switchToConfig`), so `switched to configuration`
+    lands in the block where upstream prints it;
+  - a newly added server starts optimistically at the leader's last index, and
+    the snapshot a leader ships is the state its storage holds — the applied
+    index — rather than its compaction point;
+  - the append, rejection, snapshot-send, snapshot-restore, leadership-transfer
+    and auto-leave paths now emit upstream's diagnostics.
+
+  The remaining 81 cases are concentrated in the two async-write scripts (their
+  message ordering once several storage directives are in flight: 21/44 and
+  34/47), the two snapshot scripts (snapshot timing, 17/18 and 20/25), and a
+  handful of per-script differences (message grouping in `lagging_commit`, the
+  probe ladder in `heartbeat_resp_recovers_from_probing`, `paused` bookkeeping
+  in `replicate_pause`).
 
 The scoreboard test fails if the count drops, so a change that stops a script
 reproducing upstream is caught rather than absorbed.

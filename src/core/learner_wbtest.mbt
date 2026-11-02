@@ -61,14 +61,47 @@ test "learner does not campaign" {
 test "leader replicates to a learner" {
   let r = RaftNode::new("1", [], pre_vote=false)
   r.campaign() |> ignore
-  r.propose_conf(ConfChange::add_learner("2")) |> ignore
-  let msgs = r.propose(b"payload")
-  // The proposal is broadcast to the learner as an AppendEntries.
+  // Adding a learner probes it at once (etcd's `switchToConfig`), so a new
+  // server starts catching up without waiting for a heartbeat or a proposal.
+  let msgs = r.propose_conf(ConfChange::add_learner("2"))
   let mut to_learner = 0
   for m in msgs {
-    if m.kind() == "Append" {
+    if m.to == "2" && m.kind() == "Append" {
       to_learner = to_learner + 1
     }
   }
   assert_true(to_learner >= 1)
+  // That probe occupies the single in-flight slot a prober may have, so the next
+  // proposal is withheld from the learner until it answers — flow control, not a
+  // lost message.
+  let after = r.propose(b"payload")
+  let mut withheld = 0
+  for m in after {
+    if m.to == "2" {
+      withheld = withheld + 1
+    }
+  }
+  assert_eq(withheld, 0)
+  // Its acknowledgement reopens the window, and the payload goes out.
+  let out = r.step(
+    Message::new(
+      "2",
+      "1",
+      AppendResp({
+        term: 1UL,
+        success: true,
+        match_index: 1UL,
+        conflict_index: 0UL,
+        conflict_term: 0UL,
+        reject_index: 0UL,
+      }),
+    ),
+  )
+  let mut resumed = 0
+  for m in out {
+    if m.to == "2" && m.kind() == "Append" {
+      resumed = resumed + 1
+    }
+  }
+  assert_true(resumed >= 1)
 }
