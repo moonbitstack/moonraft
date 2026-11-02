@@ -94,6 +94,18 @@ pub struct RaftNode {
   // the progress until the application applies the change, which has the same
   // effect.
   pending_farewell : Array[Message]
+  // Self-addressed responses that must not take effect until the Ready that
+  // produced them is durable (etcd's `msgsAfterAppend`): the candidate's own
+  // vote and the leader's acknowledgement of its own append. They are stepped at
+  // the advance boundary, which is what makes "became leader" land after the
+  // Ready that persisted the vote rather than inside the campaign call.
+  deferred : Array[Message]
+  // Whether those responses wait for the advance boundary. A caller that drives
+  // the node through `RawNode` is saying when a Ready became durable, so the
+  // responses wait (the faithful ordering). A caller that steps the node
+  // directly has no such boundary — there is nothing to wait for — so the
+  // candidate's self-vote and the leader's self-ack take effect at once.
+  mut defer_responses : Bool
   // Diagnostics sink (etcd's `Config.Logger`); a no-op by default.
   logger : &Logger
   // State-transition tracer (etcd's `Config.TraceLogger`); a no-op by default.
@@ -195,6 +207,8 @@ pub fn RaftNode::new(
     no_conf_change_validation: disable_conf_change_validation,
     step_down_on_removal,
     pending_farewell: [],
+    deferred: [],
+    defer_responses: false,
     logger,
     tracer,
   }
@@ -470,7 +484,9 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
   self.leader_id = None
   self.in_pre_campaign = true
   self.votes.clear()
-  self.votes[self.id] = true
+  if !self.defer_responses {
+    self.votes[self.id] = true
+  }
   let out : Array[Message] = []
   let args : RequestVoteArgs = {
     term: self.core.current_term() + 1,
@@ -485,8 +501,21 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
     )
     out.push(Message::new(self.id, p, PreVote(args)))
   }
-  // A single-node cluster wins its own pre-vote immediately.
-  if self.config.has_majority(self.granted()) {
+  if self.defer_responses {
+    // The candidate votes for itself, but the vote only counts once it is
+    // durable: the acknowledgement waits for the advance boundary (etcd's
+    // msgsAfterAppend), so a single-node cluster becomes a candidate now and a
+    // leader then.
+    self.deferred.push(
+      Message::new(
+        self.id,
+        self.id,
+        PreVoteResp({ term: args.term, vote_granted: true, }),
+      ),
+    )
+  } else if self.config.has_majority(self.granted()) {
+    // No durability boundary to wait for: a single-node cluster wins its own
+    // pre-vote inside the call.
     return self.start_real_campaign()
   }
   out
@@ -505,7 +534,9 @@ fn RaftNode::start_real_campaign(
   )
   self.leader_id = None
   self.votes.clear()
-  self.votes[self.id] = true
+  if !self.defer_responses {
+    self.votes[self.id] = true
+  }
   let out : Array[Message] = []
   // A leadership-transfer campaign marks its votes forced so a follower still
   // leased to the outgoing leader grants them, letting the handover complete
@@ -518,22 +549,85 @@ fn RaftNode::start_real_campaign(
     )
     out.push(Message::new(self.id, p, Vote(args), force~))
   }
-  if self.config.has_majority(self.granted()) {
+  if self.defer_responses {
+    self.deferred.push(
+      Message::new(
+        self.id,
+        self.id,
+        VoteResp({ term: self.core.current_term(), vote_granted: true, }),
+      ),
+    )
+  } else if self.config.has_majority(self.granted()) {
     self.become_leader()
-    return self.bcast_append()
+    let all = out
+    for m in self.bcast_append() {
+      all.push(m)
+    }
+    return all
   }
   out
 }
 
 ///|
-/// Fold the leader's own freshly-appended entries into its progress. etcd has the
-/// leader self-ack via a self-directed MsgAppResp queued in msgsAfterAppend; this
-/// port appends synchronously, so the ack is applied in place after every leader
-/// append. A no-op on a node that does not track itself (i.e. not a leader).
+/// Acknowledge the leader's own freshly-appended entries. The leader sends no
+/// MsgApp to itself, so it acknowledges the append the way a follower would —
+/// with a self-addressed MsgAppResp — and that acknowledgement waits for the
+/// entries to be durable (etcd's `appendEntry`). A no-op on a node that does not
+/// track itself (i.e. not a leader): the response would find no progress.
 fn RaftNode::self_ack(self : RaftNode) -> Unit {
-  if self.progress.get(self.id) is Some(p) {
-    p.maybe_update(self.core.last_log_index()) |> ignore
+  if !self.defer_responses {
+    if self.progress.get(self.id) is Some(p) {
+      p.maybe_update(self.core.last_log_index()) |> ignore
+    }
+    return
   }
+  if self.progress.contains(self.id) {
+    self.deferred.push(
+      Message::new(
+        self.id,
+        self.id,
+        AppendResp({
+          term: self.core.current_term(),
+          success: true,
+          match_index: self.core.last_log_index(),
+          conflict_index: 0UL,
+          conflict_term: 0UL,
+          reject_index: 0UL,
+        }),
+      ),
+    )
+  }
+}
+
+///|
+/// Make the responses that depend on durability wait for the advance boundary
+/// (etcd's `msgsAfterAppend`, stepped by `Advance`). `RawNode` turns this on for
+/// the server it drives.
+pub fn RaftNode::enable_deferred_responses(self : RaftNode) -> Unit {
+  self.defer_responses = true
+}
+
+///|
+/// Hand over the responses that are waiting for durability and clear the queue
+/// (etcd steps `msgsAfterAppend` on `Advance`).
+pub fn RaftNode::take_deferred(self : RaftNode) -> Array[Message] {
+  let out = self.deferred.copy()
+  self.deferred.clear()
+  out
+}
+
+///|
+/// The responses waiting for durability, as a copy: what an async append
+/// directive carries to the storage thread.
+pub fn RaftNode::deferred_responses(self : RaftNode) -> Array[Message] {
+  self.deferred.copy()
+}
+
+///|
+/// Whether a response is waiting to be stepped once the current Ready is
+/// durable, so the driver does not report the node idle while it is not.
+pub fn RaftNode::has_deferred(self : RaftNode) -> Bool {
+  !self.deferred.is_empty()
 }
 
 ///|
@@ -576,15 +670,17 @@ fn RaftNode::become_leader(self : RaftNode) -> Unit {
     )
   }
   let _ = self.core.append(self.core.current_term(), b"")
-  // Self-ack the no-op just appended. etcd routes this through msgsAfterAppend as
-  // a self-directed MsgAppResp delivered once the entry is durable; this port
-  // appends synchronously, so the leader acks itself in place.
+  // The no-op is acknowledged through the deferred self-response, so it commits
+  // only once it is durable — not inside this transition.
   self.self_ack()
   // Like etcd's reset() on every state change, re-randomize the election
   // timeout and clear the timers.
   self.reset_timeout()
-  // In a single-node cluster the no-op commits at once, which also arms reads.
-  self.maybe_commit() |> ignore
+  if !self.defer_responses {
+    // A direct caller has no advance boundary, so a single-node leader commits
+    // its no-op here, which is also what arms reads.
+    self.maybe_commit() |> ignore
+  }
   // A leader inheriting a committed auto-leave joint config (whose LeaveJoint
   // was never committed, e.g. truncated on the term change) appends the leave.
   self.maybe_append_auto_leave()
@@ -787,6 +883,13 @@ pub fn RaftNode::forget_leader(self : RaftNode) -> Unit {
 /// to ship a snapshot to a `!RecentActive` follower, since it is probably gone
 /// and the snapshot would be wasted bandwidth).
 fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
+  // A leader never sends an append to itself: it acknowledges its own entries
+  // through `self_ack`. Reaching here with our own id means a response travelled
+  // the self-addressed path, and sending would produce a message no transport can
+  // deliver (etcd panics rather than send it).
+  if peer == self.id {
+    return None
+  }
   let p = self.progress[peer]
   let prev = p.next_index - 1
   if prev < self.core.snapshot_index {
@@ -850,6 +953,40 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
       }),
     ),
   )
+}
+
+///|
+/// A follower's progress in etcd's `Progress.String` shape:
+/// `StateReplicate match=11 next=15 [learner] [paused] [pendingSnap=n]
+/// [inactive] [inflight=n[full]]`.
+fn progress_text(p : Progress) -> String {
+  let buf = StringBuilder()
+  let state = match p.state {
+    Probe => "StateProbe"
+    Replicate => "StateReplicate"
+    Snapshot => "StateSnapshot"
+  }
+  buf.write_string("\{state} match=\{p.match_index} next=\{p.next_index}")
+  if p.is_learner {
+    buf.write_string(" learner")
+  }
+  if p.is_paused() {
+    buf.write_string(" paused")
+  }
+  if p.pending_snapshot > 0UL {
+    buf.write_string(" pendingSnap=\{p.pending_snapshot}")
+  }
+  if !p.is_active() {
+    buf.write_string(" inactive")
+  }
+  let n = p.inflights.count()
+  if n > 0 {
+    buf.write_string(" inflight=\{n}")
+    if p.inflights.full() {
+      buf.write_string("[full]")
+    }
+  }
+  buf.to_string()
 }
 
 ///|
@@ -1127,6 +1264,13 @@ pub(all) struct ProgressStatus {
   paused : Bool
   pending_snapshot : UInt64
   is_learner : Bool
+  // Whether the follower has been heard from within the last election timeout
+  // (etcd's `RecentActive`); an inactive follower is not sent entries.
+  recent_active : Bool
+  // Outstanding AppendEntries not yet acknowledged, and whether that window is
+  // full (etcd's `Inflights.Count()` / `Full()`).
+  inflight : Int32
+  inflight_full : Bool
 } derive(Eq)
 
 ///|
@@ -1139,6 +1283,9 @@ fn progress_status_of(id : String, p : Progress) -> ProgressStatus {
     paused: p.is_paused(),
     pending_snapshot: p.pending_snapshot,
     is_learner: p.is_learner,
+    recent_active: p.is_active(),
+    inflight: p.inflights.count(),
+    inflight_full: p.inflights.full(),
   }
 }
 
@@ -1167,6 +1314,9 @@ pub fn RaftNode::progress_status(self : RaftNode) -> Array[ProgressStatus] {
       paused: false,
       pending_snapshot: 0,
       is_learner: false,
+      recent_active: true,
+      inflight: 0,
+      inflight_full: false,
     })
   }
   for id, p in self.progress {
@@ -1193,6 +1343,9 @@ pub fn RaftNode::progress_of(self : RaftNode, id : String) -> ProgressStatus? {
       paused: false,
       pending_snapshot: 0,
       is_learner: false,
+      recent_active: true,
+      inflight: 0,
+      inflight_full: false,
     })
   }
   self.progress.get(id).map(p => progress_status_of(id, p))

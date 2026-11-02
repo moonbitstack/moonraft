@@ -305,7 +305,19 @@ pub fn RaftTest::run(
         self.nodes[i].rn.campaign()
       }
     }
-    "stabilize" => self.stabilize(a.positional) |> ignore
+    "stabilize" => {
+      // `stabilize log-level=none` silences the run and restores the level after
+      // (upstream defers the restore inside the handler).
+      let override = a.kv.get("log-level")
+      if override is Some(level) {
+        let saved = self.out.level.val
+        self.out.set_level(level)
+        self.stabilize(a.positional) |> ignore
+        self.out.level.val = saved
+      } else {
+        self.stabilize(a.positional) |> ignore
+      }
+    }
     "propose" => {
       let i = self.index_of(pos_or(a.positional, 0, "1"))
       if i >= 0 {
@@ -353,7 +365,15 @@ pub fn RaftTest::run(
     "forget-leader" => {
       let i = self.index_of(pos_or(a.positional, 0, "1"))
       if i >= 0 {
-        self.nodes[i].rn.forget_leader()
+        // A lease-based read makes the leader's word authoritative, so a forget
+        // is refused outright (etcd's stepFollower returns an error here).
+        if self.nodes[i].rn.node().read_only_option() is LeaseBased {
+          self.out.write(
+            "ERROR ignoring MsgForgetLeader due to ReadOnlyLeaseBased\n",
+          )
+        } else {
+          self.nodes[i].rn.forget_leader()
+        }
       }
     }
     "report-unreachable" => {
@@ -461,21 +481,25 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
         peers.push(l)
       }
     }
-    let snap : Snapshot? = if index > 0UL {
-      Some({
-        last_index: index,
-        last_term: 1UL,
-        data: str_to_bytes(content),
-        conf_state: {
-          voters,
-          learners,
-          voters_outgoing: [],
-          learners_next: [],
-          auto_leave: false,
-        },
-      })
-    } else {
-      None
+    // Every node is bootstrapped from a snapshot, as upstream does: a directive
+    // that names no voters leaves the configuration empty (a node pulled out of
+    // thin air for a later conf change), and one with an index starts the log
+    // there.
+    let snap : Snapshot = {
+      last_index: index,
+      last_term: if index > 0UL {
+        1UL
+      } else {
+        0UL
+      },
+      data: str_to_bytes(content),
+      conf_state: {
+        voters,
+        learners,
+        voters_outgoing: [],
+        learners_next: [],
+        auto_leave: false,
+      },
     }
     let r = RaftNode::new(
       id,
@@ -489,7 +513,7 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
       step_down_on_removal=step_down,
       disable_conf_change_validation=no_validation,
       logger=self.out,
-      snapshot=snap,
+      snapshot=Some(snap),
     )
     let rn = if async_mode {
       if max_committed > 0UL {
@@ -516,7 +540,18 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
 fn RaftTest::process_ready(self : RaftTest, i : Int32) -> Unit {
   let n = self.nodes[i]
   let rd = n.rn.ready()
-  self.out.write(rt_describe_ready(rd))
+  // Under async writes the Ready also carries the two local directives, which
+  // upstream appends to `Messages` after the outbound ones.
+  let extra : Array[String] = []
+  if n.async_mode {
+    if rd.storage_append is Some(sa) {
+      extra.push(rt_describe_storage_append(n.id, sa, true))
+    }
+    if rd.storage_apply is Some(sa) {
+      extra.push(rt_describe_storage_apply(n.id, sa))
+    }
+  }
+  self.out.write(rt_describe_ready(rd, extra))
   if n.async_mode {
     if rd.storage_append is Some(sa) {
       n.appends.push(sa)
@@ -661,18 +696,16 @@ fn RaftTest::process_append_thread(self : RaftTest, i : Int32) -> Unit {
   }
   let sa = n.appends.remove(0)
   self.out.write("Processing:\n")
-  self.out.write(
-    "  \{n.id}->AppendThread MsgStorageAppend Term:\{sa.resp.term} Log:\{sa.resp.log_term}/\{sa.resp.index}",
-  )
-  if sa.entries.length() > 0 {
-    self.out.write(" Entries:[")
-    for e in sa.entries {
-      self.out.write("\n  \{@log.describe_entry(e, None)}")
-    }
-    self.out.write("\n  ]")
-  }
+  self.out.write(rt_describe_storage_append(n.id, sa, false))
   self.out.write("\n")
+  // The write is durable: acknowledge it, then hand the waiting responses back to
+  // the node, which is what publishes the vote or advances the leader's commit.
   n.rn.step_append_resp(sa.resp)
+  for r in sa.responses {
+    for out in n.rn.node().step(r) {
+      self.messages.push(out)
+    }
+  }
 }
 
 ///|
@@ -683,14 +716,7 @@ fn RaftTest::process_apply_thread(self : RaftTest, i : Int32) -> Unit {
   }
   let sa = n.applies.remove(0)
   self.out.write("Processing:\n")
-  self.out.write("  \{n.id}->ApplyThread MsgStorageApply Term:0 Log:0/0")
-  if sa.entries.length() > 0 {
-    self.out.write(" Entries:[")
-    for e in sa.entries {
-      self.out.write("\n  \{@log.describe_entry(e, None)}")
-    }
-    self.out.write("\n  ]")
-  }
+  self.out.write(rt_describe_storage_apply(n.id, sa))
   self.out.write("\n")
   n.rn.step_apply_resp(sa.resp)
 }
@@ -819,6 +845,15 @@ fn RaftTest::status(self : RaftTest, ids : Array[String]) -> Unit {
           if p.pending_snapshot > 0UL {
             self.out.write(" pendingSnap=\{p.pending_snapshot}")
           }
+          if !p.recent_active {
+            self.out.write(" inactive")
+          }
+          if p.inflight > 0 {
+            self.out.write(" inflight=\{p.inflight}")
+            if p.inflight_full {
+              self.out.write("[full]")
+            }
+          }
           self.out.write("\n")
         }
       }
@@ -862,15 +897,17 @@ fn RaftTest::send_snapshot(self : RaftTest, a : Args) -> Unit {
     data: b"",
     conf_state: node.conf_state(),
   }
-  self.messages.push(
-    Message::new(
-      from,
-      to,
-      Snapshot(
-        InstallSnapshotArgs::whole(self.nodes[i].rn.status().term, from, snap),
-      ),
+  let msg = Message::new(
+    from,
+    to,
+    Snapshot(
+      InstallSnapshotArgs::whole(self.nodes[i].rn.status().term, from, snap),
     ),
   )
+  // The handler reports the message it queued; delivering it is a later step.
+  self.out.write(rt_describe_message(msg))
+  self.out.write("\n")
+  self.messages.push(msg)
 }
 
 ///|

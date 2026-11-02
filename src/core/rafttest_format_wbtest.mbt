@@ -21,6 +21,34 @@
 // upstream reads them out of `pb.Message`.
 
 ///|
+/// One entry, rendered as upstream's `DescribeEntry` does: a normal entry shows
+/// its payload, a configuration change shows the changes themselves (`r1`,
+/// `v2 l4`) rather than the serialized bytes. A `ConfChange` entry whose payload
+/// is a batch is upstream's `EntryConfChangeV2`, and is named accordingly.
+fn rt_describe_entry(e : Entry) -> String {
+  if e.entry_type == Normal {
+    @log.describe_entry(e, None)
+  } else if @confchange.ConfChangeV2::decode(e.command) is Some(v2) {
+    "\{e.term}/\{e.index} EntryConfChangeV2 \{@confchange.describe_changes(v2.changes)}"
+  } else if @confchange.ConfChange::decode(e.command) is Some(cc) {
+    "\{e.term}/\{e.index} EntryConfChange \{@confchange.describe_changes([cc])}"
+  } else {
+    @log.describe_entry(e, None)
+  }
+}
+
+///|
+/// Each entry on its own line, rendered by `rt_describe_entry`.
+fn rt_describe_entries(entries : ArrayView[Entry]) -> String {
+  let buf = StringBuilder()
+  for e in entries {
+    buf.write_string(rt_describe_entry(e))
+    buf.write_char('\n')
+  }
+  buf.to_string()
+}
+
+///|
 /// The upstream name of a message type, as `%v` prints the protobuf enum.
 fn rt_msg_type(m : Message) -> String {
   match m.payload {
@@ -105,11 +133,11 @@ fn rt_describe_message(m : Message) -> String {
     Append(a) => {
       let ents = a.entries
       if ents.length() == 1 {
-        buf.write_string(" Entries:[\{@log.describe_entry(ents[0], None)}]")
+        buf.write_string(" Entries:[\{rt_describe_entry(ents[0])}]")
       } else if ents.length() > 1 {
         buf.write_string(" Entries:[")
         for e in ents {
-          buf.write_string("\n  \{@log.describe_entry(e, None)}")
+          buf.write_string("\n  \{rt_describe_entry(e)}")
         }
         buf.write_string("\n]")
       }
@@ -119,6 +147,85 @@ fn rt_describe_message(m : Message) -> String {
         "\n  Snapshot: Index:\{s.last_index} Term:\{s.last_term} ConfState:\{@log.describe_conf_state(s.conf_state)}",
       )
     _ => ()
+  }
+  buf.to_string()
+}
+
+///|
+/// The append directive as upstream's `MsgStorageAppend` prints it, with the
+/// responses that travel with it. `nested` chooses upstream's `Responses:[…]`
+/// form (a message inside a Ready); the plain form (a `Responses:` header) is
+/// what the append thread dumps when it processes the message.
+fn rt_describe_storage_append(
+  id : String,
+  sa : StorageAppend,
+  nested : Bool,
+) -> String {
+  let buf = StringBuilder()
+  buf.write_string(
+    "\{id}->AppendThread MsgStorageAppend Term:\{sa.resp.term} Log:\{sa.resp.log_term}/\{sa.resp.index}",
+  )
+  match sa.hard_state {
+    Some(hs) => {
+      if hs.commit != 0UL {
+        buf.write_string(" Commit:\{hs.commit}")
+      }
+      match hs.vote {
+        Some(v) => buf.write_string(" Vote:\{v}")
+        None => ()
+      }
+    }
+    None => ()
+  }
+  buf.write_string(rt_describe_entries_attr(sa.entries))
+  if !sa.responses.is_empty() {
+    if nested {
+      buf.write_string(" Responses:[")
+      for r in sa.responses {
+        buf.write_string("\n  \{rt_describe_message(r)}")
+      }
+      buf.write_string("\n]")
+    } else {
+      buf.write_string("\nResponses:")
+      for r in sa.responses {
+        buf.write_string("\n\{rt_describe_message(r)}")
+      }
+    }
+  } else if nested {
+    buf.write_string(" Responses:[]")
+  }
+  buf.to_string()
+}
+
+///|
+/// The apply directive as upstream's `MsgStorageApply` prints it.
+fn rt_describe_storage_apply(id : String, sa : StorageApply) -> String {
+  let buf = StringBuilder()
+  buf.write_string("\{id}->ApplyThread MsgStorageApply Term:0 Log:0/0")
+  buf.write_string(rt_describe_entries_attr(sa.entries))
+  buf.write_string(" Responses:[")
+  buf.write_string("\n  ApplyThread->\{id} MsgStorageApplyResp Term:0 Log:0/0")
+  buf.write_string(rt_describe_entries_attr(sa.resp.entries))
+  buf.write_string("\n]")
+  buf.to_string()
+}
+
+///|
+/// ` Entries:[…]` in upstream's message layout: one entry inline, several one per
+/// line.
+fn rt_describe_entries_attr(entries : Array[Entry]) -> String {
+  if entries.is_empty() {
+    return ""
+  }
+  let buf = StringBuilder()
+  if entries.length() == 1 {
+    buf.write_string(" Entries:[\{rt_describe_entry(entries[0])}]")
+  } else {
+    buf.write_string(" Entries:[")
+    for e in entries {
+      buf.write_string("\n  \{rt_describe_entry(e)}")
+    }
+    buf.write_string("\n]")
   }
   buf.to_string()
 }
@@ -139,7 +246,7 @@ fn rt_state_name(r : Role) -> String {
 /// the hard state (only when not empty), read states, entries, snapshot,
 /// committed entries and messages, in that order, each section only when it has
 /// content, all under one `Ready MustSync=...:` header.
-fn rt_describe_ready(rd : Ready) -> String {
+fn rt_describe_ready(rd : Ready, extra : Array[String]) -> String {
   let buf = StringBuilder()
   match rd.soft_state {
     Some(ss) =>
@@ -157,7 +264,7 @@ fn rt_describe_ready(rd : Ready) -> String {
   }
   if rd.entries.length() > 0 {
     buf.write_string("Entries:\n")
-    buf.write_string(@log.describe_entries(rd.entries[:], None))
+    buf.write_string(rt_describe_entries(rd.entries[:]))
   }
   match rd.snapshot {
     Some(s) => buf.write_string("Snapshot \{@log.describe_snapshot(s)}\n")
@@ -165,12 +272,16 @@ fn rt_describe_ready(rd : Ready) -> String {
   }
   if rd.committed_entries.length() > 0 {
     buf.write_string("CommittedEntries:\n")
-    buf.write_string(@log.describe_entries(rd.committed_entries[:], None))
+    buf.write_string(rt_describe_entries(rd.committed_entries[:]))
   }
-  if rd.messages.length() > 0 {
+  if rd.messages.length() > 0 || !extra.is_empty() {
     buf.write_string("Messages:\n")
     for m in rd.messages {
       buf.write_string(rt_describe_message(m))
+      buf.write_char('\n')
+    }
+    for line in extra {
+      buf.write_string(line)
       buf.write_char('\n')
     }
   }

@@ -133,21 +133,18 @@ fn RaftNode::adopt_higher_term(self : RaftNode, msg : Message) -> Unit {
         Info,
         "\{self.id} [term: \{self.core.current_term()}] received a \{msg.type_name()} message with higher term from \{msg.from} [term: \{msg.term()}]",
       )
-      self.core.become_follower(msg.term())
-      self.in_pre_campaign = false
-      // Stepping down abandons any in-flight leadership transfer (etcd's reset →
-      // abortLeaderTransfer runs on every transition), so a stale transferee can
-      // never linger and block proposals should we lead again.
-      self.lead_transferee = None
-      self.pending_conf_index = 0
-      self.uncommitted_size = 0
+      // Stepping down goes through the same transition every other path uses, so
+      // it announces `became follower` in upstream's wording and resets the
+      // election timer exactly once (etcd's `becomeFollower`).
+      self.become_follower(msg.term())
+      // A current leader that talks to us is recorded as the leader we follow;
+      // a vote solicitation carries no leader.
       self.leader_id = match msg.payload {
         Append(a) => Some(a.leader_id)
         Heartbeat(a) => Some(a.leader_id)
         Snapshot(a) => Some(a.leader_id)
         _ => None
       }
-      self.reset_timeout()
     }
   }
 }
@@ -307,7 +304,13 @@ fn RaftNode::step_forget_leader(self : RaftNode) -> Array[Message] {
   if !self.read_only.safe {
     return []
   }
-  if self.core.role() == Follower && self.leader_id is Some(_) {
+  if self.core.role() == Follower {
+    if self.leader_id is Some(lead) {
+      self.logger.log(
+        Info,
+        "\{self.id} forgetting leader \{lead} at term \{self.core.current_term()}",
+      )
+    }
     self.leader_id = None
   }
   []
@@ -353,6 +356,9 @@ fn RaftNode::handle_pre_vote(
   // B3: while we still have contact with a leader (check-quorum lease), refuse
   // to encourage a challenger, so a partitioned node that keeps timing out
   // cannot force needless elections and inflate the term (§4.2.3 disruption).
+  if self.in_lease() {
+    self.log_lease_ignored("MsgPreVote", from, args)
+  }
   let granted = !self.in_lease() &&
     can_vote &&
     log_up_to_date(self.core, args.last_log_term, args.last_log_index)
@@ -377,6 +383,11 @@ fn RaftNode::handle_pre_vote_resp(
   }
   self.log_vote_response(from, reply.vote_granted, "MsgPreVoteResp")
   self.record_vote(from, reply.vote_granted)
+  let (granted, rejected) = self.vote_tally()
+  self.logger.log(
+    Info,
+    "\{self.id} has received \{granted} MsgPreVoteResp votes and \{rejected} vote rejections",
+  )
   match self.config.vote_result(self.votes) {
     @quorum.VoteWon => self.start_real_campaign()
     @quorum.VoteLost => {
@@ -397,6 +408,7 @@ fn RaftNode::handle_vote(
 ) -> Array[Message] {
   // B3: reject a real vote too while leased to a leader (§4.2.3).
   if self.in_lease() {
+    self.log_lease_ignored("MsgVote", from, args)
     return [
       Message::new(
         self.id,
@@ -413,6 +425,27 @@ fn RaftNode::handle_vote(
     self.leader_id = None
   }
   [Message::new(self.id, from, VoteResp(reply))]
+}
+
+///|
+/// Announce a solicitation ignored because we are still leased to a leader:
+/// `1 [logterm: 1, index: 11, vote: 1] ignored MsgVote from 2 [logterm: 1,
+/// index: 11] at term 1: lease is not expired (remaining ticks: 3)`.
+fn RaftNode::log_lease_ignored(
+  self : RaftNode,
+  kind : String,
+  from : String,
+  args : RequestVoteArgs,
+) -> Unit {
+  let vote = match self.core.voted_for {
+    Some(v) => v
+    None => "0"
+  }
+  let remaining = self.election_timeout - self.election_elapsed
+  self.logger.log(
+    Info,
+    "\{self.id} [logterm: \{self.core.last_log_term()}, index: \{self.core.last_log_index()}, vote: \{vote}] ignored \{kind} from \{from} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] at term \{self.core.current_term()}: lease is not expired (remaining ticks: \{remaining})",
+  )
 }
 
 ///|
@@ -456,10 +489,13 @@ fn RaftNode::log_vote_decision(
     Some(v) => v
     None => "0"
   }
+  // Upstream distinguishes the two verdicts by preposition: a granted vote is
+  // cast *for* the candidate, a refused one is rejected *from* it.
   let verdict = if granted { "cast" } else { "rejected" }
+  let preposition = if granted { "for" } else { "from" }
   self.logger.log(
     Info,
-    "\{self.id} [logterm: \{self.core.last_log_term()}, index: \{self.core.last_log_index()}, vote: \{vote}] \{verdict} \{kind} for \{from} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] at term \{self.core.current_term()}",
+    "\{self.id} [logterm: \{self.core.last_log_term()}, index: \{self.core.last_log_index()}, vote: \{vote}] \{verdict} \{kind} \{preposition} \{from} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] at term \{self.core.current_term()}",
   )
 }
 
@@ -649,8 +685,20 @@ pub fn RaftNode::report_snapshot(
 /// into messages that are being lost.
 pub fn RaftNode::report_unreachable(self : RaftNode, id : String) -> Unit {
   guard self.core.role() == Leader else { return }
-  if self.progress.get(id) is Some(p) && p.state == Replicate {
-    p.become_probe()
+  match self.progress.get(id) {
+    Some(p) => {
+      // Optimistic replication assumes the follower is keeping up; a report that
+      // it is unreachable means the in-flight appends are probably lost, so fall
+      // back to probing one entry at a time (etcd's MsgUnreachable handling).
+      if p.state == Replicate {
+        p.become_probe()
+      }
+      self.logger.log(
+        Debug,
+        "\{self.id} failed to send message to \{id} because it is unreachable [\{progress_text(p)}]",
+      )
+    }
+    None => ()
   }
 }
 

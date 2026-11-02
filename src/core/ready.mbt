@@ -63,6 +63,12 @@ pub(all) struct StorageAppend {
   hard_state : HardState?
   snapshot : Snapshot?
   resp : StorageAppendResp
+  // Responses that were waiting for this append to be durable (etcd's
+  // `MsgStorageAppend.Responses`): the candidate's own vote, the leader's
+  // acknowledgement of its own entries, and the append acknowledgement itself.
+  // The storage thread steps them once the write completes, which is what keeps
+  // a vote from being published before it is on disk.
+  responses : Array[Message]
 }
 
 ///|

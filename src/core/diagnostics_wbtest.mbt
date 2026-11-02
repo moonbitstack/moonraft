@@ -136,7 +136,7 @@ test "diagnostics: a refused vote is named as a rejection" {
   )
   assert_true(
     logged(
-      log, "2 [logterm: 2, index: 1, vote: 0] rejected MsgVote for 1 [logterm: 0, index: 0] at term 3",
+      log, "2 [logterm: 2, index: 1, vote: 0] rejected MsgVote from 1 [logterm: 0, index: 0] at term 3",
     ),
   )
 }
