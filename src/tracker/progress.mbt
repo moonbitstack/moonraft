@@ -144,7 +144,10 @@ fn Progress::reset_state(self : Progress, state : ProgressState) -> Unit {
 /// a full in-flight window).
 pub fn Progress::is_paused(self : Progress) -> Bool {
   match self.state {
-    Probe | Replicate => self.msg_app_flow_paused
+    // A prober holds one message in flight; a streaming follower is paused only
+    // while its window is full (etcd's `Progress.IsPaused`).
+    Probe => self.msg_app_flow_paused
+    Replicate => self.inflights.full()
     Snapshot => true
   }
 }

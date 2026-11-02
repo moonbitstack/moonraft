@@ -8,6 +8,7 @@ import {
 }
 
 // Values
+pub fn describe_changes(Array[ConfChange]) -> String
 
 // Errors
 

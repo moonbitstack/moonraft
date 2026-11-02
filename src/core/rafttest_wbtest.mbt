@@ -308,8 +308,8 @@ pub fn RaftTest::run(
     "stabilize" => {
       // `stabilize log-level=none` silences the run and restores the level after
       // (upstream defers the restore inside the handler).
-      let override = a.kv.get("log-level")
-      if override is Some(level) {
+      let level_arg = a.kv.get("log-level")
+      if level_arg is Some(level) {
         let saved = self.out.level.val
         self.out.set_level(level)
         self.stabilize(a.positional) |> ignore
@@ -343,9 +343,13 @@ pub fn RaftTest::run(
       }
     }
     "tick-election" => {
+      // One election timeout worth of ticks, which is what upstream's handler
+      // does: the tick counter is what a leader's check-quorum window measures.
       let i = self.index_of(pos_or(a.positional, 0, "1"))
       if i >= 0 {
-        self.nodes[i].rn.tick()
+        for _t = 0; _t < 3; _t = _t + 1 {
+          self.nodes[i].rn.tick()
+        }
       }
     }
     "transfer-leadership" => {
@@ -462,6 +466,14 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
   let max_committed = parse_count(
     kv_get(a.kv, "max-committed-size-per-ready", "0"),
   ).to_uint64()
+  let inflight = {
+    let n = parse_count(kv_get(a.kv, "inflight", "0"))
+    if n > 0 {
+      n
+    } else {
+      2147483647
+    }
+  }
   let read_only = if kv_get(a.kv, "read-only", "safe") == "lease-based" {
     LeaseBased
   } else {
@@ -508,7 +520,7 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
       check_quorum=checkquorum,
       election_timeout=3,
       heartbeat_timeout=1,
-      max_inflight=2147483647,
+      max_inflight=inflight,
       read_only_option=read_only,
       step_down_on_removal=step_down,
       disable_conf_change_validation=no_validation,

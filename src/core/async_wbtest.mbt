@@ -54,7 +54,14 @@ fn drive_async(raw : RawNode) -> Array[Entry] {
     rounds = rounds + 1
     let rd = raw.ready()
     match rd.storage_append {
-      Some(sa) => raw.step_append_resp(sa.resp)
+      Some(sa) => {
+        raw.step_append_resp(sa.resp)
+        // The responses that waited for the write ride along with the directive;
+        // stepping them is what publishes the vote / advances the commit.
+        for r in sa.responses {
+          raw.step(r)
+        }
+      }
       None => ()
     }
     match rd.storage_apply {
@@ -76,20 +83,22 @@ test "async: a single node commits its no-op through storage directives" {
   let raw = RaftNode::new("1", [], pre_vote=false).raw_async()
   assert_true(raw.is_async())
   raw.campaign()
-  // The very first Ready hands the election no-op to the append thread, not to
-  // the caller as `entries`-to-persist-then-advance.
-  let rd = raw.ready()
-  assert_true(rd.storage_append is Some(_))
-  match rd.storage_append {
+  // The election is a sequence of local directives: the first Ready hands the
+  // vote to the append thread, and the no-op follows once that write is durable.
+  let rd1 = raw.ready()
+  assert_true(rd1.storage_append is Some(_))
+  match rd1.storage_append {
     Some(sa) => {
-      assert_eq(sa.entries.length(), 1)
-      assert_eq(sa.resp.index, 1)
-      assert_eq(sa.resp.log_term, 1)
+      assert_eq(sa.entries.length(), 0)
+      assert_eq(sa.responses.length(), 1)
       raw.step_append_resp(sa.resp)
+      for r in sa.responses {
+        raw.step(r)
+      }
     }
     None => ()
   }
-  raw.advance(rd)
+  raw.advance(rd1)
   // Drive the rest: the no-op is applied via a StorageApply directive.
   let applied = drive_async(raw)
   assert_eq(applied.length(), 1)
@@ -191,7 +200,14 @@ test "TestCommitPaginationWithAsyncStorageWrites" {
     rounds = rounds + 1
     let rd = raw.ready()
     match rd.storage_append {
-      Some(sa) => raw.step_append_resp(sa.resp)
+      Some(sa) => {
+        raw.step_append_resp(sa.resp)
+        // The responses that waited for the write ride along with the directive;
+        // stepping them is what publishes the vote / advances the commit.
+        for r in sa.responses {
+          raw.step(r)
+        }
+      }
       None => ()
     }
     match rd.storage_apply {

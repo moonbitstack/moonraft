@@ -42,5 +42,5 @@ test "datadriven: raft scripts reproduce upstream block by block" {
   }
   // The corpus of 28 raft scripts holds 558 cases in total.
   assert_eq(total, 558)
-  assert_true(matched >= 396)
+  assert_true(matched >= 418)
 }

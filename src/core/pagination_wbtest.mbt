@@ -27,19 +27,25 @@ test "TestCommitPagination" {
   rn.propose(blob)
   rn.propose(blob)
   rn.propose(blob)
-  // First Ready: all three proposals to persist, and — since the caller persists
-  // before applying — the first paginated commit batch to apply, together. The
-  // 2048-byte cap fits two ~1009-byte entries, so the batch is 2 of 3.
+  // First Ready: the three proposals to persist. They commit only once the
+  // leader's own append is durable, which is what Advance settles.
   let rd1 = rn.ready()
   assert_eq(rd1.entries.length(), 3)
-  assert_eq(rd1.committed_entries.length(), 2)
+  assert_eq(rd1.committed_entries.length(), 0)
   rn.store(rd1)
   rn.advance(rd1)
-  // Second Ready: the last commit batch (1), no more to persist.
+  // Next Ready: the first paginated commit batch. The 2048-byte cap fits two
+  // ~1009-byte entries, so the batch is 2 of 3.
   let rd2 = rn.ready()
-  assert_eq(rd2.committed_entries.length(), 1)
+  assert_eq(rd2.entries.length(), 0)
+  assert_eq(rd2.committed_entries.length(), 2)
   rn.store(rd2)
   rn.advance(rd2)
+  // Then the last commit batch.
+  let rd3 = rn.ready()
+  assert_eq(rd3.committed_entries.length(), 1)
+  rn.store(rd3)
+  rn.advance(rd3)
 }
 
 ///|

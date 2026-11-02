@@ -29,7 +29,9 @@ fn leased_follower() -> RaftNode {
 }
 
 ///|
-test "B3: leased follower rejects a higher-term vote without bumping its term" {
+test "B3: a leased follower drops a higher-term vote without bumping its term" {
+  // etcd's `Step` returns without a reply while the lease holds: answering would
+  // reveal our term to a disruptive candidate that has not adopted it.
   let r = leased_follower()
   let out = r.step(
     Message::new(
@@ -38,20 +40,15 @@ test "B3: leased follower rejects a higher-term vote without bumping its term" {
       Vote({ term: 6, candidate_id: "3", last_log_index: 0, last_log_term: 0, }),
     ),
   )
-  assert_eq(out.length(), 1)
-  match out[0].payload {
-    VoteResp(reply) => {
-      assert_false(reply.vote_granted)
-      assert_eq(reply.term, 5) // term NOT adopted
-    }
-    _ => abort("expected VoteResp")
-  }
-  assert_eq(r.term(), 5)
+  assert_eq(out.length(), 0)
+  assert_eq(r.term(), 5) // term NOT adopted
   assert_true(r.role() == Follower)
 }
 
 ///|
-test "B3: leased follower rejects a pre-vote" {
+test "B3: a leased follower drops a pre-vote" {
+  // A pre-vote does not even move the term, so there is nothing to correct: the
+  // solicitation is dropped (etcd logs "lease is not expired" and returns).
   let r = leased_follower()
   let out = r.step(
     Message::new(
@@ -65,11 +62,7 @@ test "B3: leased follower rejects a pre-vote" {
       }),
     ),
   )
-  assert_eq(out.length(), 1)
-  match out[0].payload {
-    PreVoteResp(reply) => assert_false(reply.vote_granted)
-    _ => abort("expected PreVoteResp")
-  }
+  assert_eq(out.length(), 0)
   assert_eq(r.term(), 5)
 }
 

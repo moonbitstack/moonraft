@@ -200,6 +200,9 @@ pub(all) struct ProgressStatus {
   paused : Bool
   pending_snapshot : UInt64
   is_learner : Bool
+  recent_active : Bool
+  inflight : Int32
+  inflight_full : Bool
 } derive(Eq)
 pub fn ProgressStatus::equal(Self, Self) -> Bool
 pub fn ProgressStatus::not_equal(Self, Self) -> Bool
@@ -235,6 +238,8 @@ pub struct RaftNode {
   no_conf_change_validation : Bool
   step_down_on_removal : Bool
   pending_farewell : Array[@raftpb.Message]
+  deferred : Array[@raftpb.Message]
+  mut defer_responses : Bool
   logger : &Logger
   tracer : &Tracer
 }
@@ -244,13 +249,16 @@ pub fn RaftNode::become_follower(Self, UInt64) -> Unit
 pub fn RaftNode::campaign(Self) -> Array[@raftpb.Message]
 pub fn RaftNode::commit_index(Self) -> UInt64
 pub fn RaftNode::conf_state(Self) -> @raftpb.ConfState
+pub fn RaftNode::deferred_responses(Self) -> Array[@raftpb.Message]
 pub fn RaftNode::disable_proposal_forwarding(Self) -> Unit
 pub fn RaftNode::election_deadline(Self) -> Int32
 pub fn RaftNode::enable_check_quorum(Self) -> Unit
+pub fn RaftNode::enable_deferred_responses(Self) -> Unit
 pub fn RaftNode::enable_read_only_safe(Self) -> Unit
 pub fn RaftNode::forget_leader(Self) -> Unit
 pub fn RaftNode::from_config(Config) -> Self raise ConfigError
 pub fn RaftNode::full_status(Self) -> FullStatus
+pub fn RaftNode::has_deferred(Self) -> Bool
 pub fn RaftNode::has_lease(Self) -> Bool
 pub fn RaftNode::id(Self) -> String
 pub fn RaftNode::is_leader(Self) -> Bool
@@ -282,6 +290,7 @@ pub fn RaftNode::set_read_only_option(Self, ReadOnlyOption) -> Unit
 pub fn RaftNode::soft_state(Self) -> SoftState
 pub fn RaftNode::status(Self) -> RaftStatus
 pub fn RaftNode::step(Self, @raftpb.Message) -> Array[@raftpb.Message]
+pub fn RaftNode::take_deferred(Self) -> Array[@raftpb.Message]
 pub fn RaftNode::take_read_states(Self) -> Array[ReadState]
 pub fn RaftNode::term(Self) -> UInt64
 pub fn RaftNode::tick(Self) -> Array[@raftpb.Message]
@@ -395,6 +404,7 @@ pub(all) struct StorageAppend {
   hard_state : @raftpb.HardState?
   snapshot : @raftpb.Snapshot?
   resp : StorageAppendResp
+  responses : Array[@raftpb.Message]
 }
 
 pub(all) struct StorageAppendResp {
