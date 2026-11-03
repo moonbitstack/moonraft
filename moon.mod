@@ -1,6 +1,6 @@
 name = "moonbitstack/moonraft"
 
-version = "0.7.3"
+version = "0.7.4"
 
 readme = "README.md"
 
@@ -12,8 +12,16 @@ keywords = [
   "raft",
   "consensus",
   "distributed",
+  "distributed-systems",
   "replication",
+  "log-replication",
   "state-machine",
+  "leader-election",
+  "membership",
+  "joint-consensus",
+  "snapshot",
+  "etcd-raft",
+  "moonbit",
 ]
 
 description = "Raft consensus in MoonBit."
