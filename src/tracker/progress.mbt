@@ -21,11 +21,12 @@
 /// `Snapshot` means the follower is so far behind that the next thing it needs
 /// has already been compacted, so a snapshot must be shipped first (etcd's
 /// three progress states).
+#derive(Eq)
 pub(all) enum ProgressState {
   Probe
   Replicate
   Snapshot
-} derive(Eq)
+}
 
 ///|
 /// The leader's view of one follower's replication progress. `next_index` is
@@ -144,10 +145,13 @@ fn Progress::reset_state(self : Progress, state : ProgressState) -> Unit {
 /// a full in-flight window).
 pub fn Progress::is_paused(self : Progress) -> Bool {
   match self.state {
-    // A prober holds one message in flight; a streaming follower is paused only
-    // while its window is full (etcd's `Progress.IsPaused`).
+    // etcd's `Progress.IsPaused`: both a prober and a saturated streaming
+    // follower gate on the `MsgAppFlowPaused` flag, which `SentEntries` sets when
+    // the window is full and a heartbeat response clears to let one more append
+    // through. Gating on `Inflights.Full()` directly would keep a throttled
+    // follower stuck even after it answered a heartbeat.
     Probe => self.msg_app_flow_paused
-    Replicate => self.inflights.full()
+    Replicate => self.msg_app_flow_paused
     Snapshot => true
   }
 }

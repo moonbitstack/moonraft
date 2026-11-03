@@ -23,6 +23,7 @@ pub fn run_election(Node, Array[Node]) -> Bool
 pub fn run_single_node(String, Array[Bytes]) -> Array[Bytes]
 
 // Errors
+#derive(Eq)
 pub suberror ConfigError {
   EmptyId
   HeartbeatTickNotPositive
@@ -30,7 +31,7 @@ pub suberror ConfigError {
   MaxInflightNotPositive
   MaxInflightBytesTooSmall
   LeaseBasedNeedsCheckQuorum
-} derive(Eq)
+}
 pub fn ConfigError::equal(Self, Self) -> Bool
 pub fn ConfigError::not_equal(Self, Self) -> Bool
 
@@ -99,12 +100,14 @@ pub struct Config {
   step_down_on_removal : Bool
   disable_proposal_forwarding : Bool
   disable_conf_change_validation : Bool
+  async_storage_writes : Bool
+  max_committed_size : UInt64
   applied : UInt64
   logger : &Logger
   tracer : &Tracer
   seed : UInt64
 }
-pub fn Config::new(String, Array[String], election_tick? : Int32, heartbeat_tick? : Int32, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int32, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
+pub fn Config::new(String, Array[String], election_tick? : Int32, heartbeat_tick? : Int32, max_msg_bytes? : UInt64, max_uncommitted_size? : UInt64, max_inflight? : Int32, max_inflight_bytes? : UInt64, check_quorum? : Bool, pre_vote? : Bool, read_only_option? : ReadOnlyOption, step_down_on_removal? : Bool, disable_proposal_forwarding? : Bool, disable_conf_change_validation? : Bool, async_storage_writes? : Bool, max_committed_size? : UInt64, applied? : UInt64, logger? : &Logger, tracer? : &Tracer, seed? : UInt64) -> Self
 pub fn Config::validate(Self) -> Unit raise ConfigError
 
 pub struct DemoReport {
@@ -127,6 +130,7 @@ pub(all) struct FullStatus {
 
 type InFlight
 
+#derive(Eq)
 pub enum LogLevel {
   Debug
   Info
@@ -134,7 +138,7 @@ pub enum LogLevel {
   Error
   Fatal
   Panic
-} derive(Eq)
+}
 pub fn LogLevel::equal(Self, Self) -> Bool
 pub fn LogLevel::not_equal(Self, Self) -> Bool
 
@@ -192,6 +196,7 @@ pub struct NopLogger {
 pub struct NopTracer {
 }
 
+#derive(Eq)
 pub(all) struct ProgressStatus {
   id : String
   match_index : UInt64
@@ -203,7 +208,7 @@ pub(all) struct ProgressStatus {
   recent_active : Bool
   inflight : Int32
   inflight_full : Bool
-} derive(Eq)
+}
 pub fn ProgressStatus::equal(Self, Self) -> Bool
 pub fn ProgressStatus::not_equal(Self, Self) -> Bool
 
@@ -241,6 +246,7 @@ pub struct RaftNode {
   deferred : Array[@raftpb.Message]
   pending : Array[@raftpb.Message]
   mut applying_conf : Bool
+  mut last_propose_dropped : Bool
   mut defer_responses : Bool
   logger : &Logger
   tracer : &Tracer
@@ -273,6 +279,7 @@ pub fn RaftNode::promotable(Self) -> Bool
 pub fn RaftNode::propose(Self, Bytes) -> Array[@raftpb.Message]
 pub fn RaftNode::propose_conf(Self, @confchange.ConfChange) -> Array[@raftpb.Message]
 pub fn RaftNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Array[@raftpb.Message]
+pub fn RaftNode::propose_dropped(Self) -> Bool
 pub fn RaftNode::quorum_active(Self) -> Bool
 pub fn RaftNode::raw(Self) -> RawNode
 pub fn RaftNode::raw_async(Self) -> RawNode
@@ -302,6 +309,7 @@ pub fn RaftNode::uncommitted_size(Self) -> UInt64
 pub fn RaftNode::voter_nodes(Self) -> Array[String]
 pub fn RaftNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
 
+#derive(Eq)
 pub(all) struct RaftStatus {
   id : String
   role : Role
@@ -310,7 +318,7 @@ pub(all) struct RaftStatus {
   commit : UInt64
   last_index : UInt64
   applied : UInt64
-} derive(Eq)
+}
 pub fn RaftStatus::describe(Self) -> String
 pub fn RaftStatus::equal(Self, Self) -> Bool
 pub fn RaftStatus::not_equal(Self, Self) -> Bool
@@ -333,6 +341,7 @@ pub fn RawNode::basic_status(Self) -> RaftStatus
 pub fn RawNode::campaign(Self) -> Unit
 pub fn RawNode::conf_state(Self) -> @raftpb.ConfState
 pub fn RawNode::forget_leader(Self) -> Unit
+pub fn RawNode::from_config(Config) -> Self raise ConfigError
 pub fn RawNode::full_status(Self) -> FullStatus
 pub fn RawNode::has_ready(Self) -> Bool
 pub fn RawNode::is_async(Self) -> Bool
@@ -341,6 +350,7 @@ pub fn RawNode::new_sized(RaftNode, UInt64) -> Self
 pub fn RawNode::next_unstable_snapshot(Self) -> @raftpb.Snapshot?
 pub fn RawNode::node(Self) -> RaftNode
 pub fn RawNode::propose(Self, Bytes) -> Unit
+pub fn RawNode::propose_checked(Self, Bytes) -> Bool
 pub fn RawNode::propose_conf(Self, @confchange.ConfChange) -> Unit
 pub fn RawNode::propose_conf_v2(Self, @confchange.ConfChangeV2) -> Unit
 pub fn RawNode::read_index(Self, Bytes) -> Unit
@@ -360,17 +370,19 @@ pub fn RawNode::with_progress(Self, (String, ProgressStatus) -> Unit) -> Unit
 
 type ReadOnly
 
+#derive(Eq)
 pub enum ReadOnlyOption {
   Safe
   LeaseBased
-} derive(Eq)
+}
 pub fn ReadOnlyOption::equal(Self, Self) -> Bool
 pub fn ReadOnlyOption::not_equal(Self, Self) -> Bool
 
+#derive(Eq)
 pub(all) struct ReadState {
   index : UInt64
   request_ctx : Bytes
-} derive(Eq)
+}
 pub fn ReadState::equal(Self, Self) -> Bool
 pub fn ReadState::not_equal(Self, Self) -> Bool
 
@@ -387,19 +399,21 @@ pub(all) struct Ready {
   storage_apply : StorageApply?
 }
 
+#derive(Eq)
 pub(all) enum Role {
   Follower
   PreCandidate
   Candidate
   Leader
-} derive(Eq)
+}
 pub fn Role::equal(Self, Self) -> Bool
 pub fn Role::not_equal(Self, Self) -> Bool
 
+#derive(Eq)
 pub(all) struct SoftState {
   lead : String?
   state : Role
-} derive(Eq)
+}
 pub fn SoftState::equal(Self, Self) -> Bool
 pub fn SoftState::not_equal(Self, Self) -> Bool
 

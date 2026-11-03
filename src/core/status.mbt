@@ -2,6 +2,7 @@
 /// A point-in-time snapshot of a server's observable state, for monitoring and
 /// tests. It is a plain value copied out of the node, so reading it never
 /// disturbs the running protocol.
+#derive(Eq)
 pub(all) struct RaftStatus {
   id : String
   role : Role
@@ -10,7 +11,7 @@ pub(all) struct RaftStatus {
   commit : UInt64
   last_index : UInt64
   applied : UInt64
-} derive(Eq)
+}
 
 ///|
 /// Capture this server's current status.

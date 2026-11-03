@@ -163,8 +163,47 @@ fn RaftNode::on_stale(self : RaftNode, msg : Message) -> Array[Message] {
     | AppendResp(_)
     | HeartbeatResp(_)
     | ReadIndexResp(_)
-    | TimeoutNow(_) => []
-    PreVote(_) | Vote(_) | Append(_) | Heartbeat(_) | Snapshot(_) => {
+    | TimeoutNow(_) => {
+      // Every stale message that is not the check-quorum/pre-vote heartbeat or
+      // append case is ignored with the diagnostic (etcd's `Step`).
+      self.logger.log(
+        Info,
+        "\{self.id} [term: \{self.core.current_term()}] ignored a \{msg.type_name()} message with lower term from \{msg.from} [term: \{msg.term()}]",
+      )
+      []
+    }
+    Append(_) | Heartbeat(_) =>
+      // Under check-quorum or pre-vote, a stale leader's append/heartbeat is
+      // answered with a bare MsgAppResp that reveals our term, so the deposed
+      // leader steps down; no diagnostic is logged for it (etcd's `Step`).
+      if self.check_quorum || self.pre_vote {
+        [
+          Message::new(
+            self.id,
+            msg.from,
+            AppendResp({
+              term: self.core.current_term(),
+              // A non-reject response with the index unset: it only reveals our
+              // term (etcd sends a bare `MsgAppResp`, rendered `Log:0/0`).
+              success: true,
+              match_index: 0,
+              conflict_index: 0,
+              conflict_term: 0,
+              reject_index: 0,
+            }),
+          ),
+        ]
+      } else {
+        // Without check-quorum/pre-vote the stale request is still answered: the
+        // reply carries our higher term, which makes the deposed leader step
+        // down. The handler rejects on the stale term, so the term is preserved.
+        self.logger.log(
+          Info,
+          "\{self.id} [term: \{self.core.current_term()}] ignored a \{msg.type_name()} message with lower term from \{msg.from} [term: \{msg.term()}]",
+        )
+        self.dispatch(msg)
+      }
+    PreVote(_) | Vote(_) | Snapshot(_) => {
       self.logger.log(
         Info,
         "\{self.id} [term: \{self.core.current_term()}] ignored a \{msg.type_name()} message with lower term from \{msg.from} [term: \{msg.term()}]",
@@ -223,7 +262,7 @@ fn RaftNode::dispatch(self : RaftNode, msg : Message) -> Array[Message] {
     Heartbeat(args) => self.handle_heartbeat(msg.from, args)
     HeartbeatResp(reply) => self.handle_heartbeat_resp(msg.from, reply)
     Snapshot(args) => self.handle_snapshot(msg.from, args)
-    TimeoutNow(term) => self.handle_timeout_now(term)
+    TimeoutNow(term) => self.handle_timeout_now(msg.from, term)
     ReadIndexResp(reply) => self.handle_read_index_resp(reply)
     // Local, routable messages are handled term-free in `step` and never reach
     // dispatch, so one arriving here is a routing bug.
@@ -248,11 +287,24 @@ fn RaftNode::step_propose(
   from : String,
   entries : Array[Entry],
 ) -> Array[Message] {
+  self.last_propose_dropped = false
   match self.core.role() {
     Leader => {
+      // A leader no longer in the configuration (removed while leading without
+      // stepping down) has no self progress and drops proposals (etcd:
+      // `Progress[r.id] == nil`).
+      if self.progress.get(self.id) is None {
+        self.last_propose_dropped = true
+        return []
+      }
       // A leader handing off leadership stops accepting proposals so the transfer
       // target can catch up to a fixed log (§3.10).
-      if self.lead_transferee is Some(_) {
+      if self.lead_transferee is Some(t) {
+        self.logger.log(
+          Debug,
+          "\{self.id} [term \{self.core.current_term()}] transfer leadership to \{t} is in progress; dropping proposal",
+        )
+        self.last_propose_dropped = true
         return []
       }
       let mut total = 0UL
@@ -262,6 +314,7 @@ fn RaftNode::step_propose(
       // Drop the batch if it would push the uncommitted tail over its quota
       // (etcd's ErrProposalDropped), unless the tail is currently empty.
       if !self.increase_uncommitted_size(total) {
+        self.last_propose_dropped = true
         return []
       }
       for e in entries {
@@ -270,7 +323,8 @@ fn RaftNode::step_propose(
             Some(v2) => v2.is_leave()
             None => false
           }
-          if self.conf_change_refused(is_leave) {
+          let reason = self.conf_change_refusal(is_leave)
+          if reason != "" {
             // A refused change is announced with the reason, because the client's
             // proposal silently turns into a no-op entry and the log line is the
             // only place that says why (etcd's `stepLeader` MsgProp).
@@ -281,11 +335,6 @@ fn RaftNode::step_propose(
                   Some(cc) => cc.describe_proto()
                   None => ""
                 }
-            }
-            let reason = if self.config.is_joint() && !is_leave {
-              "must transition out of joint config first"
-            } else {
-              "previous configuration change has not been applied yet"
             }
             self.logger.log(
               Info,
@@ -313,16 +362,31 @@ fn RaftNode::step_propose(
     // (etcd's stepCandidate). PreCandidate is unreachable via `core.role()` —
     // the core stays a follower during pre-vote — but the arm keeps the match
     // exhaustive and mirrors candidate behaviour.
-    Candidate | PreCandidate => []
+    Candidate | PreCandidate => {
+      self.last_propose_dropped = true
+      []
+    }
     Follower =>
       match self.leader_id {
         Some(lead) =>
           if self.no_forward {
+            self.logger.log(
+              Info,
+              "\{self.id} not forwarding to leader \{lead} at term \{self.core.current_term()}; dropping proposal",
+            )
+            self.last_propose_dropped = true
             []
           } else {
             [Message::new(from, lead, Propose(entries))]
           }
-        None => []
+        None => {
+          self.logger.log(
+            Info,
+            "\{self.id} no leader at term \{self.core.current_term()}; dropping proposal",
+          )
+          self.last_propose_dropped = true
+          []
+        }
       }
   }
 }
@@ -412,17 +476,36 @@ fn RaftNode::step_forget_leader(self : RaftNode) -> Array[Message] {
 /// waiting for the old leader to look dead.
 fn RaftNode::handle_timeout_now(
   self : RaftNode,
+  from : String,
   term : UInt64,
 ) -> Array[Message] {
   if term < self.core.current_term() || self.core.role() == Leader {
     return []
   }
-  // A transfer campaign routes through the same guard as a timeout election
-  // (etcd's `hup(campaignTransfer)`): refuse while a committed conf change is
-  // unapplied.
-  if !self.config.contains(self.id) || self.has_unapplied_conf_changes() {
+  // etcd records the intent before the promotable check, so a node that cannot
+  // stand still logs that it was asked to (`campaign(campaignTransfer)` never
+  // pre-votes: a hand-off is not a partition recovery).
+  self.logger.log(
+    Info,
+    "\{self.id} [term \{self.core.current_term()}] received MsgTimeoutNow from \{from} and starts an election to get leadership.",
+  )
+  if !self.promotable() {
+    self.logger.log(Warning, "\{self.id} is unpromotable and can not campaign")
     return []
   }
+  if self.has_unapplied_conf_changes() {
+    self.logger.log(
+      Warning,
+      "\{self.id} cannot campaign at term \{self.core.current_term()} since there are still pending configuration changes to apply",
+    )
+    return []
+  }
+  // etcd's `hup`: announce the election under the current term, then campaign
+  // (which increments it). `campaignTransfer` skips pre-vote.
+  self.logger.log(
+    Info,
+    "\{self.id} is starting a new election at term \{self.core.current_term()}",
+  )
   self.reset_timeout()
   self.start_real_campaign(force=true)
 }
@@ -666,6 +749,14 @@ fn RaftNode::adopt_leader(
 ) -> Unit {
   if self.core.role() != Follower {
     self.become_follower(term)
+  } else if self.in_pre_campaign {
+    // A pre-candidate models as a follower with this flag set; hearing from a
+    // leader returns it to a plain follower, and etcd logs that transition out
+    // of StatePreCandidate.
+    self.logger.log(
+      Info,
+      "\{self.id} became follower at term \{self.core.current_term()}",
+    )
   }
   self.leader_id = Some(lead)
   self.election_elapsed = 0
@@ -761,9 +852,11 @@ fn RaftNode::handle_heartbeat_resp(
       // A heartbeat response clears the flow throttle (etcd), so one more
       // message goes out to a follower that is still behind.
       p.unpause()
-      // The follower was just marked active, so `send_to` yields a message (it
-      // withholds only from an inactive follower behind the snapshot).
-      if p.match_index < self.core.last_log_index() && p.state != Snapshot {
+      // The follower was just marked active and unpaused, so `send_to` yields a
+      // message. etcd sends one when the follower is behind OR is being probed —
+      // the latter is how a caught-up prober learns its ack and moves back to
+      // streaming (`heartbeat_resp_recovers_from_probing`).
+      if p.match_index < self.core.last_log_index() || p.state == Probe {
         if self.send_to(from) is Some(m) {
           out.push(m)
         }
@@ -833,7 +926,15 @@ fn RaftNode::handle_append_resp(
     Some(p) => {
       p.mark_active()
       if reply.success {
-        p.maybe_update(reply.match_index) |> ignore
+        let updated = p.maybe_update(reply.match_index)
+        // etcd also repairs a prober that acks exactly its current match without
+        // advancing: the ack proves the probe landed, so it may stream again
+        // (`raft.go` stepLeader: `pr.Match == m.Index && pr.State == StateProbe`).
+        let probe_repair = p.match_index == reply.match_index &&
+          p.state == Probe
+        if !(updated || probe_repair) {
+          return []
+        }
         // A first ack promotes a prober to streaming; a streaming follower just
         // releases the acknowledged slots of its in-flight window.
         match p.state {
@@ -853,14 +954,6 @@ fn RaftNode::handle_append_resp(
             }
         }
         let out : Array[Message] = []
-        // A leadership-transfer target that has now caught up to the leader's
-        // last index is told to time out and campaign at once (§3.10).
-        if self.lead_transferee == Some(from) &&
-          p.match_index == self.core.last_log_index() {
-          out.push(
-            Message::new(self.id, from, TimeoutNow(self.core.current_term())),
-          )
-        }
         if self.maybe_commit() {
           // The commit index advanced into the current term, so it is now safe
           // to answer any read-index requests that were waiting for it (etcd
@@ -873,21 +966,31 @@ fn RaftNode::handle_append_resp(
           for m in self.bcast_append() {
             out.push(m)
           }
-          //
-        } else if (
-            p.match_index < self.core.last_log_index() ||
-            p.can_bump_commit(self.core.commit_index)
-          ) &&
-          !p.is_paused() {
-          // No new commit from this ack, but this follower is still behind — on
-          // entries (match < last) or merely on the commit index it has been told
-          // (etcd's `CanBumpCommit`, which skips a redundant commit-only MsgApp
-          // when the follower already knows the latest in-flight commit). Push it
-          // the next append now rather than waiting for a client proposal. The
-          // follower was just marked active, so `send_to` yields a message.
+        } else if from != self.id &&
+          !p.is_paused() &&
+          p.can_bump_commit(self.core.commit_index) {
+          // No new commit from this ack, but the follower may be missing the
+          // latest commit index. etcd sends one content-free append to bump it
+          // (`CanBumpCommit`), then falls through to the batch pump below.
           if self.send_to(from) is Some(m) {
             out.push(m)
           }
+        }
+        // etcd pumps further size-limited batches with `sendIfEmpty=false` (and
+        // no send at all while paused), so a freed in-flight window can ship
+        // several MsgApps at once but never an empty one on top of the bump.
+        if from != self.id && !p.is_paused() {
+          while self.send_to_if(from, false) is Some(m) {
+            out.push(m)
+          }
+        }
+        // A leadership-transfer target that has now caught up to the leader's
+        // last index is told to time out and campaign at once (§3.10).
+        if self.lead_transferee == Some(from) &&
+          p.match_index == self.core.last_log_index() {
+          out.push(
+            Message::new(self.id, from, TimeoutNow(self.core.current_term())),
+          )
         }
         out
       } else {

@@ -323,7 +323,12 @@ pub fn RaftTest::run(
     "propose" => {
       let i = self.index_of(pos_or(a.positional, 0, "1"))
       if i >= 0 {
-        self.nodes[i].rn.propose(str_to_bytes(pos_or(a.positional, 1, "")))
+        // A refused proposal reports upstream's ErrProposalDropped text.
+        if self.nodes[i].rn.propose_checked(
+            str_to_bytes(pos_or(a.positional, 1, "")),
+          ) {
+          self.out.write("raft proposal dropped\n")
+        }
       }
     }
     "process-ready" => self.process_ready_many(a.positional)
@@ -396,10 +401,13 @@ pub fn RaftTest::run(
       }
     }
     "compact" => {
-      let i = self.index_of(pos_or(a.positional, 0, "1"))
+      let id = pos_or(a.positional, 0, "1")
+      let i = self.index_of(id)
       if i >= 0 {
         let upto = parse_count(pos_or(a.positional, 1, "0")).to_uint64()
         self.nodes[i].rn.node().node().compact(upto, b"") |> ignore
+        // Upstream's handler reports the log that remains after truncation.
+        self.raft_log([id])
       }
     }
     "snapshot" => self.snapshot(a) |> ignore
@@ -415,24 +423,38 @@ pub fn RaftTest::run(
         }
       }
     }
-    "process-append-thread" =>
-      // Each named node's append thread handles its next directive, under the
-      // header the stabilize loop also prints.
+    "process-append-thread" => {
+      // Upstream prints the header (and indents the body) only when it drives
+      // more than one node; a single node's work is emitted bare.
+      let many = a.positional.length() > 1
       for id in a.positional {
         let i = self.index_of(id)
         if i >= 0 {
-          self.out.write("> \{id} processing append thread\n")
-          self.out.with_indent(fn() { self.process_append_thread(i) |> ignore })
+          if many {
+            self.out.write("> \{id} processing append thread\n")
+            self.out.with_indent(fn() {
+              self.process_append_thread(i) |> ignore
+            })
+          } else {
+            self.process_append_thread(i) |> ignore
+          }
         }
       }
-    "process-apply-thread" =>
+    }
+    "process-apply-thread" => {
+      let many = a.positional.length() > 1
       for id in a.positional {
         let i = self.index_of(id)
         if i >= 0 {
-          self.out.write("> \{id} processing apply thread\n")
-          self.out.with_indent(fn() { self.process_apply_thread(i) |> ignore })
+          if many {
+            self.out.write("> \{id} processing apply thread\n")
+            self.out.with_indent(fn() { self.process_apply_thread(i) |> ignore })
+          } else {
+            self.process_apply_thread(i) |> ignore
+          }
         }
       }
+    }
     _ => self.out.write("unknown command: \{a.cmd}\n")
   }
   if self.out.quiet() {
@@ -754,7 +776,24 @@ fn RaftTest::process_apply_thread(self : RaftTest, i : Int32) -> Unit {
 // ---------------------------------------------------------------------------
 
 ///|
+/// A message that must not be dropped even when its recipient is in `drop=`
+/// (upstream's `isLocalMsg`): self-addressed traffic and the storage threads'
+/// replies, which the pipeline depends on.
+fn rt_is_local_msg(m : Message) -> Bool {
+  m.from == m.to ||
+  m.from == "AppendThread" ||
+  m.from == "ApplyThread" ||
+  m.to == "AppendThread" ||
+  m.to == "ApplyThread"
+}
+
+///|
 /// `deliver-msgs <id>... [type=MsgX] [drop=(id,...)]`
+///
+/// Recipients are served in the order written, and for each one every queued
+/// message to it is delivered in queue order — upstream's `DeliverMsgs` runs the
+/// recipient list in the outer loop and splits the queue once per recipient, so
+/// a second recipient's traffic does not interleave with the first's.
 fn RaftTest::deliver(self : RaftTest, a : Args) -> Unit {
   let typ = kv_get(a.kv, "type", "")
   let drop = id_list(kv_get(a.kv, "drop", ""))
@@ -765,36 +804,37 @@ fn RaftTest::deliver(self : RaftTest, a : Args) -> Unit {
   for id in drop {
     recipients.push((id, true))
   }
-  let keep : Array[Message] = []
   let mut handled = 0
-  for m in self.messages {
-    let mut matched = false
-    for r in recipients {
-      let (id, is_drop) = r
+  for r in recipients {
+    let (id, is_drop) = r
+    let matched : Array[Message] = []
+    let keep : Array[Message] = []
+    for m in self.messages {
       let type_ok = if typ == "" { true } else { rt_msg_type(m) == typ }
-      if m.to == id && type_ok {
-        matched = true
-        handled = handled + 1
-        if is_drop {
-          self.out.write("dropped: ")
-        }
-        self.out.write(rt_describe_message(m))
-        self.out.write("\n")
-        if !is_drop {
-          let i = self.index_of(id)
-          if i >= 0 {
-            self.nodes[i].rn.step(m)
-          }
+      if m.to == id && type_ok && !(is_drop && rt_is_local_msg(m)) {
+        matched.push(m)
+      } else {
+        keep.push(m)
+      }
+    }
+    self.messages.clear()
+    for m in keep {
+      self.messages.push(m)
+    }
+    handled = handled + matched.length()
+    for m in matched {
+      if is_drop {
+        self.out.write("dropped: ")
+      }
+      self.out.write(rt_describe_message(m))
+      self.out.write("\n")
+      if !is_drop {
+        let i = self.index_of(id)
+        if i >= 0 {
+          self.nodes[i].rn.step(m)
         }
       }
     }
-    if !matched {
-      keep.push(m)
-    }
-  }
-  self.messages.clear()
-  for m in keep {
-    self.messages.push(m)
   }
   if handled == 0 {
     self.out.write("no messages\n")
@@ -832,7 +872,10 @@ fn RaftTest::raft_state(self : RaftTest) -> Unit {
   for n in self.nodes {
     let st = n.rn.status()
     let full = n.rn.node().full_status()
-    let is_voter = full.config.voters.contains(n.id)
+    // etcd's `isVoter` checks `Status.Config.Voters.IDs()`, which in a joint
+    // configuration spans both halves; the ConfState keeps them apart.
+    let is_voter = full.config.voters.contains(n.id) ||
+      full.config.voters_outgoing.contains(n.id)
     let kind = if is_voter { "(Voter)" } else { "(Non-Voter)" }
     self.out.write(
       "\{st.id}: \{rt_state_name(st.role)} \{kind} Term:\{st.term} Lead:\{rt_lead(st.leader)}\n",
@@ -985,10 +1028,11 @@ fn RaftTest::propose_conf_change(
   }
   let is_v1 = kv_flag(a.kv, "v1")
   let changes = rt_parse_changes(input)
-  if changes.is_empty() {
-    return
-  }
   if is_v1 {
+    // A v1 change needs exactly one target; an empty input has nothing to send.
+    if changes.is_empty() {
+      return
+    }
     let (kind, target) = changes[0]
     self.nodes[i].rn.propose_conf(conf_change(kind, target))
   } else {

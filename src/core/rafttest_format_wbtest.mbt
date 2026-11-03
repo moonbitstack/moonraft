@@ -29,9 +29,15 @@ fn rt_describe_entry(e : Entry) -> String {
   if e.entry_type == Normal {
     @log.describe_entry(e, None)
   } else if @confchange.ConfChangeV2::decode(e.command) is Some(v2) {
-    "\{e.term}/\{e.index} EntryConfChangeV2 \{@confchange.describe_changes(v2.changes)}"
+    let ch = @confchange.describe_changes(v2.changes)
+    // etcd's DescribeEntry appends the payload only when it is non-empty, so an
+    // empty ConfChangeV2 (the auto-leave no-op) has no trailing space.
+    "\{e.term}/\{e.index} EntryConfChangeV2" +
+    (if ch == "" { "" } else { " " + ch })
   } else if @confchange.ConfChange::decode(e.command) is Some(cc) {
-    "\{e.term}/\{e.index} EntryConfChange \{@confchange.describe_changes([cc])}"
+    let ch = @confchange.describe_changes([cc])
+    "\{e.term}/\{e.index} EntryConfChange" +
+    (if ch == "" { "" } else { " " + ch })
   } else {
     @log.describe_entry(e, None)
   }

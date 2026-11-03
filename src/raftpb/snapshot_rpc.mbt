@@ -4,6 +4,7 @@
 /// been compacted away. The whole state-machine image up to `last_index` is
 /// shipped in `data`; real deployments chunk it, which the offset/done pair
 /// leaves room for.
+#derive(Eq)
 pub(all) struct InstallSnapshotArgs {
   term : UInt64
   leader_id : String
@@ -15,7 +16,7 @@ pub(all) struct InstallSnapshotArgs {
   // The membership recorded in the snapshot, so the follower rebuilds its
   // voter/learner sets on install (§7). Empty when none was recorded.
   conf_state : ConfState
-} derive(Eq)
+}
 
 ///|
 /// Build InstallSnapshot arguments that carry a whole snapshot in one message
@@ -40,9 +41,10 @@ pub fn InstallSnapshotArgs::whole(
 ///|
 /// Reply to an InstallSnapshot RPC. `term` lets a stale leader discover it has
 /// been superseded.
+#derive(Eq)
 pub(all) struct InstallSnapshotReply {
   term : UInt64
-} derive(Eq)
+}
 
 ///|
 pub extend InstallSnapshotArgs with Eq::{not_equal, equal}

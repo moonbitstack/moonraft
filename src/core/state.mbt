@@ -50,8 +50,13 @@ pub fn Node::current_term(self : Node) -> UInt64 {
 /// any vote cast in the old term.
 pub fn Node::become_follower(self : Node, term : UInt64) -> Unit {
   self.role = Follower
-  self.current_term = term
-  self.voted_for = None
+  // etcd's `reset` only clears a vote when the term actually moves; a same-term
+  // step-down (check-quorum, a lost election) keeps the vote it cast, which is
+  // what leaves the HardState unchanged and the next Ready MustSync=false.
+  if self.current_term != term {
+    self.current_term = term
+    self.voted_for = None
+  }
 }
 
 ///|

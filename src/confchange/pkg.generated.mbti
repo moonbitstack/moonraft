@@ -37,10 +37,11 @@ pub struct ChangerConfig {
   mut auto_leave : Bool
 }
 
+#derive(Eq)
 pub(all) struct ConfChange {
   change_type : ConfChangeType
   node_id : String
-} derive(Eq)
+}
 pub fn ConfChange::add(String) -> Self
 pub fn ConfChange::add_learner(String) -> Self
 pub fn ConfChange::apply_to(Self, Membership) -> Unit
@@ -51,26 +52,29 @@ pub fn ConfChange::equal(Self, Self) -> Bool
 pub fn ConfChange::not_equal(Self, Self) -> Bool
 pub fn ConfChange::remove(String) -> Self
 
+#derive(Eq)
 pub(all) enum ConfChangeTransition {
   Auto
   JointImplicit
   JointExplicit
-} derive(Eq)
+}
 pub fn ConfChangeTransition::equal(Self, Self) -> Bool
 pub fn ConfChangeTransition::not_equal(Self, Self) -> Bool
 
+#derive(Eq)
 pub(all) enum ConfChangeType {
   AddNode
   RemoveNode
   AddLearnerNode
-} derive(Eq)
+}
 pub fn ConfChangeType::equal(Self, Self) -> Bool
 pub fn ConfChangeType::not_equal(Self, Self) -> Bool
 
+#derive(Eq)
 pub(all) struct ConfChangeV2 {
   changes : Array[ConfChange]
   transition : ConfChangeTransition
-} derive(Eq)
+}
 pub fn ConfChangeV2::auto(Array[ConfChange]) -> Self
 pub fn ConfChangeV2::auto_leave(Self) -> Bool
 pub fn ConfChangeV2::decode(Bytes) -> Self?

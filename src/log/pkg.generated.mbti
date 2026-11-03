@@ -79,6 +79,8 @@ pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, @raftpb.EntryId) -> Unit
 pub fn RaftLog::term(Self, UInt64) -> UInt64 raise @storage.StorageError
 pub fn RaftLog::to_string(Self) -> String
+pub fn RaftLog::unstable_entries_len(Self) -> Int32
+pub fn RaftLog::unstable_offset(Self) -> UInt64
 pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
 
 pub(all) struct Unstable {

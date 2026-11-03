@@ -110,6 +110,11 @@ pub struct RaftNode {
   // (committing a change can shrink the quorum and let more entries commit), and
   // the fold itself calls `maybe_commit`.
   mut applying_conf : Bool
+  // Whether the most recent direct `propose` was refused (etcd's `Step`
+  // returning `ErrProposalDropped`). `step_propose` clears it on entry and sets
+  // it on every drop path, so a driver can report a dropped proposal instead of
+  // silently losing it.
+  mut last_propose_dropped : Bool
   // Whether those responses wait for the advance boundary. A caller that drives
   // the node through `RawNode` is saying when a Ready became durable, so the
   // responses wait (the faithful ordering). A caller that steps the node
@@ -220,10 +225,15 @@ pub fn RaftNode::new(
     deferred: [],
     pending: [],
     applying_conf: false,
+    last_propose_dropped: false,
     defer_responses: false,
     logger,
     tracer,
   }
+  // Broadcasts and vote requests follow ascending id order upstream; keep the
+  // peer set sorted from the start (a snapshot bootstrap re-sorts in
+  // `reconcile_peers`).
+  node.peers.sort()
   node.read_only.safe = read_only_option is Safe
   node.tracer.on_event(InitState(id))
   match snapshot {
@@ -510,7 +520,7 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
     last_log_index: self.core.last_log_index(),
     last_log_term: self.core.last_log_term(),
   }
-  for p in self.peers {
+  for p in self.vote_peers() {
     self.logger.log(
       Info,
       "\{self.id} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] sent MsgPreVote request to \{p} at term \{self.core.current_term()}",
@@ -538,6 +548,21 @@ fn RaftNode::start_pre_campaign(self : RaftNode) -> Array[Message] {
 }
 
 ///|
+/// The peers a campaign solicits: voters only (a learner never votes), excluding
+/// ourselves (the self-vote is a response, not a request), in ascending id order
+/// as etcd's sorted `trk.Voters.IDs()` produces.
+fn RaftNode::vote_peers(self : RaftNode) -> Array[String] {
+  let out : Array[String] = []
+  for v in self.config.voters() {
+    if v != self.id {
+      out.push(v)
+    }
+  }
+  out.sort()
+  out
+}
+
+///|
 fn RaftNode::start_real_campaign(
   self : RaftNode,
   force~ : Bool = false,
@@ -558,7 +583,7 @@ fn RaftNode::start_real_campaign(
   // leased to the outgoing leader grants them, letting the handover complete
   // instead of stalling out a full election timeout (§3.10).
   let args = self.core.request_vote_args()
-  for p in self.peers {
+  for p in self.vote_peers() {
     self.logger.log(
       Info,
       "\{self.id} [logterm: \{args.last_log_term}, index: \{args.last_log_index}] sent MsgVote request to \{p} at term \{self.core.current_term()}",
@@ -764,6 +789,14 @@ pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
 }
 
 ///|
+/// Whether the most recent `propose` was refused (etcd's `Step` returning
+/// `ErrProposalDropped`). A driver surfaces this so a dropped proposal is not
+/// silently lost.
+pub fn RaftNode::propose_dropped(self : RaftNode) -> Bool {
+  self.last_propose_dropped
+}
+
+///|
 /// Append a configuration change to the leader's log and replicate it, so every
 /// server folds the same membership change into its configuration at the same
 /// log position once it commits (Raft §6). A no-op on a non-leader.
@@ -788,9 +821,9 @@ pub fn RaftNode::propose_conf(
 /// is already pending (applied has not caught up to `pending_conf_index`), while
 /// a non-leave change is proposed in a joint config, or while a leave is proposed
 /// outside one. `DisableConfChangeValidation` turns the checks off.
-fn RaftNode::conf_change_refused(self : RaftNode, is_leave : Bool) -> Bool {
+fn RaftNode::conf_change_refusal(self : RaftNode, is_leave : Bool) -> String {
   if self.no_conf_change_validation {
-    return false
+    return ""
   }
   // etcd compares `pendingConfIndex` against the applied index: a further change
   // is refused while the pending one has not been applied yet (raft.go:1338).
@@ -805,9 +838,17 @@ fn RaftNode::conf_change_refused(self : RaftNode, is_leave : Bool) -> Bool {
   }
   let already_pending = self.pending_conf_index > applied
   let already_joint = self.config.is_joint()
-  already_pending ||
-  (already_joint && !is_leave) ||
-  (!already_joint && is_leave)
+  // Upstream reports the first failing check in this order, verbatim
+  // (raft.go:1330), so the diagnostic names the real reason.
+  if already_pending {
+    "possible unapplied conf change at index \{self.pending_conf_index} (applied to \{applied})"
+  } else if already_joint && !is_leave {
+    "must transition out of joint config first"
+  } else if !already_joint && is_leave {
+    "not in joint state; refusing empty conf change"
+  } else {
+    ""
+  }
 }
 
 ///|
@@ -840,6 +881,10 @@ pub fn RaftNode::transfer_leadership(
   // without disturbing any transfer already under way (etcd checks pr.IsLearner
   // first).
   if self.config.is_learner(target) {
+    self.logger.log(
+      Debug,
+      "\{self.id} is learner. Ignored transferring leadership",
+    )
     return []
   }
   // A transfer already in progress (§3.10): a repeat to the same target is
@@ -847,26 +892,46 @@ pub fn RaftNode::transfer_leadership(
   // the old one before the new is considered (etcd's stepLeader).
   if self.lead_transferee is Some(last) {
     if last == target {
+      self.logger.log(
+        Info,
+        "\{self.id} [term \{self.core.current_term()}] transfer leadership to \{target} is in progress, ignores request to same node \{target}",
+      )
       return []
     }
     self.lead_transferee = None
+    self.logger.log(
+      Info,
+      "\{self.id} [term \{self.core.current_term()}] abort previous transferring leadership to \{last}",
+    )
   }
   // Transferring to ourselves is a no-op — but note it still aborts a pending
   // transfer above, which is how a leader cancels a handoff (etcd's
   // "already leader" branch runs after abortLeaderTransfer).
   if target == self.id {
+    self.logger.log(
+      Debug,
+      "\{self.id} is already leader. Ignored transferring leadership to self",
+    )
     return []
   }
   // An unknown / non-member target is a no-op.
   if !self.config.contains(target) {
     return []
   }
+  self.logger.log(
+    Info,
+    "\{self.id} [term \{self.core.current_term()}] starts to transfer leadership to \{target}",
+  )
   self.lead_transferee = Some(target)
   self.election_elapsed = 0
   // A voting member on a leader always has a progress entry (reconcile_peers
   // keeps the two in step), so index it directly.
   let p = self.progress[target]
   if p.match_index == self.core.last_log_index() {
+    self.logger.log(
+      Info,
+      "\{self.id} sends MsgTimeoutNow to \{target} immediately as \{target} already has up-to-date log",
+    )
     [Message::new(self.id, target, TimeoutNow(self.core.current_term()))]
   } else if self.send_to(target) is Some(m) {
     [m]
@@ -908,6 +973,18 @@ pub fn RaftNode::forget_leader(self : RaftNode) -> Unit {
 /// to ship a snapshot to a `!RecentActive` follower, since it is probably gone
 /// and the snapshot would be wasted bandwidth).
 fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
+  self.send_to_if(peer, true)
+}
+
+///|
+/// The workhorse behind `send_to`: `send_if_empty` mirrors etcd's
+/// `maybeSendAppend(to, sendIfEmpty)`. A batch pump passes `false` so it never
+/// emits a content-free MsgApp on top of the commit bump it already sent.
+fn RaftNode::send_to_if(
+  self : RaftNode,
+  peer : String,
+  send_if_empty : Bool,
+) -> Message? {
   // A leader never sends an append to itself: it acknowledges its own entries
   // through `self_ack`. Reaching here with our own id means a response travelled
   // the self-addressed path, and sending would produce a message no transport can
@@ -916,6 +993,12 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
     return None
   }
   let p = self.progress[peer]
+  // A snapshot is already in flight: etcd's `IsPaused` is always true for
+  // StateSnapshot, so no append (and no second snapshot) is sent until its ack
+  // reconnects the follower.
+  if p.state == Snapshot {
+    return None
+  }
   let prev = p.next_index - 1
   if prev < self.core.snapshot_index {
     if !p.is_active() {
@@ -976,6 +1059,11 @@ fn RaftNode::send_to(self : RaftNode, peer : String) -> Message? {
     limit_size(self.core.entries_after(prev)[:], self.max_msg_bytes)
   }
   let has = !entries.is_empty()
+  // etcd's `maybeSendAppend`: an empty batch is dropped unless the caller asked
+  // for a content-free message to carry the commit index.
+  if !has && !send_if_empty {
+    return None
+  }
   let last = if has { entries[entries.length() - 1].index } else { prev }
   // Total payload bytes in this batch, for the in-flight byte budget
   // (etcd's payloadsSize). Inert unless MaxInflightBytes is set.
@@ -1020,7 +1108,9 @@ fn progress_text(p : Progress) -> String {
   if p.is_learner {
     buf.write_string(" learner")
   }
-  if p.is_paused() {
+  // `is_paused` follows etcd's `MsgAppFlowPaused`; also surface a full in-flight
+  // window, which reads as paused to an operator even before the next send.
+  if p.is_paused() || p.inflights.full() {
     buf.write_string(" paused")
   }
   if p.pending_snapshot > 0UL {
@@ -1231,16 +1321,16 @@ fn RaftNode::apply_committed_conf(self : RaftNode) -> Unit {
         None =>
           if ConfChange::decode(e.command) is Some(cc) {
             cc.apply_to(self.config)
-            self.reconcile_peers()
           }
       }
-      // A change that takes effect announces the configuration it produced; one
-      // line per applied change is what a reader of the trace needs to see when
-      // the membership moved (etcd's `switchToConfig`).
+      // etcd's `switchToConfig` announces the new configuration before acting on
+      // it — stepping down a removed leader, probing new peers — so the
+      // "switched" line precedes any removal-driven "became follower".
       self.logger.log(
         Info,
         "\{self.id} switched to configuration \{self.config.describe()}",
       )
+      self.reconcile_peers()
       self.report_after_config()
     }
     self.conf_applied = idx
@@ -1269,9 +1359,14 @@ fn RaftNode::report_after_config(self : RaftNode) -> Unit {
     }
   } else {
     for peer in self.peers.copy() {
-      // `maybeSendAppend(id, sendIfEmpty=false)`: a follower with nothing to
-      // catch up on is left alone, while an append that carries entries — or the
-      // snapshot a far-behind follower needs — goes out now.
+      // `maybeSendAppend(id, sendIfEmpty=false)` bails out on a paused follower
+      // (full in-flight window or pending snapshot), just like bcastAppend.
+      if self.progress[peer].is_paused() {
+        continue
+      }
+      // A follower with nothing to catch up on is left alone, while an append
+      // that carries entries — or the snapshot a far-behind follower needs — goes
+      // out now.
       let msg = self.send_to(peer)
       if msg is Some(m) && m.kind() != "Probe" {
         self.pending.push(m)
@@ -1306,6 +1401,11 @@ pub fn RaftNode::take_pending(self : RaftNode) -> Array[Message] {
 /// already in flight, append one. Robust to truncation: `has_pending_leave`
 /// scans the uncommitted tail, so a truncated LeaveJoint is simply re-appended.
 fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
+  // A LeaveJoint is already staged if one sits at or past the applied watermark
+  // (`has_pending_leave` scans from there). That covers a leave that has been
+  // committed but not yet applied — which would otherwise look absent and be
+  // appended a second time — while a leave lost to a truncation is, correctly,
+  // no longer found and gets re-appended.
   if self.core.role() == Leader &&
     self.config.is_joint() &&
     self.config.auto_leave &&
@@ -1351,7 +1451,9 @@ fn RaftNode::has_unapplied_conf_changes(self : RaftNode) -> Bool {
 /// Whether a LeaveJoint conf-change entry is already present in the uncommitted
 /// tail (so we should not append another).
 fn RaftNode::has_pending_leave(self : RaftNode) -> Bool {
-  let mut i = self.core.commit_index + 1
+  // Start at the applied watermark, not the commit index: a LeaveJoint that is
+  // committed but not yet applied is still "pending" and must not be re-appended.
+  let mut i = self.conf_applied + 1
   while i <= self.core.last_log_index() {
     if self.core.entry_at(i) is Some(e) &&
       e.is_conf_change() &&
@@ -1386,6 +1488,7 @@ pub fn RaftNode::conf_state(self : RaftNode) -> ConfState {
 /// and monitoring (etcd's `tracker.Progress` as exposed through `Status` and
 /// `WithProgress`). It is a copied value, so reading it never disturbs the
 /// running protocol.
+#derive(Eq)
 pub(all) struct ProgressStatus {
   id : String
   match_index : UInt64
@@ -1401,7 +1504,7 @@ pub(all) struct ProgressStatus {
   // full (etcd's `Inflights.Count()` / `Full()`).
   inflight : Int32
   inflight_full : Bool
-} derive(Eq)
+}
 
 ///|
 fn progress_status_of(id : String, p : Progress) -> ProgressStatus {
@@ -1519,6 +1622,9 @@ fn RaftNode::restore_conf_state(self : RaftNode, cs : ConfState) -> Unit {
     self.config.outgoing.push(v)
   }
   self.config.joint = !cs.voters_outgoing.is_empty()
+  // The auto-leave intent is durable config state carried in the snapshot, so a
+  // follower that installs it keeps the leader's pending transition.
+  self.config.auto_leave = cs.auto_leave
   self.config.learners.clear()
   for l in cs.learners {
     self.config.learners.push(l)
@@ -1558,7 +1664,6 @@ fn RaftNode::apply_conf_change_v2(self : RaftNode, v2 : ConfChangeV2) -> Unit {
       }
     }
   }
-  self.reconcile_peers()
 }
 
 ///|
@@ -1615,6 +1720,10 @@ fn RaftNode::reconcile_peers(self : RaftNode) -> Unit {
       }
     }
   }
+  // Upstream iterates voters in ascending id order (`ProgressMap.Visit` sorts
+  // before visiting), which fixes the order of broadcasts and vote requests.
+  // Keeping `peers` sorted makes every loop over it reproduce that order.
+  self.peers.sort()
   if self.lead_transferee is Some(t) && !self.config.contains(t) {
     self.lead_transferee = None
   }

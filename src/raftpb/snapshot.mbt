@@ -2,6 +2,7 @@
 /// A point-in-time snapshot of the state machine that stands in for the log
 /// prefix up to and including `last_index`. Raft uses snapshots to bound log
 /// growth and to bring a badly lagging follower up to date in one shot (§7).
+#derive(Eq)
 pub(all) struct Snapshot {
   last_index : UInt64
   last_term : UInt64
@@ -10,7 +11,7 @@ pub(all) struct Snapshot {
   // node restoring from it rebuilds its voter/learner sets rather than losing
   // them. Empty for a snapshot written without a recorded configuration.
   conf_state : ConfState
-} derive(Eq)
+}
 
 ///|
 /// The empty snapshot: no state captured, baseline at index 0.

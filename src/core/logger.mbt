@@ -16,6 +16,7 @@
 ///|
 /// A severity level, ordered from most to least verbose. Mirrors the five
 /// levels etcd's `Logger` exposes; `Panic` additionally aborts.
+#derive(Eq)
 pub enum LogLevel {
   Debug
   Info
@@ -23,7 +24,7 @@ pub enum LogLevel {
   Error
   Fatal
   Panic
-} derive(Eq)
+}
 
 ///|
 /// A pluggable sink for the consensus core's diagnostics (etcd's `raft.Logger`).

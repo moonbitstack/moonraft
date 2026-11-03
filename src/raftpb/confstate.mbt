@@ -15,13 +15,14 @@
 
 ///|
 /// A membership snapshot as carried by a Raft snapshot (etcd's `ConfState`).
+#derive(Eq)
 pub(all) struct ConfState {
   voters : Array[String]
   learners : Array[String]
   voters_outgoing : Array[String]
   learners_next : Array[String]
   auto_leave : Bool
-} derive(Eq)
+}
 
 ///|
 /// The empty membership state, carried by a snapshot with no recorded

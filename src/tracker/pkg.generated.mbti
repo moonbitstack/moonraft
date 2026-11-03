@@ -6,10 +6,11 @@ package "moonbitstack/moonraft/tracker"
 // Errors
 
 // Types and methods
+#derive(Eq)
 pub(all) struct Inflight {
   mut index : UInt64
   mut bytes : UInt64
-} derive(Eq)
+}
 pub fn Inflight::equal(Self, Self) -> Bool
 pub fn Inflight::not_equal(Self, Self) -> Bool
 
@@ -61,11 +62,12 @@ pub fn Progress::sent_entries(Self, UInt64, Bool, bytes? : UInt64) -> Unit
 pub fn Progress::to_string(Self) -> String
 pub fn Progress::unpause(Self) -> Unit
 
+#derive(Eq)
 pub(all) enum ProgressState {
   Probe
   Replicate
   Snapshot
-} derive(Eq)
+}
 pub fn ProgressState::equal(Self, Self) -> Bool
 pub fn ProgressState::not_equal(Self, Self) -> Bool
 

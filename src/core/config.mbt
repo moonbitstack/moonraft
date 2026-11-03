@@ -17,6 +17,7 @@
 /// Why a configuration was rejected — one variant per etcd `Config.validate`
 /// branch that applies to this port. Raised by `Config::validate` /
 /// `RaftNode::from_config` (etcd returns an `error` from the same branches).
+#derive(Eq)
 pub suberror ConfigError {
   /// `id` is empty (etcd: "cannot use none as id").
   EmptyId
@@ -30,7 +31,7 @@ pub suberror ConfigError {
   MaxInflightBytesTooSmall
   /// `read_only_option` is `LeaseBased` without `check_quorum`.
   LeaseBasedNeedsCheckQuorum
-} derive(Eq)
+}
 
 ///|
 /// The parameters to start a server, collected into one explicit value (etcd's
@@ -73,6 +74,14 @@ pub struct Config {
   // Whether propose-time conf-change validation is off (etcd's
   // DisableConfChangeValidation).
   disable_conf_change_validation : Bool
+  // Whether the caller drives the AsyncStorageWrites contract (etcd's
+  // Config.AsyncStorageWrites): each Ready hands its entries and committed
+  // entries to local storage threads instead of being persisted inline.
+  async_storage_writes : Bool
+  // Byte cap on one Ready's committed entries (etcd's MaxCommittedSizePerReady);
+  // 0 means no cap. Only meaningful alongside `async_storage_writes`, but it also
+  // paginates a synchronous Ready.
+  max_committed_size : UInt64
   // The last index the application has already applied (etcd's Config.Applied),
   // set only when restarting so the core does not re-deliver applied entries.
   applied : UInt64
@@ -105,6 +114,8 @@ pub fn Config::new(
   step_down_on_removal~ : Bool = false,
   disable_proposal_forwarding~ : Bool = false,
   disable_conf_change_validation~ : Bool = false,
+  async_storage_writes~ : Bool = false,
+  max_committed_size~ : UInt64 = 0,
   applied~ : UInt64 = 0,
   logger~ : &Logger = NopLogger::{ },
   tracer~ : &Tracer = NopTracer::{ },
@@ -125,6 +136,8 @@ pub fn Config::new(
     step_down_on_removal,
     disable_proposal_forwarding,
     disable_conf_change_validation,
+    async_storage_writes,
+    max_committed_size,
     applied,
     logger,
     tracer,
@@ -135,8 +148,8 @@ pub fn Config::new(
 ///|
 /// Reject an unusable configuration, mirroring etcd's `Config.validate` branch
 /// for branch. The etcd checks that do not apply to this port (a nil `Storage`,
-/// a local-message-target id, `MaxCommittedSizePerReady` which lives on the
-/// async-storage path) are noted in `GAP_core.md` rather than enforced here.
+/// a local-message-target id) are noted in `GAP_core.md` rather than enforced
+/// here; `max_committed_size` needs no check, as upstream does not validate it.
 pub fn Config::validate(self : Config) -> Unit raise ConfigError {
   if self.id == "" {
     raise EmptyId
@@ -188,6 +201,25 @@ pub fn RaftNode::from_config(config : Config) -> RaftNode raise ConfigError {
     r.disable_proposal_forwarding()
   }
   r
+}
+
+///|
+/// Build a Ready/Advance driver straight from a validated `Config`, honouring
+/// `async_storage_writes` and `max_committed_size` (etcd's `NewRawNode`, which
+/// reads both from the same config).
+pub fn RawNode::from_config(config : Config) -> RawNode raise ConfigError {
+  let r = RaftNode::from_config(config)
+  if config.async_storage_writes {
+    if config.max_committed_size > 0UL {
+      r.raw_async_sized(config.max_committed_size)
+    } else {
+      r.raw_async()
+    }
+  } else if config.max_committed_size > 0UL {
+    r.raw_with_max_committed_size(config.max_committed_size)
+  } else {
+    r.raw()
+  }
 }
 
 ///|

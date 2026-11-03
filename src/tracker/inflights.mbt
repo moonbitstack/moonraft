@@ -19,10 +19,11 @@
 ///|
 /// One in-flight AppendEntries message: the index of its last entry and the
 /// total byte size of the entries it carries.
+#derive(Eq)
 pub(all) struct Inflight {
   mut index : UInt64
   mut bytes : UInt64
-} derive(Eq)
+}
 
 ///|
 /// A sliding-window flow controller for the AppendEntries messages a leader has

@@ -32,9 +32,8 @@ script's expected block is a byte comparison rather than a shape check.
 - The 13 `confchange` and `quorum` scripts compare case by case and match
   exactly (`datadriven: quorum and confchange scripts reproduce upstream exactly`).
 - The 28 `raft` scripts are scored block by block
-  (`datadriven: raft scripts reproduce upstream block by block`): **477 of 558**
-  cases match on the `core-script-parity` branch. What closed since the first
-  score is mostly ordering, not wording:
+  (`datadriven: raft scripts reproduce upstream block by block`): **541 of 558**
+  cases match. What closed since the first score is mostly ordering, not wording:
 
   - every vote and append acknowledgement waits for the state it attests to be
     durable (upstream's `msgsAfterAppend` → `stepsOnAdvance`), the storage
@@ -51,12 +50,13 @@ script's expected block is a byte comparison rather than a shape check.
   - the append, rejection, snapshot-send, snapshot-restore, leadership-transfer
     and auto-leave paths now emit upstream's diagnostics.
 
-  The remaining 81 cases are concentrated in the two async-write scripts (their
-  message ordering once several storage directives are in flight: 21/44 and
-  34/47), the two snapshot scripts (snapshot timing, 17/18 and 20/25), and a
-  handful of per-script differences (message grouping in `lagging_commit`, the
-  probe ladder in `heartbeat_resp_recovers_from_probing`, `paused` bookkeeping
-  in `replicate_pause`).
+  The remaining 17 cases are concentrated in the ABA-race async-write script
+  (7, divergent log contents after a stuttered append pipeline), the two
+  async-write scripts' terminal unstable-log bookkeeping (2), `EntryConfChangeV2`
+  placement under auto-leave (3), and a handful of per-script timings
+  (`snapshot_succeed_via_app_resp`, `replicate_pause`'s leader self-progress,
+  `confchange_disable_validation`'s commit vs. send order, and the two
+  `replace_leader` transfers).
 
 The scoreboard test fails if the count drops, so a change that stops a script
 reproducing upstream is caught rather than absorbed.

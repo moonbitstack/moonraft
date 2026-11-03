@@ -95,7 +95,7 @@ Raft's value is its safety properties, and the library checks them as it runs ra
 
 ## Verification
 
-Every public behaviour is exercised by the test suite — 749 tests, 100% line
+Every public behaviour is exercised by the test suite — 760 tests, 100% line
 coverage of the library — and the code is reconciled against a pinned upstream
 (`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
 an in-repo interpreter: all [41 etcd-io/raft scripts](testdata/etcd/)
@@ -103,7 +103,7 @@ an in-repo interpreter: all [41 etcd-io/raft scripts](testdata/etcd/)
 verbatim, embedded at build time, and driven through the same `RawNode` /
 `Changer` / quorum code the library ships — in CI. The scripts' expected blocks
 are compared byte for byte: the 13 `confchange` and `quorum` scripts match
-exactly, and the 28 `raft` scripts are scored case by case (332 of 558 blocks
+exactly, and the 28 `raft` scripts are scored case by case (541 of 558 blocks
 today), with the remaining gap and its causes recorded in
 [docs/porting.md](docs/porting.md).
 

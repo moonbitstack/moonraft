@@ -189,6 +189,27 @@ fn RawNode::sync_log(self : RawNode) -> Unit {
     i = i + 1
   }
   if i <= node_last {
+    // Upstream's `raftLog.findConflict` names a real conflict; then
+    // `unstable.truncateAndAppend` reports which branch the append takes, in its
+    // exact order — a plain append (fromIndex == offset + len) says nothing.
+    if i <= known_last {
+      self.raft.logger.log(
+        Info,
+        "found conflict at index \{i} [existing term: \{self.log.zero_term_on_out_of_bounds(i)}, conflicting term: \{node.term_at(i)}]",
+      )
+    }
+    let offset = self.log.unstable_offset()
+    let end = offset + self.log.unstable_entries_len().to_uint64()
+    if i == end {
+      // pure append: no diagnostic
+    } else if i <= offset {
+      self.raft.logger.log(Info, "replace the unstable entries from index \{i}")
+    } else {
+      self.raft.logger.log(
+        Info,
+        "truncate the unstable entries before index \{i}",
+      )
+    }
     self.log.append(node.entries_after(i - 1)) |> ignore
   }
   let last = self.log.last_index()
@@ -282,6 +303,17 @@ pub fn RawNode::propose(self : RawNode, data : Bytes) -> Unit {
 }
 
 ///|
+/// As `propose`, but reports whether the proposal was refused (etcd's `Step`
+/// returning `ErrProposalDropped`). The datadriven harness surfaces a refusal as
+/// "raft proposal dropped".
+pub fn RawNode::propose_checked(self : RawNode, data : Bytes) -> Bool {
+  for m in self.raft.propose(data) {
+    self.msgs.push(m)
+  }
+  self.raft.propose_dropped()
+}
+
+///|
 /// Propose a configuration change, appended and replicated like any entry so
 /// every server folds it in at the same log position once committed (§6).
 pub fn RawNode::propose_conf(self : RawNode, cc : ConfChange) -> Unit {
@@ -326,6 +358,10 @@ pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
     _ => ()
   }
   self.record(self.raft.step(msg))
+  // Reconcile the mirror now so an append that rewrote a divergent suffix is
+  // reported from within this step (upstream prints it from `raftLog.append`),
+  // not deferred to the next Ready poll.
+  self.sync_log()
 }
 
 ///|

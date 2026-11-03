@@ -44,11 +44,12 @@ pub(all) enum Payload {
 /// commit index the read is anchored at, echoed back with the caller's context to
 /// the server that originated the read. Unlike the request it carries the
 /// leader's term, so it is term-checked like any other reply.
+#derive(Eq)
 pub(all) struct ReadIndexResp {
   term : UInt64
   index : UInt64
   context : Bytes
-} derive(Eq)
+}
 
 ///|
 /// A routed message: a payload with the ids of the sender and intended
@@ -189,11 +190,12 @@ pub extend ReadIndexResp with Eq::{not_equal, equal}
 /// directive was issued — the two together defeat the ABA race: a response that
 /// arrives after the term has moved on, or after the unstable log at that index
 /// was overwritten, is ignored rather than mistaken for an ack of the new log.
+#derive(Eq)
 pub(all) struct StorageAppendResp {
   index : UInt64
   log_term : UInt64
   term : UInt64
-} derive(Eq)
+}
 
 ///|
 pub extend StorageAppendResp with Eq::{not_equal, equal}

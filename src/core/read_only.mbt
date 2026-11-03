@@ -21,10 +21,11 @@
 /// `LeaseBased` trusts the leader's election lease instead, saving the round
 /// trip at the cost of depending on bounded clock drift; etcd requires
 /// check-quorum to be on when it is selected.
+#derive(Eq)
 pub enum ReadOnlyOption {
   Safe
   LeaseBased
-} derive(Eq)
+}
 
 ///|
 /// Select how this leader confirms linearizable reads (etcd's

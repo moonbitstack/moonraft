@@ -4,10 +4,11 @@
 /// consensus layer applies to the cluster configuration once the entry is
 /// committed (Raft §6). Keeping the kind on the entry lets the apply loop route
 /// each committed entry to the right place.
+#derive(Eq)
 pub(all) enum EntryType {
   Normal
   ConfChange
-} derive(Eq)
+}
 
 ///|
 /// One command entry in the replicated log.
@@ -18,12 +19,13 @@ pub(all) enum EntryType {
 /// `entry_type` tells the apply loop whether `command` is an application
 /// command or a membership change. `command` is the opaque payload handed to
 /// the state machine (or membership decoder) once the entry is committed.
+#derive(Eq)
 pub(all) struct Entry {
   term : UInt64
   index : UInt64
   entry_type : EntryType
   command : Bytes
-} derive(Eq)
+}
 
 ///|
 /// Build a normal application entry.
@@ -48,10 +50,11 @@ pub fn Entry::is_conf_change(self : Entry) -> Bool {
 /// index. There is only ever one leader per term and a leader never issues two
 /// entries at the same index, so `(term, index)` pins an entry down. Mirrors
 /// etcd's `entryID`.
+#derive(Eq)
 pub(all) struct EntryId {
   term : UInt64
   index : UInt64
-} derive(Eq)
+}
 
 ///|
 /// The identity `(term, index)` of this entry.

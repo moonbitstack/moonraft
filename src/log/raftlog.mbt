@@ -90,6 +90,22 @@ pub fn RaftLog::new_with_size(
 }
 
 ///|
+/// The index at which the unstable (not-yet-persisted) tail begins. An append that
+/// rewrites an entry at or past this index replaces unstable entries rather than
+/// extending them (etcd's `unstable.offset`).
+pub fn RaftLog::unstable_offset(self : RaftLog) -> UInt64 {
+  self.unstable.offset
+}
+
+///|
+/// How many entries currently sit in the unstable tail. Together with
+/// `unstable_offset` this is the anchor `unstable.truncateAndAppend` compares an
+/// incoming append against.
+pub fn RaftLog::unstable_entries_len(self : RaftLog) -> Int32 {
+  self.unstable.entries.length()
+}
+
+///|
 /// A one-line description of the log's cursors for debugging (etcd's
 /// `raftLog.String()`).
 pub fn RaftLog::to_string(self : RaftLog) -> String {

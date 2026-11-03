@@ -4,6 +4,7 @@
 /// A node starts as a `Follower`. On election timeout it becomes a
 /// `Candidate` and stands for election; if it wins a majority it becomes
 /// the `Leader` for that term.
+#derive(Eq)
 pub(all) enum Role {
   Follower
   // The pre-vote probe phase (etcd's `StatePreCandidate`): the node solicits
@@ -13,7 +14,7 @@ pub(all) enum Role {
   PreCandidate
   Candidate
   Leader
-} derive(Eq)
+}
 
 ///|
 pub extend Role with Eq::{not_equal, equal}

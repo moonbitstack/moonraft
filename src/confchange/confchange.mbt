@@ -15,20 +15,22 @@
 
 ///|
 /// The kind of a single-server configuration change (Raft §6, §4.2.1).
+#derive(Eq)
 pub(all) enum ConfChangeType {
   AddNode
   RemoveNode
   AddLearnerNode
-} derive(Eq)
+}
 
 ///|
 /// A configuration change carried by a `ConfChange` log entry: which server is
 /// joining or leaving. It is serialized into the entry's command so every
 /// server applies the same change at the same log position.
+#derive(Eq)
 pub(all) struct ConfChange {
   change_type : ConfChangeType
   node_id : String
-} derive(Eq)
+}
 
 ///|
 /// A change that adds `id` to the cluster.
@@ -115,21 +117,23 @@ fn ConfChange::tag(self : ConfChange) -> String {
 /// (at most one voter changed) and otherwise enters an auto-leaving joint;
 /// `JointImplicit` always enters joint and auto-leaves; `JointExplicit` always
 /// enters joint and waits for an explicit leave.
+#derive(Eq)
 pub(all) enum ConfChangeTransition {
   Auto
   JointImplicit
   JointExplicit
-} derive(Eq)
+}
 
 ///|
 /// A batch configuration change (etcd's `ConfChangeV2`): several single changes
 /// applied atomically. An empty batch leaves joint consensus. Whether a non-empty
 /// batch is applied simply or via a joint transition — and whether that joint
 /// auto-leaves — is governed by `transition` (Raft §4.3, joint consensus).
+#derive(Eq)
 pub(all) struct ConfChangeV2 {
   changes : Array[ConfChange]
   transition : ConfChangeTransition
-} derive(Eq)
+}
 
 ///|
 /// Enter joint consensus with `changes`. `auto_leave` selects the implicit

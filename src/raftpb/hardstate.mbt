@@ -3,11 +3,12 @@
 /// the current term, the vote cast in that term, and the commit index. etcd
 /// calls this the HardState; persisting it is what lets a node rejoin without
 /// violating the election-safety or state-machine-safety properties (§5.3).
+#derive(Eq)
 pub(all) struct HardState {
   term : UInt64
   vote : String?
   commit : UInt64
-} derive(Eq)
+}
 
 ///|
 /// The HardState a fresh node starts from: term 0, no vote, nothing committed.

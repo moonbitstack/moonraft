@@ -4,11 +4,12 @@
 /// crash to rebuild exactly the state it had promised (Raft §5.3, §7). A
 /// `WalSnapshot` marks a compaction baseline; the `WalEntry` records after it
 /// carry the log tail; `WalHardState` records the term/vote/commit at the time.
+#derive(Eq)
 pub(all) enum WalRecord {
   WalHardState(HardState)
   WalEntry(Entry)
   WalSnapshot(Snapshot)
-} derive(Eq)
+}
 
 ///|
 /// Durable, append-only write-ahead log. Implemented over a file in production;

@@ -19,6 +19,7 @@
 /// index has not arrived yet" — a distinction etcd draws with distinct sentinel
 /// errors and one the consensus core depends on to decide between sending a
 /// snapshot and simply waiting.
+#derive(Eq)
 pub(all) suberror StorageError {
   /// The requested index predates the last snapshot: it has been compacted away.
   Compacted
@@ -28,7 +29,7 @@ pub(all) suberror StorageError {
   SnapOutOfDate
   /// The backend needs more time to materialize the snapshot; retry later.
   SnapshotTemporarilyUnavailable
-} derive(Eq)
+}
 
 ///|
 /// Read access to a node's durable log, modelled on etcd's Storage interface.

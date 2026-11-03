@@ -8,12 +8,13 @@ import {
 // Values
 
 // Errors
+#derive(Eq)
 pub(all) suberror StorageError {
   Compacted
   Unavailable
   SnapOutOfDate
   SnapshotTemporarilyUnavailable
-} derive(Eq)
+}
 pub fn StorageError::equal(Self, Self) -> Bool
 pub fn StorageError::not_equal(Self, Self) -> Bool
 
@@ -49,11 +50,12 @@ pub(all) struct Persisted {
   log : Array[@raftpb.Entry]
 }
 
+#derive(Eq)
 pub(all) enum WalRecord {
   WalHardState(@raftpb.HardState)
   WalEntry(@raftpb.Entry)
   WalSnapshot(@raftpb.Snapshot)
-} derive(Eq)
+}
 pub fn WalRecord::equal(Self, Self) -> Bool
 pub fn WalRecord::not_equal(Self, Self) -> Bool
 

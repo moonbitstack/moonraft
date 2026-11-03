@@ -19,11 +19,12 @@
 ///|
 /// The outcome of counting votes against a configuration: still pending (no
 /// majority either way), won (a majority granted), or lost (a majority denied).
+#derive(Eq)
 pub(all) enum VoteState {
   VoteWon
   VoteLost
   VotePending
-} derive(Eq)
+}
 
 ///|
 /// The largest UInt64, standing in for "no constraint": the committed index of
