@@ -1,0 +1,24 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbitstack/moonraft/moonlog_bridge"
+
+import {
+  "moonbitstack/moonlog",
+  "moonbitstack/moonraft/core",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct MoonlogLogger {
+  inner : @moonlog.Logger
+}
+pub fn MoonlogLogger::as_logger(Self) -> &@core.Logger
+pub fn MoonlogLogger::inner(Self) -> @moonlog.Logger
+pub fn MoonlogLogger::new(@moonlog.Logger) -> Self
+pub fn MoonlogLogger::to_sink(&@moonlog.Sink, level? : @moonlog.Level) -> Self
+
+// Type aliases
+
+// Traits

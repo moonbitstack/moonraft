@@ -142,32 +142,25 @@ fn rt_describe_message(m : Message) -> String {
   if vote != 0 {
     buf.write_string(" Vote:\{vote}")
   }
+  // Any message that carries entries shows them, as upstream's `DescribeMessage`
+  // reads the entry list off the message rather than off a type check — a
+  // follower forwarding a proposal still prints what it is forwarding.
+  let carried : Array[Entry] = match m.payload {
+    Append(a) => a.entries
+    Propose(es) => es
+    StorageApplyResp(r) => r.entries
+    _ => []
+  }
+  if carried.length() == 1 {
+    buf.write_string(" Entries:[\{rt_describe_entry(carried[0])}]")
+  } else if carried.length() > 1 {
+    buf.write_string(" Entries:[")
+    for e in carried {
+      buf.write_string("\n  \{rt_describe_entry(e)}")
+    }
+    buf.write_string("\n]")
+  }
   match m.payload {
-    Append(a) => {
-      let ents = a.entries
-      if ents.length() == 1 {
-        buf.write_string(" Entries:[\{rt_describe_entry(ents[0])}]")
-      } else if ents.length() > 1 {
-        buf.write_string(" Entries:[")
-        for e in ents {
-          buf.write_string("\n  \{rt_describe_entry(e)}")
-        }
-        buf.write_string("\n]")
-      }
-    }
-    // The apply acknowledgement carries the entries it applied.
-    StorageApplyResp(r) => {
-      let ents = r.entries
-      if ents.length() == 1 {
-        buf.write_string(" Entries:[\{rt_describe_entry(ents[0])}]")
-      } else if ents.length() > 1 {
-        buf.write_string(" Entries:[")
-        for e in ents {
-          buf.write_string("\n  \{rt_describe_entry(e)}")
-        }
-        buf.write_string("\n]")
-      }
-    }
     Snapshot(s) =>
       buf.write_string(
         "\n  Snapshot: Index:\{s.last_index} Term:\{s.last_term} ConfState:\{@log.describe_conf_state(s.conf_state)}",

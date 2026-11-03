@@ -10,6 +10,10 @@ import {
 }
 
 // Values
+pub let append_thread_id : String
+
+pub let apply_thread_id : String
+
 pub fn demo_report_lines(DemoReport) -> Array[String]
 
 pub fn demo_run(Array[String], UInt64, Int32, Int32, Int32) -> DemoReport
@@ -131,7 +135,7 @@ pub(all) struct FullStatus {
 type InFlight
 
 #derive(Eq)
-pub enum LogLevel {
+pub(all) enum LogLevel {
   Debug
   Info
   Warning
@@ -152,6 +156,7 @@ pub struct Node {
   mut last_applied : UInt64
   mut snapshot_index : UInt64
   mut snapshot_term : UInt64
+  mut snapshots_installed : UInt64
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
 pub fn Node::append(Self, UInt64, Bytes) -> @raftpb.Entry
@@ -326,6 +331,7 @@ pub fn RaftStatus::not_equal(Self, Self) -> Bool
 pub struct RawNode {
   raft : RaftNode
   mut log : @log.RaftLog
+  mut storage : @storage.MemoryStorage
   max_committed : UInt64
   msgs : Array[@raftpb.Message]
   steps_on_advance : Array[@raftpb.Message]
@@ -334,11 +340,14 @@ pub struct RawNode {
   mut prev_hard : @raftpb.HardState
   mut async_storage : Bool
   mut reflected_snap : UInt64
+  mut seen_snap_installs : UInt64
 }
 pub fn RawNode::advance(Self, Ready) -> Unit
+pub fn RawNode::append_stable(Self, Array[@raftpb.Entry]) -> Unit
 pub fn RawNode::apply_conf_change(Self, @confchange.ConfChange) -> Array[String]
 pub fn RawNode::basic_status(Self) -> RaftStatus
 pub fn RawNode::campaign(Self) -> Unit
+pub fn RawNode::compact_storage(Self, UInt64) -> Unit
 pub fn RawNode::conf_state(Self) -> @raftpb.ConfState
 pub fn RawNode::forget_leader(Self) -> Unit
 pub fn RawNode::from_config(Config) -> Self raise ConfigError
@@ -363,6 +372,7 @@ pub fn RawNode::status(Self) -> RaftStatus
 pub fn RawNode::step(Self, @raftpb.Message) -> Unit
 pub fn RawNode::step_append_resp(Self, @raftpb.StorageAppendResp) -> Unit
 pub fn RawNode::step_apply_resp(Self, @raftpb.StorageApplyResp) -> Unit
+pub fn RawNode::step_checked(Self, @raftpb.Message) -> Bool
 pub fn RawNode::store(Self, Ready) -> Unit
 pub fn RawNode::tick(Self) -> Unit
 pub fn RawNode::transfer_leader(Self, String) -> Unit
@@ -443,7 +453,7 @@ pub enum TraceEvent {
 // Type aliases
 
 // Traits
-pub trait Logger {
+pub(open) trait Logger {
   fn log(Self, LogLevel, String) -> Unit
 }
 

@@ -780,9 +780,11 @@ pub fn RaftNode::disable_proposal_forwarding(self : RaftNode) -> Unit {
 /// it is dropped. This routes through the same `Propose` message path a remote
 /// proposal takes, so local and forwarded proposals behave identically.
 pub fn RaftNode::propose(self : RaftNode, command : Bytes) -> Array[Message] {
-  let out = self.step_propose(self.id, [
-    Entry::normal(self.core.current_term(), 0, command),
-  ])
+  // The entry is built the way etcd's `Propose` builds it: a payload with no
+  // term or index attached. Those are assigned when the *leader* appends it
+  // (`appendEntry`); a follower forwards the message untouched, so the forwarded
+  // MsgProp still shows the unset `0/0`.
+  let out = self.step_propose(self.id, [Entry::normal(0UL, 0, command)])
   // A proposal can commit a pending configuration change, whose effect (a probe
   // to a server that just joined) is decided while folding it.
   self.drain_pending(out)
@@ -808,9 +810,7 @@ pub fn RaftNode::propose_conf(
   // is counted against the uncommitted-log quota (etcd's appendEntry always
   // calls increaseUncommittedSize), validated against `pending_conf_index`, and
   // — on a follower — forwarded to the leader rather than silently dropped.
-  let out = self.step_propose(self.id, [
-    Entry::conf(self.core.current_term(), 0, change.encode()),
-  ])
+  let out = self.step_propose(self.id, [Entry::conf(0UL, 0, change.encode())])
   // Committing this change folds it in, which probes the servers it added.
   self.drain_pending(out)
 }
@@ -860,9 +860,7 @@ pub fn RaftNode::propose_conf_v2(
   self : RaftNode,
   change : ConfChangeV2,
 ) -> Array[Message] {
-  self.step_propose(self.id, [
-    Entry::conf(self.core.current_term(), 0, change.encode()),
-  ])
+  self.step_propose(self.id, [Entry::conf(0UL, 0, change.encode())])
 }
 
 ///|
@@ -1422,6 +1420,12 @@ fn RaftNode::maybe_append_auto_leave(self : RaftNode) -> Unit {
     )
     // Self-ack the auto-appended leave, as with any leader self-append.
     self.self_ack()
+    // Upstream proposes the leave by stepping a MsgProp, which appends *and*
+    // broadcasts in one go, so the peers see the leave in the same turn the
+    // leader logs that it is starting the transition.
+    for m in self.bcast_append() {
+      self.pending.push(m)
+    }
     // The auto-appended leave is itself now the pending change, so no other
     // conf change is proposed until it applies (etcd tracks pendingConfIndex for
     // the automatic transition too).
@@ -1538,26 +1542,11 @@ pub(all) struct FullStatus {
 /// progress and returns an empty view.
 pub fn RaftNode::progress_status(self : RaftNode) -> Array[ProgressStatus] {
   let out : Array[ProgressStatus] = []
-  if self.core.role() == Leader {
-    out.push({
-      id: self.id,
-      match_index: self.core.last_log_index(),
-      next_index: self.core.last_log_index() + 1,
-      state: Replicate,
-      paused: false,
-      pending_snapshot: 0,
-      is_learner: false,
-      recent_active: true,
-      inflight: 0,
-      inflight_full: false,
-    })
-  }
+  // Every tracked peer, the leader itself included: its own progress advances
+  // only when the self-addressed acknowledgement becomes durable, so reporting
+  // it from the log tail would claim entries the leader has not persisted (etcd
+  // reports `trk.Progress` verbatim).
   for id, p in self.progress {
-    // The leader's own entry is synthesised above (always fully caught up), so
-    // skip its stored progress here to avoid listing it twice.
-    if id == self.id {
-      continue
-    }
     out.push(progress_status_of(id, p))
   }
   out

@@ -1,0 +1,9 @@
+// The executable half of the README: every block in `README.mbt.md` here is
+// compiled and run by `moon test`, written exactly as a consumer writes it — the
+// `@raft` façade, never the façade's own namespace. The import is test-only
+// because Markdown blocks are compiled as tests.
+import {
+  "moonbitstack/moonraft" @raft,
+  "moonbitstack/moonraft/moonlog_bridge",
+  "moonbitstack/moonlog",
+} for "test"

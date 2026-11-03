@@ -20,9 +20,9 @@
 // silently.
 
 ///|
-/// How many of the 28 raft scripts' cases already answer exactly what upstream
-/// wrote. Blocks still missing are the ones whose text comes from a core log
-/// line this port does not emit yet, or whose Ready ordering differs.
+/// Every one of the 28 raft scripts' cases already answers exactly what upstream
+/// wrote. The score is exact rather than a floor: any change that stops a script
+/// reproducing upstream fails here instead of passing silently.
 test "datadriven: raft scripts reproduce upstream block by block" {
   let mut total = 0
   let mut matched = 0
@@ -42,5 +42,5 @@ test "datadriven: raft scripts reproduce upstream block by block" {
   }
   // The corpus of 28 raft scripts holds 558 cases in total.
   assert_eq(total, 558)
-  assert_true(matched >= 541)
+  assert_eq(matched, 558)
 }

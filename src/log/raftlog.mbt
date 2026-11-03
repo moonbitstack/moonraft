@@ -139,6 +139,22 @@ pub fn RaftLog::commit_stable(self : RaftLog, entries : Array[Entry]) -> Unit {
 }
 
 ///|
+/// What a stable-append acknowledgement did. The three no-op outcomes are named
+/// rather than swallowed so the caller that owns a logger can report them the
+/// way etcd's `unstable.stableTo` does.
+pub(all) enum StableOutcome {
+  /// The confirmation matched the unstable tail and the tail moved up.
+  Stabilized
+  /// The index is not held by the unstable tail at all.
+  Missing
+  /// The index matched the unstable snapshot baseline, not an entry.
+  MatchedSnapshot
+  /// The unstable tail holds a different term at that index, so the write that
+  /// just completed belonged to a log this node has since replaced.
+  TermMismatch(existing_term~ : UInt64)
+}
+
+///|
 /// Acknowledge an asynchronous append made durable up to `(index, log_term)`:
 /// move the confirmed unstable prefix into storage and truncate the unstable
 /// tail. This is a no-op — the ABA guard — unless the unstable log *still* holds
@@ -149,20 +165,73 @@ pub fn RaftLog::async_stabilize(
   index : UInt64,
   log_term : UInt64,
 ) -> Unit {
+  self.async_stabilize_checked(index, log_term) |> ignore
+}
+
+///|
+/// As `async_stabilize`, but names what happened so the driver can log the
+/// ignored cases (etcd logs them from `unstable.stableTo`). An `index` of zero
+/// means the write carried no entries and there is nothing to confirm.
+pub fn RaftLog::async_stabilize_checked(
+  self : RaftLog,
+  index : UInt64,
+  log_term : UInt64,
+) -> StableOutcome {
   if index == 0 {
-    return
+    return Stabilized
   }
   match self.unstable.maybe_term(index) {
+    None => Missing
     Some(t) =>
-      if t == log_term {
-        if index >= self.unstable.offset {
-          self.storage.append(
-            self.unstable.slice(self.unstable.offset, index + 1),
-          )
-        }
+      if index < self.unstable.offset {
+        // The index is the snapshot baseline, not an entry of the tail.
+        MatchedSnapshot
+      } else if t != log_term {
+        TermMismatch(existing_term=t)
+      } else {
+        self.storage.append(
+          self.unstable.slice(self.unstable.offset, index + 1),
+        )
         self.stable_to({ term: log_term, index, })
+        Stabilized
       }
-    None => ()
+  }
+}
+
+///|
+/// Write `entries` to durable storage without moving the stable watermark: the
+/// append thread of an async-storage deployment persists what it was handed on
+/// its own schedule, which is why a write can land after this node has already
+/// replaced the same index under a newer term (etcd's rafttest `processAppend`).
+pub fn RaftLog::append_stable(self : RaftLog, entries : Array[Entry]) -> Unit {
+  self.storage.append(entries)
+}
+
+///|
+/// The index of the first entry still durable in storage (etcd's
+/// `Storage.FirstIndex`), which is what the rafttest `raft-log` command reads.
+pub fn RaftLog::storage_first_index(self : RaftLog) -> UInt64 {
+  self.storage.first_index()
+}
+
+///|
+/// The index of the last entry durable in storage (etcd's `Storage.LastIndex`).
+pub fn RaftLog::storage_last_index(self : RaftLog) -> UInt64 {
+  self.storage.last_index()
+}
+
+///|
+/// The entries currently durable in storage, in index order (etcd's
+/// `Storage.Entries` as the rafttest `raft-log` command reads it). Empty when
+/// storage holds nothing past its snapshot baseline.
+pub fn RaftLog::stable_entries(self : RaftLog) -> Array[Entry] {
+  let first = self.storage.first_index()
+  let last = self.storage.last_index()
+  if last < first {
+    return []
+  }
+  self.storage.storage_entries(first, last + 1, no_limit) catch {
+    _ => []
   }
 }
 

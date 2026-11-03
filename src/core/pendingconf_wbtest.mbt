@@ -1,3 +1,4 @@
+// Copyright 2015 The etcd Authors
 // Copyright 2026 Leo Cheng
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

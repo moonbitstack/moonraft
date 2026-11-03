@@ -17,7 +17,7 @@
 /// A severity level, ordered from most to least verbose. Mirrors the five
 /// levels etcd's `Logger` exposes; `Panic` additionally aborts.
 #derive(Eq)
-pub enum LogLevel {
+pub(all) enum LogLevel {
   Debug
   Info
   Warning
@@ -35,7 +35,7 @@ pub enum LogLevel {
 /// it a trait decouples the core from any particular logging backend, and the
 /// no-op default (`NopLogger`) keeps a server that wants no logging
 /// allocation-free.
-pub trait Logger {
+pub(open) trait Logger {
   fn log(Self, LogLevel, String) -> Unit
 }
 

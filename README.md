@@ -26,6 +26,9 @@ moon add moonbitstack/moonraft
 
 ## Quick example
 
+Elect a leader, replicate a command, crash the leader and watch the cluster
+re-elect — then drive the same core by hand through `RawNode`:
+
 ```moonbit
 // Drive a five-node cluster through the deterministic simulator.
 let cluster = @raft.Cluster::new(["a", "b", "c", "d", "e"], seed=1)
@@ -38,6 +41,11 @@ let _ = cluster.run_until_leader(400)               // a new leader takes over
 assert_true(cluster.one_leader_per_term())          // safety still holds
 assert_true(cluster.committed_agrees())
 ```
+
+That snippet is not a copy in a README: it is compiled and run by `moon test`
+from [`src/readme/README.mbt.md`](src/readme/README.mbt.md), together with the
+membership, `RawNode` and logging examples. The prose stays here; the code that
+has to keep working lives there.
 
 Or run the bundled example — a five-node cluster elects, replicates, loses its leader and re-elects, printing the safety invariants at each step:
 
@@ -95,24 +103,27 @@ Raft's value is its safety properties, and the library checks them as it runs ra
 
 ## Verification
 
-Every public behaviour is exercised by the test suite — 760 tests, 100% line
+Every public behaviour is exercised by the test suite — 774 tests, 100% line
 coverage of the library — and the code is reconciled against a pinned upstream
 (`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
 an in-repo interpreter: all [41 etcd-io/raft scripts](testdata/etcd/)
 (`raft/testdata/`, `confchange/testdata/`, `quorum/testdata/`) are archived
 verbatim, embedded at build time, and driven through the same `RawNode` /
 `Changer` / quorum code the library ships — in CI. The scripts' expected blocks
-are compared byte for byte: the 13 `confchange` and `quorum` scripts match
-exactly, and the 28 `raft` scripts are scored case by case (541 of 558 blocks
-today), with the remaining gap and its causes recorded in
-[docs/porting.md](docs/porting.md).
+are compared byte for byte: all 41 match, including every one of the 558 cases in
+the 28 `raft` scripts (an exact count, not a floor). [docs/porting.md](docs/porting.md)
+records how the replay works and what it took to converge.
+
+[PORTING.md](PORTING.md) audits the other direction: each of upstream's 258
+`Test*` functions against the MoonBit test that carries it.
 
 ## Benchmarks
 
-`src/cmd/benchmark` ports upstream's `BenchmarkOneNode`, `BenchmarkStatus` and
-`BenchmarkMajorityConfig_CommittedIndex`. MoonBit ships no `go test -bench`, so
-the executable times each loop with `core/bench`'s monotonic clock and prints
-ns/op.
+`src/cmd/benchmark` ports upstream's `BenchmarkStatus`, `BenchmarkRawNode` and
+`BenchmarkMajorityConfig_CommittedIndex` case for case — including the member
+sweep (1, 3, 5, 100 voters), the two voter configurations of the RawNode loop,
+and the 1-to-11-voter majority sweep. MoonBit ships no `go test -bench`, so the
+executable times each loop with `core/bench`'s monotonic clock and prints ns/op.
 
 ```
 moon run --release src/cmd/benchmark
@@ -123,9 +134,13 @@ differ):
 
 | Benchmark | ns/op |
 | --- | ---: |
-| `BenchmarkStatus` | ~250 |
-| `BenchmarkRawNode` (propose → persist → commit → apply) | ~5300 |
-| `BenchmarkMajorityConfig_CommittedIndex` | ~970 |
+| `BenchmarkStatus/members=1/Status` | ~280 |
+| `BenchmarkStatus/members=100/Status` | ~31 |
+| `BenchmarkStatus/members=100/WithProgress` | ~5300 |
+| `BenchmarkRawNode/single-voter` | ~33000 |
+| `BenchmarkRawNode/two-voters` | ~27000 |
+| `BenchmarkMajorityConfig_CommittedIndex/voters=3` | ~220 |
+| `BenchmarkMajorityConfig_CommittedIndex/voters=11` | ~980 |
 
 ## Live demo — real consensus in your browser
 
@@ -165,7 +180,7 @@ Workers `fetch` the wasm, so a `file://` URL will not work.
 - **Persistence and crash recovery** (§5.3): a `HardState`, an append-only write-ahead log (`WalStore`) with replay, and a `MemoryStorage` engine. Storage reads report `Compacted`, `Unavailable` and `SnapOutOfDate` as distinct errors, so a caller can tell "send a snapshot" from "wait".
 - **Linearizable reads** in both modes — `ReadOnlySafe` (fresh quorum round-trip) and lease-based — plus **check-quorum**, which steps a leader down when it loses a majority and makes followers refuse disruptive votes.
 - **Leadership transfer** (`TimeoutNow`, §3.10): the target is caught up first, proposals are blocked mid-transfer, and it aborts on timeout, step-down or removal.
-- **Pluggable `StateMachine`, `Transport`, `LogStore` and `RaftStorage`** traits, with a replicated key-value store as the worked example.
+- **Pluggable `StateMachine`, `Transport`, `LogStore`, `RaftStorage` and `Logger`** traits, with a replicated key-value store as the worked example and a moonlog adapter for the logger.
 - **Deterministic simulation harness** (`Cluster`): a single-seed discrete-time network that drops, delays, reorders, partitions and crashes/restarts nodes, with built-in safety-invariant checks and a suite of scenario and chaos tests.
 
 </details>
@@ -183,6 +198,12 @@ The public surface is a pure facade: the root package re-exports the symbols so 
 | `storage/` | `MemoryStorage`, the write-ahead log, and the `LogStore` / `RaftStorage` traits |
 | `log/` | `RaftLog`, the unstable tail, term lookup and bounded slices |
 | `core/` | The consensus engine: `RaftNode` / `Node` step & dispatch, election, replication, snapshots, ReadIndex, leader lease, check-quorum, `RawNode` / `Ready`, `Config`, and the simulator |
+| `moonlog_bridge/` | The one adapter that turns the core's `Logger` seam into a [moonlog](https://mooncakes.io/docs/moonbitstack/moonlog) logger |
+
+The consensus core names no logging backend: it logs through a one-method
+`Logger` trait and defaults to silence, and `moonlog_bridge` is the only package
+that depends on moonlog. Everything else — the protocol, storage, membership,
+the simulator — has no third-party dependency.
 
 ## Licence
 

@@ -38,6 +38,10 @@ pub struct RawNode {
   // Mirror of the core node's durable state, kept current by `sync_log`. Rebuilt
   // when the core installs a snapshot (see `reflect_snapshot`), so it is mutable.
   mut log : RaftLog
+  // The concrete store `log` reads through. Kept alongside so an operation only
+  // the backend understands — a local compaction — can still be driven (etcd's
+  // rafttest holds the `MemoryStorage` itself and calls `Compact` on it).
+  mut storage : MemoryStorage
   // The per-Ready committed-entry byte budget, retained so the log can be rebuilt
   // with the same pagination after a snapshot install.
   max_committed : UInt64
@@ -55,11 +59,12 @@ pub struct RawNode {
   // entries to local storage threads as directives rather than expecting the
   // caller to persist/apply them inline before `advance`.
   mut async_storage : Bool
-  // The snapshot baseline already reflected into `log`. When the core node's
-  // `snapshot_index` advances past this (a follower installed a leader-sent
-  // snapshot), `sync_log` rebuilds `log` on the new baseline and hands the
-  // snapshot to the unstable tail so it flows out through the next `Ready`.
+  // The snapshot baseline already reflected into `log`, and how many snapshots the
+  // core has *installed from a leader*. A local compaction also advances the
+  // core's `snapshot_index` (it moves the durable floor), but there is no snapshot
+  // to hand the application — only an install produces `Ready.snapshot`.
   mut reflected_snap : UInt64
+  mut seen_snap_installs : UInt64
 }
 
 ///|
@@ -105,6 +110,7 @@ pub fn RawNode::new_sized(
   {
     raft,
     log,
+    storage,
     max_committed: max_committed_size,
     msgs: [],
     steps_on_advance: [],
@@ -113,6 +119,7 @@ pub fn RawNode::new_sized(
     prev_hard: node.hard_state(),
     async_storage: false,
     reflected_snap: node.snapshot_index,
+    seen_snap_installs: node.snapshots_installed,
   }
 }
 
@@ -170,8 +177,11 @@ fn RawNode::sync_log(self : RawNode) -> Unit {
   // leader-sent snapshot) has discarded the core's log below its baseline. Rebuild
   // the mirror on that baseline and hand the snapshot to the unstable tail, so it
   // surfaces once through `Ready.snapshot` — etcd's `raftLog.restore`, which the
-  // consumer persists and then acknowledges via `stable_snap_to`.
-  if node.snapshot_index > self.reflected_snap {
+  // consumer persists and then acknowledges via `stable_snap_to`. A local
+  // compaction moves the same `snapshot_index` but installs nothing, so the count
+  // of installs — not the index — is what makes a snapshot real.
+  if node.snapshots_installed != self.seen_snap_installs {
+    self.seen_snap_installs = node.snapshots_installed
     self.reflect_snapshot({
       last_index: node.snapshot_index,
       last_term: node.snapshot_term,
@@ -240,7 +250,30 @@ fn RawNode::reflect_snapshot(self : RawNode, snap : Snapshot) -> Unit {
   let log = RaftLog::new_with_size(storage, self.max_committed)
   log.restore(snap)
   self.log = log
+  self.storage = storage
   self.reflected_snap = snap.last_index
+}
+
+///|
+/// Drop the durable prefix below `new_first_index` after a local compaction
+/// (etcd's `MemoryStorage.Compact`, which the rafttest `compact` command drives
+/// on the node's storage). The core's own log has already been truncated by
+/// `Node::compact`; this keeps the durable mirror in step so what a reader sees
+/// is the post-compaction log. A request past the last durable index cannot be
+/// honoured and is ignored, as the storage contract allows.
+pub fn RawNode::compact_storage(
+  self : RawNode,
+  new_first_index : UInt64,
+) -> Unit {
+  let last = self.log.storage_last_index()
+  if new_first_index == 0UL || new_first_index > last {
+    // Nothing durable to compact to: the durable log does not reach that index
+    // (the mirror only holds what the driver has been handed so far).
+    return
+  }
+  self.storage.compact(new_first_index) catch {
+    _ => ()
+  }
 }
 
 ///|
@@ -343,25 +376,65 @@ pub fn RawNode::conf_state(self : RawNode) -> ConfState {
 ///|
 /// Feed one received message to the core, buffering the replies it produces.
 pub fn RawNode::step(self : RawNode, msg : Message) -> Unit {
+  self.step_checked(msg) |> ignore
+}
+
+///|
+/// The synthetic sender of a `StorageAppend` acknowledgement (etcd's
+/// `LocalAppendThread`): a local thread, not a network peer.
+pub let append_thread_id : String = "AppendThread"
+
+///|
+/// The synthetic sender of a `StorageApply` acknowledgement (etcd's
+/// `LocalApplyThread`).
+pub let apply_thread_id : String = "ApplyThread"
+
+///|
+/// As `step`, but reports whether the message was accepted. A reply from a peer
+/// this node no longer tracks is refused rather than stepped — upstream's
+/// `RawNode.Step` returns `ErrStepPeerNotFound`, which the datadriven harness
+/// prints as `raft: cannot step as peer not found` (a removed server keeps
+/// sending acknowledgements for a while, and there is no progress to fold them
+/// into). Returns true when the message was handled.
+pub fn RawNode::step_checked(self : RawNode, msg : Message) -> Bool {
   // A storage thread's reply is not a protocol message: it releases the cursors
   // that only this driver can move (etcd handles MsgStorageAppendResp and
   // MsgStorageApplyResp in `raft.Step` for the same reason).
   match msg.payload {
     StorageAppendResp(resp) => {
       self.step_append_resp(resp)
-      return
+      return true
     }
     StorageApplyResp(resp) => {
       self.step_apply_resp(resp)
-      return
+      return true
     }
     _ => ()
+  }
+  // etcd's `IsResponseMsg` gate: only the four protocol replies are checked, so
+  // a proposal forwarded by a server that has since been removed still reaches
+  // the leader, while its acknowledgements do not.
+  let is_response = match msg.payload {
+    AppendResp(_) | VoteResp(_) | PreVoteResp(_) | HeartbeatResp(_) => true
+    _ => false
+  }
+  let from_is_local = msg.from == append_thread_id ||
+    msg.from == apply_thread_id ||
+    msg.from == msg.to
+  // A peer is tracked when it is either in the replication progress (a leader) or
+  // still part of the configuration (any other role, where this port builds no
+  // progress). Only a sender that is neither has been removed outright.
+  let from_is_tracked = self.raft.progress.contains(msg.from) ||
+    self.raft.config.contains(msg.from)
+  if is_response && !from_is_local && !from_is_tracked {
+    return false
   }
   self.record(self.raft.step(msg))
   // Reconcile the mirror now so an append that rewrote a divergent suffix is
   // reported from within this step (upstream prints it from `raftLog.append`),
   // not deferred to the next Ready poll.
   self.sync_log()
+  true
 }
 
 ///|
@@ -676,10 +749,6 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
   if self.async_storage {
     return
   }
-  for m in self.steps_on_advance {
-    self.record(self.raft.step(m))
-  }
-  self.steps_on_advance.clear()
   let c = rd.committed_entries.length()
   if c != 0 {
     let last = rd.committed_entries[c - 1].index
@@ -688,11 +757,23 @@ pub fn RawNode::advance(self : RawNode, rd : Ready) -> Unit {
     // (etcd releases at apply time, not commit time), advances the core's applied
     // watermark, and is where a committed configuration change takes effect — so
     // the messages it emits (a probe to a new peer) are collected here.
+    //
+    // This runs *before* the durability responses below because that is the
+    // caller's side of the contract: an application applies `CommittedEntries`
+    // and only then calls `Advance` (etcd's `ApplyConfChange` therefore sees the
+    // pre-advance commit index). A config change that is applied first probes the
+    // newly added peers with the commit index in force at that moment.
     self.raft.advance_applied(last)
     for m in self.raft.take_pending() {
       self.msgs.push(m)
     }
   }
+  // Then release the responses that waited for durability: stepping them can
+  // commit the entries that just became durable and broadcast the new commit.
+  for m in self.steps_on_advance {
+    self.record(self.raft.step(m))
+  }
+  self.steps_on_advance.clear()
 }
 
 ///|
@@ -706,10 +787,39 @@ pub fn RawNode::step_append_resp(
   self : RawNode,
   resp : StorageAppendResp,
 ) -> Unit {
-  if resp.term < self.raft.node().current_term() {
+  let term = self.raft.node().current_term()
+  if resp.term < term {
+    // The write completed, but the entries it attests belong to a log this node
+    // has since replaced: confirming them would mark the *new* entries at those
+    // indices durable. etcd reports the dropped confirmation and still honours
+    // any snapshot the write carried, because snapshot contents are committed
+    // and therefore term-independent.
+    if resp.index != 0 {
+      self.raft.logger.log(
+        Info,
+        "\{self.raft.id} [term: \{term}] ignored entry appends from a MsgStorageAppendResp message with lower term [term: \{resp.term}]",
+      )
+    }
     return
   }
-  self.log.async_stabilize(resp.index, resp.log_term)
+  match self.log.async_stabilize_checked(resp.index, resp.log_term) {
+    Stabilized => ()
+    Missing =>
+      self.raft.logger.log(
+        Info,
+        "entry at index \{resp.index} missing from unstable log; ignoring",
+      )
+    MatchedSnapshot =>
+      self.raft.logger.log(
+        Info,
+        "entry at index \{resp.index} matched unstable snapshot; ignoring",
+      )
+    TermMismatch(existing_term~) =>
+      self.raft.logger.log(
+        Info,
+        "entry at (index,term)=(\{resp.index},\{resp.log_term}) mismatched with entry at (\{resp.index},\{existing_term}) in unstable log; ignoring",
+      )
+  }
   // etcd carries the snapshot on the MsgStorageAppendResp and stabilizes it there;
   // our response does not name it, so a pending snapshot (guarded by the same
   // non-stale term check above) is acknowledged on the append that carried it.
@@ -717,6 +827,16 @@ pub fn RawNode::step_append_resp(
     self.log.stable_snap_to(idx)
     self.log.applied_to(idx, 0)
   }
+}
+
+///|
+/// Write an append directive's entries to this driver's durable storage without
+/// moving the stable watermark — what the local append thread of an async-storage
+/// deployment does on its own schedule (etcd's rafttest `processAppend`). The
+/// write is unconditional: an append that lost a race against a newer term still
+/// lands, and the acknowledgement it produces is then ignored.
+pub fn RawNode::append_stable(self : RawNode, entries : Array[Entry]) -> Unit {
+  self.log.append_stable(entries)
 }
 
 ///|

@@ -32,31 +32,35 @@ script's expected block is a byte comparison rather than a shape check.
 - The 13 `confchange` and `quorum` scripts compare case by case and match
   exactly (`datadriven: quorum and confchange scripts reproduce upstream exactly`).
 - The 28 `raft` scripts are scored block by block
-  (`datadriven: raft scripts reproduce upstream block by block`): **541 of 558**
-  cases match. What closed since the first score is mostly ordering, not wording:
+  (`datadriven: raft scripts reproduce upstream block by block`): **all 558
+  cases match**. The scoreboard asserts the exact count, so a change that stops
+  any script reproducing upstream fails rather than passing silently.
 
-  - every vote and append acknowledgement waits for the state it attests to be
-    durable (upstream's `msgsAfterAppend` → `stepsOnAdvance`), the storage
-    threads' replies travel as messages (`MsgStorageAppendResp` /
-    `MsgStorageApplyResp`), and a leader counts its own append only once it is
-    durable;
-  - a committed configuration change takes effect when it is *applied*, and the
-    leader then announces the new configuration and probes the servers it added
-    (etcd's `applyConfChange` → `switchToConfig`), so `switched to configuration`
-    lands in the block where upstream prints it;
-  - a newly added server starts optimistically at the leader's last index, and
-    the snapshot a leader ships is the state its storage holds — the applied
-    index — rather than its compaction point;
-  - the append, rejection, snapshot-send, snapshot-restore, leadership-transfer
-    and auto-leave paths now emit upstream's diagnostics.
+  What closed the last of the gap, in the order it was found:
 
-  The remaining 17 cases are concentrated in the ABA-race async-write script
-  (7, divergent log contents after a stuttered append pipeline), the two
-  async-write scripts' terminal unstable-log bookkeeping (2), `EntryConfChangeV2`
-  placement under auto-leave (3), and a handful of per-script timings
-  (`snapshot_succeed_via_app_resp`, `replicate_pause`'s leader self-progress,
-  `confchange_disable_validation`'s commit vs. send order, and the two
-  `replace_leader` transfers).
+  - `raft-log` prints the **durable** log (`Storage.Entries`), not the unstable
+    tail, and the append thread persists what it was handed *before* the
+    acknowledgement is delivered — which is what makes the ABA-race script's
+    interleaving visible at all: a stale append from an older term still lands,
+    and `MsgStorageAppendResp` then reports the ignored stabilisation
+    (`entry at (index,term)=… mismatched with entry at … in unstable log`,
+    `entry at index … missing from unstable log`, and the lower-term
+    `ignored entry appends` line) instead of silently doing nothing;
+  - a **local compaction is not an installed snapshot**: both move the core's
+    `snapshot_index`, but only an install produces `Ready.snapshot`, so a
+    compacted leader no longer hands its own application a snapshot;
+  - a committed configuration change is applied *before* the durability
+    responses are stepped (the caller applies `CommittedEntries` and then calls
+    `Advance`), which is what makes the leader probe a newly added peer with the
+    pre-advance commit index;
+  - the leader's own progress is reported from the tracker, not synthesised from
+    the log tail, so a proposal does not count as replicated before its self
+    acknowledgement is durable;
+  - a proposal entry keeps its unset `0/0` term and index while it is forwarded
+    (only `appendEntry` stamps them), and a response from a peer the node no
+    longer tracks is refused with `raft: cannot step as peer not found`;
+  - the automatic leave-joint entry is broadcast in the same turn it is
+    appended, as upstream's `Step(MsgProp)` does.
 
 The scoreboard test fails if the count drops, so a change that stops a script
 reproducing upstream is caught rather than absorbed.

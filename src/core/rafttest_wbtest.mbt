@@ -405,8 +405,11 @@ pub fn RaftTest::run(
       let i = self.index_of(id)
       if i >= 0 {
         let upto = parse_count(pos_or(a.positional, 1, "0")).to_uint64()
+        // Upstream compacts the node's storage (the core's log is a projection of
+        // it); both halves move here so the durable log and the consensus log
+        // agree, then the remaining durable entries are printed.
         self.nodes[i].rn.node().node().compact(upto, b"") |> ignore
-        // Upstream's handler reports the log that remains after truncation.
+        self.nodes[i].rn.compact_storage(upto)
         self.raft_log([id])
       }
     }
@@ -656,7 +659,7 @@ fn RaftTest::deliver_to(self : RaftTest, id : String) -> Int32 {
     self.out.write("\n")
     let i = self.index_of(id)
     if i >= 0 {
-      self.nodes[i].rn.step(m)
+      self.step_into(i, m)
     }
   }
   pass.length()
@@ -740,6 +743,10 @@ fn RaftTest::process_append_thread(self : RaftTest, i : Int32) -> Unit {
   self.out.write("Processing:\n")
   self.out.write(rt_describe_storage_append(n.id, sa, false))
   self.out.write("\n")
+  // The thread writes what it was handed, whatever the node has done since —
+  // that unconditional write is what the ABA-race script exercises (etcd's
+  // `processAppend` calls `Storage.Append` before the response is delivered).
+  n.rn.append_stable(sa.entries)
   // The write is durable: put the waiting responses on the wire, then the
   // acknowledgement itself. All of them are delivered like any other message, so
   // the order is the one upstream's scripts record — a self-addressed vote
@@ -831,7 +838,7 @@ fn RaftTest::deliver(self : RaftTest, a : Args) -> Unit {
       if !is_drop {
         let i = self.index_of(id)
         if i >= 0 {
-          self.nodes[i].rn.step(m)
+          self.step_into(i, m)
         }
       }
     }
@@ -842,27 +849,36 @@ fn RaftTest::deliver(self : RaftTest, a : Args) -> Unit {
 }
 
 ///|
+/// Hand one message to node `i`, echoing upstream's refusal when the node no
+/// longer tracks the sender (a removed peer's stale acknowledgement):
+/// `RawNode.Step` returns `ErrStepPeerNotFound` and the harness prints it.
+fn RaftTest::step_into(self : RaftTest, i : Int32, m : Message) -> Unit {
+  if !self.nodes[i].rn.step_checked(m) {
+    self.out.write("raft: cannot step as peer not found\n")
+  }
+}
+
+///|
 fn RaftTest::raft_log(self : RaftTest, ids : Array[String]) -> Unit {
   for id in ids {
     let i = self.index_of(id)
     if i < 0 {
       continue
     }
-    let node = self.nodes[i].rn.node().node()
-    let first = node.snapshot_index + 1UL
-    let last = node.last_log_index()
+    // Upstream prints what is *durable*, not the unstable tail: the async scripts
+    // use this command to show which append actually landed in storage, including
+    // the stale one that lost the ABA race.
+    let log = self.nodes[i].rn.log
+    let first = log.storage_first_index()
+    let last = log.storage_last_index()
     if last < first {
       self.out.write("log is empty: first index=\{first}, last index=\{last}")
       self.out.write("\n")
       continue
     }
-    let mut ix = first
-    while ix <= last {
-      if node.entry_at(ix) is Some(e) {
-        self.out.write(@log.describe_entry(e, None))
-        self.out.write("\n")
-      }
-      ix = ix + 1UL
+    for e in log.stable_entries() {
+      self.out.write(@log.describe_entry(e, None))
+      self.out.write("\n")
     }
   }
 }

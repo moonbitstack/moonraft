@@ -1,0 +1,7 @@
+// moonraft moonlog_bridge: the adapter that turns moonraft's `Logger` seam into
+// a moonlog logger. Its own package, so the consensus core names no logging
+// backend and only this thin bridge depends on one.
+import {
+  "moonbitstack/moonraft/core",
+  "moonbitstack/moonlog",
+}

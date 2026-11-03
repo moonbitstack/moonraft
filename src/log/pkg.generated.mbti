@@ -44,8 +44,10 @@ pub fn RaftLog::accept_applying(Self, UInt64, UInt64, Bool) -> Unit
 pub fn RaftLog::accept_unstable(Self) -> Unit
 pub fn RaftLog::all_entries(Self) -> Array[@raftpb.Entry]
 pub fn RaftLog::append(Self, Array[@raftpb.Entry]) -> UInt64
+pub fn RaftLog::append_stable(Self, Array[@raftpb.Entry]) -> Unit
 pub fn RaftLog::applied_to(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::async_stabilize(Self, UInt64, UInt64) -> Unit
+pub fn RaftLog::async_stabilize_checked(Self, UInt64, UInt64) -> StableOutcome
 pub fn RaftLog::commit_stable(Self, Array[@raftpb.Entry]) -> Unit
 pub fn RaftLog::commit_to(Self, UInt64) -> Unit
 pub fn RaftLog::committed(Self) -> UInt64
@@ -75,13 +77,23 @@ pub fn RaftLog::scan(Self, UInt64, UInt64, UInt64, (ArrayView[@raftpb.Entry]) ->
 pub fn RaftLog::seed(Self, UInt64, UInt64) -> Unit
 pub fn RaftLog::slice(Self, UInt64, UInt64, UInt64) -> Array[@raftpb.Entry] raise LogCompacted
 pub fn RaftLog::snapshot(Self) -> @raftpb.Snapshot raise @storage.StorageError
+pub fn RaftLog::stable_entries(Self) -> Array[@raftpb.Entry]
 pub fn RaftLog::stable_snap_to(Self, UInt64) -> Unit
 pub fn RaftLog::stable_to(Self, @raftpb.EntryId) -> Unit
+pub fn RaftLog::storage_first_index(Self) -> UInt64
+pub fn RaftLog::storage_last_index(Self) -> UInt64
 pub fn RaftLog::term(Self, UInt64) -> UInt64 raise @storage.StorageError
 pub fn RaftLog::to_string(Self) -> String
 pub fn RaftLog::unstable_entries_len(Self) -> Int32
 pub fn RaftLog::unstable_offset(Self) -> UInt64
 pub fn RaftLog::zero_term_on_out_of_bounds(Self, UInt64) -> UInt64
+
+pub(all) enum StableOutcome {
+  Stabilized
+  Missing
+  MatchedSnapshot
+  TermMismatch(existing_term~ : UInt64)
+}
 
 pub(all) struct Unstable {
   mut snapshot : @raftpb.Snapshot?

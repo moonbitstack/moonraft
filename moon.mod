@@ -27,3 +27,7 @@ keywords = [
 description = "Raft consensus in MoonBit."
 
 source = "src"
+
+import {
+  "moonbitstack/moonlog@0.1.0",
+}
