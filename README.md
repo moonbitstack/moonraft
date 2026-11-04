@@ -106,7 +106,7 @@ Raft's value is its safety properties, and the library checks them as it runs ra
 Every public behaviour is exercised by the test suite — 774 tests, 100% line
 coverage of the library — and the code is reconciled against a pinned upstream
 (`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
-an in-repo interpreter: all [41 etcd-io/raft scripts](testdata/etcd/)
+an in-repo interpreter: all [41 etcd-io/raft scripts](scripts/testdata/etcd/)
 (`raft/testdata/`, `confchange/testdata/`, `quorum/testdata/`) are archived
 verbatim, embedded at build time, and driven through the same `RawNode` /
 `Changer` / quorum code the library ships — in CI. The scripts' expected blocks
@@ -114,7 +114,7 @@ are compared byte for byte: all 41 match, including every one of the 558 cases i
 the 28 `raft` scripts (an exact count, not a floor). [docs/porting.md](docs/porting.md)
 records how the replay works and what it took to converge.
 
-[PORTING.md](PORTING.md) audits the other direction: each of upstream's 258
+[the porting ledger](docs/ledger.md) audits the other direction: each of upstream's 258
 `Test*` functions against the MoonBit test that carries it.
 
 ## Benchmarks

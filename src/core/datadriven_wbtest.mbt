@@ -15,7 +15,7 @@
 //
 // An in-repo interpreter for the cockroachdb/datadriven format, plus the CI
 // replay of etcd-io/raft's 41 datadriven scripts (archived verbatim under
-// testdata/etcd/). Each script is driven through the matching harness
+// scripts/testdata/etcd/). Each script is driven through the matching harness
 // (RaftTest / run_quorum / ConfChangeTest) and its command sequence replayed.
 // Because upstream's expected outputs are dominated by off-limits raft-core
 // logger lines, the replay asserts the scripts run end to end, every command is

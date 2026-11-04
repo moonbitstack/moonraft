@@ -8,8 +8,8 @@ test corpus is replayed, and the one deliberate divergence from upstream.
 
 Upstream ships **41** `datadriven` scripts (the `testdata/*.txt` corpus):
 28 under `raft/testdata/`, 9 under `confchange/testdata/`, and 4 under
-`quorum/testdata/`. They are archived **verbatim** under `testdata/etcd/` and
-embedded (see `tools/gen_dd_scripts.py`) into `src/core/dd_scripts_wbtest.mbt`
+`quorum/testdata/`. They are archived **verbatim** under `scripts/testdata/etcd/` and
+embedded (see `scripts/gen_dd_scripts.py`) into `src/core/dd_scripts_wbtest.mbt`
 so they can be replayed in CI without file IO.
 
 `src/core/datadriven_wbtest.mbt` is an in-repo interpreter for the
@@ -68,51 +68,51 @@ reproducing upstream is caught rather than absorbed.
 
 ### `raft/testdata (28)`
 
-- `testdata/etcd/testdata/async_storage_writes.txt`
-- `testdata/etcd/testdata/async_storage_writes_append_aba_race.txt`
-- `testdata/etcd/testdata/campaign.txt`
-- `testdata/etcd/testdata/campaign_learner_must_vote.txt`
-- `testdata/etcd/testdata/checkquorum.txt`
-- `testdata/etcd/testdata/confchange_disable_validation.txt`
-- `testdata/etcd/testdata/confchange_v1_add_single.txt`
-- `testdata/etcd/testdata/confchange_v1_remove_leader.txt`
-- `testdata/etcd/testdata/confchange_v1_remove_leader_stepdown.txt`
-- `testdata/etcd/testdata/confchange_v2_add_double_auto.txt`
-- `testdata/etcd/testdata/confchange_v2_add_double_implicit.txt`
-- `testdata/etcd/testdata/confchange_v2_add_single_auto.txt`
-- `testdata/etcd/testdata/confchange_v2_add_single_explicit.txt`
-- `testdata/etcd/testdata/confchange_v2_replace_leader.txt`
-- `testdata/etcd/testdata/confchange_v2_replace_leader_stepdown.txt`
-- `testdata/etcd/testdata/forget_leader.txt`
-- `testdata/etcd/testdata/forget_leader_prevote_checkquorum.txt`
-- `testdata/etcd/testdata/forget_leader_read_only_lease_based.txt`
-- `testdata/etcd/testdata/heartbeat_resp_recovers_from_probing.txt`
-- `testdata/etcd/testdata/lagging_commit.txt`
-- `testdata/etcd/testdata/prevote.txt`
-- `testdata/etcd/testdata/prevote_checkquorum.txt`
-- `testdata/etcd/testdata/probe_and_replicate.txt`
-- `testdata/etcd/testdata/replicate_pause.txt`
-- `testdata/etcd/testdata/single_node.txt`
-- `testdata/etcd/testdata/slow_follower_after_compaction.txt`
-- `testdata/etcd/testdata/snapshot_succeed_via_app_resp.txt`
-- `testdata/etcd/testdata/snapshot_succeed_via_app_resp_behind.txt`
+- `scripts/testdata/etcd/testdata/async_storage_writes.txt`
+- `scripts/testdata/etcd/testdata/async_storage_writes_append_aba_race.txt`
+- `scripts/testdata/etcd/testdata/campaign.txt`
+- `scripts/testdata/etcd/testdata/campaign_learner_must_vote.txt`
+- `scripts/testdata/etcd/testdata/checkquorum.txt`
+- `scripts/testdata/etcd/testdata/confchange_disable_validation.txt`
+- `scripts/testdata/etcd/testdata/confchange_v1_add_single.txt`
+- `scripts/testdata/etcd/testdata/confchange_v1_remove_leader.txt`
+- `scripts/testdata/etcd/testdata/confchange_v1_remove_leader_stepdown.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_add_double_auto.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_add_double_implicit.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_add_single_auto.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_add_single_explicit.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_replace_leader.txt`
+- `scripts/testdata/etcd/testdata/confchange_v2_replace_leader_stepdown.txt`
+- `scripts/testdata/etcd/testdata/forget_leader.txt`
+- `scripts/testdata/etcd/testdata/forget_leader_prevote_checkquorum.txt`
+- `scripts/testdata/etcd/testdata/forget_leader_read_only_lease_based.txt`
+- `scripts/testdata/etcd/testdata/heartbeat_resp_recovers_from_probing.txt`
+- `scripts/testdata/etcd/testdata/lagging_commit.txt`
+- `scripts/testdata/etcd/testdata/prevote.txt`
+- `scripts/testdata/etcd/testdata/prevote_checkquorum.txt`
+- `scripts/testdata/etcd/testdata/probe_and_replicate.txt`
+- `scripts/testdata/etcd/testdata/replicate_pause.txt`
+- `scripts/testdata/etcd/testdata/single_node.txt`
+- `scripts/testdata/etcd/testdata/slow_follower_after_compaction.txt`
+- `scripts/testdata/etcd/testdata/snapshot_succeed_via_app_resp.txt`
+- `scripts/testdata/etcd/testdata/snapshot_succeed_via_app_resp_behind.txt`
 
 ### `confchange/testdata (9)`
 
-- `testdata/etcd/confchange/testdata/joint_autoleave.txt`
-- `testdata/etcd/confchange/testdata/joint_idempotency.txt`
-- `testdata/etcd/confchange/testdata/joint_learners_next.txt`
-- `testdata/etcd/confchange/testdata/joint_safety.txt`
-- `testdata/etcd/confchange/testdata/simple_idempotency.txt`
-- `testdata/etcd/confchange/testdata/simple_promote_demote.txt`
-- `testdata/etcd/confchange/testdata/simple_safety.txt`
-- `testdata/etcd/confchange/testdata/update.txt`
-- `testdata/etcd/confchange/testdata/zero.txt`
+- `scripts/testdata/etcd/confchange/testdata/joint_autoleave.txt`
+- `scripts/testdata/etcd/confchange/testdata/joint_idempotency.txt`
+- `scripts/testdata/etcd/confchange/testdata/joint_learners_next.txt`
+- `scripts/testdata/etcd/confchange/testdata/joint_safety.txt`
+- `scripts/testdata/etcd/confchange/testdata/simple_idempotency.txt`
+- `scripts/testdata/etcd/confchange/testdata/simple_promote_demote.txt`
+- `scripts/testdata/etcd/confchange/testdata/simple_safety.txt`
+- `scripts/testdata/etcd/confchange/testdata/update.txt`
+- `scripts/testdata/etcd/confchange/testdata/zero.txt`
 
 ### `quorum/testdata (4)`
 
-- `testdata/etcd/quorum/testdata/joint_commit.txt`
-- `testdata/etcd/quorum/testdata/joint_vote.txt`
-- `testdata/etcd/quorum/testdata/majority_commit.txt`
-- `testdata/etcd/quorum/testdata/majority_vote.txt`
+- `scripts/testdata/etcd/quorum/testdata/joint_commit.txt`
+- `scripts/testdata/etcd/quorum/testdata/joint_vote.txt`
+- `scripts/testdata/etcd/quorum/testdata/majority_commit.txt`
+- `scripts/testdata/etcd/quorum/testdata/majority_vote.txt`
 

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 // Minimal harnesses for the two other datadriven suites archived under
-// testdata/etcd/: the quorum package's `vote`/`committed` scripts and the
+// scripts/testdata/etcd/: the quorum package's `vote`/`committed` scripts and the
 // confchange package's `simple`/`enter-joint`/`leave-joint` scripts. They drive
 // the real quorum / confchange computations and render their results.
 
