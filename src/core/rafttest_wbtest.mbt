@@ -558,7 +558,7 @@ fn RaftTest::add_nodes(self : RaftTest, a : Args) -> Unit {
       step_down_on_removal=step_down,
       disable_conf_change_validation=no_validation,
       logger=self.out,
-      snapshot=Some(snap),
+      snapshot=snap,
     )
     let rn = if async_mode {
       if max_committed > 0UL {

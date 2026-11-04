@@ -159,7 +159,7 @@ pub fn RaftNode::new(
   read_only_option~ : ReadOnlyOption = Safe,
   logger~ : &Logger = NopLogger::{ },
   tracer~ : &Tracer = NopTracer::{ },
-  snapshot~ : Snapshot? = None,
+  snapshot? : Snapshot,
   applied~ : UInt64 = 0,
 ) -> RaftNode {
   // Reject an unusable configuration at construction, as etcd's newRaft panics on

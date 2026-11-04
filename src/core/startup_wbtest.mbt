@@ -46,13 +46,7 @@ test "startup: a server bootstrapped from a snapshot resumes at its index" {
       auto_leave: false,
     },
   }
-  let r = RaftNode::new(
-    "1",
-    [],
-    pre_vote=false,
-    logger=log,
-    snapshot=Some(snap),
-  )
+  let r = RaftNode::new("1", [], pre_vote=false, logger=log, snapshot=snap)
   assert_eq(log.messages(), [
     "1 switched to configuration voters=(1)", "1 became follower at term 0", "newRaft 1 [peers: [1], term: 0, commit: 3, applied: 3, lastindex: 3, lastterm: 1]",
   ])

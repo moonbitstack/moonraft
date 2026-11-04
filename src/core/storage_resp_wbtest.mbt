@@ -158,7 +158,7 @@ test "RawNode compact_storage ignores an out-of-range request" {
     data: b"",
     conf_state: ConfState::empty(),
   }
-  let recovered = RaftNode::new("2", [], snapshot=Some(snap)).raw()
+  let recovered = RaftNode::new("2", [], snapshot=snap).raw()
   recovered.compact_storage(5)
   assert_eq(recovered.log.storage_last_index(), 5UL)
 }
