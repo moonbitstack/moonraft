@@ -20,29 +20,26 @@
 ///|
 /// A `core.Logger` that forwards every record to a moonlog logger.
 ///
-/// The two seams line up one-for-one: moonlog's `Sink` is where a record goes
-/// and `Logger` is a level filter in front of it, which is the same split
-/// moonraft makes between the `Logger` trait and the `NopLogger` default. Only
-/// the level names differ, and they differ by one: moonlog has `Trace`, which
-/// the consensus core never logs at, and accepts `Fatal` for etcd's `Panic`.
+/// A moonlog logger names a target on a hub, and the hub holds the level and the sinks, so the
+/// bridge has nothing to configure of its own. Only the level names differ, and they differ by one:
+/// moonlog has `trace`, which the consensus core never logs at, and takes `fatal` for etcd's `Panic`.
 pub struct MoonlogLogger {
   inner : @moonlog.Logger
 }
 
 ///|
-/// Wrap a moonlog logger (see `@moonlog.Logger::new`).
+/// Wrap a moonlog logger, from `@moonlog.Hub::logger`.
 pub fn MoonlogLogger::new(inner : @moonlog.Logger) -> MoonlogLogger {
   { inner, }
 }
 
 ///|
-/// A bridge writing to `sink` at `level`, so a caller that already has a moonlog
-/// sink does not have to build the logger itself.
-pub fn MoonlogLogger::to_sink(
-  sink : &@moonlog.Sink,
-  level~ : @moonlog.Level = @moonlog.level,
+/// A bridge logging through `hub` under `target`.
+pub fn MoonlogLogger::of(
+  hub : @moonlog.Hub,
+  target~ : String = "raft",
 ) -> MoonlogLogger {
-  { inner: @moonlog.Logger::new(sink, level~), }
+  { inner: hub.logger(target), }
 }
 
 ///|
@@ -67,12 +64,12 @@ pub fn MoonlogLogger::as_logger(self : MoonlogLogger) -> &@core.Logger {
 /// has no level that kills the process, so neither does the bridge.
 fn to_moonlog(level : @core.LogLevel) -> @moonlog.Level {
   match level {
-    Debug => @moonlog.Debug
-    Info => @moonlog.Info
-    Warning => @moonlog.Warning
-    Error => @moonlog.Error
-    Fatal => @moonlog.Fatal
-    Panic => @moonlog.Fatal
+    Debug => @moonlog.debug
+    Info => @moonlog.info
+    Warning => @moonlog.warn
+    Error => @moonlog.error
+    Fatal => @moonlog.fatal
+    Panic => @moonlog.fatal
   }
 }
 

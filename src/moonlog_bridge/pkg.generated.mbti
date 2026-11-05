@@ -17,7 +17,7 @@ pub struct MoonlogLogger {
 pub fn MoonlogLogger::as_logger(Self) -> &@core.Logger
 pub fn MoonlogLogger::inner(Self) -> @moonlog.Logger
 pub fn MoonlogLogger::new(@moonlog.Logger) -> Self
-pub fn MoonlogLogger::to_sink(&@moonlog.Sink, level? : @moonlog.Level) -> Self
+pub fn MoonlogLogger::of(@moonlog.Hub, target? : String) -> Self
 
 // Type aliases
 

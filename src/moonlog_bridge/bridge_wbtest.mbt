@@ -13,70 +13,64 @@
 // limitations under the License.
 
 ///|
-/// A sink that keeps what it was handed, so a test can assert on the records.
-struct RecordingSink {
-  records : Array[@moonlog.Record]
-}
-
-///|
-impl @moonlog.Sink for RecordingSink with fn write(self, record) {
-  self.records.push(record)
+/// A hub at `level` that keeps what it is handed, so a test can assert on the records.
+fn recording(level : @moonlog.Level) -> (@moonlog.Hub, @moonlog.Memory) raise {
+  let memory = @moonlog.Memory::new()
+  let hub = @moonlog.Hub::new()
+  hub.set_level(level)
+  ignore(hub.add(@moonlog.Slot::new(memory, name="memory")))
+  (hub, memory)
 }
 
 ///|
 test "moonlog bridge: every consensus level reaches the sink at its own level" {
-  let sink : RecordingSink = { records: [], }
-  let logger = MoonlogLogger::to_sink(sink, level=@moonlog.Trace)
-  let core : &@core.Logger = logger.as_logger()
+  let (hub, memory) = recording(@moonlog.trace)
+  let core = MoonlogLogger::of(hub).as_logger()
   core.log(@core.Debug, "d")
   core.log(@core.Info, "i")
   core.log(@core.Warning, "w")
   core.log(@core.Error, "e")
   core.log(@core.Fatal, "f")
-  assert_eq(sink.records.length(), 5)
-  let levels : Array[@moonlog.Level] = []
-  for r in sink.records {
-    levels.push(r.level)
-  }
-  assert_eq(levels, [
-    @moonlog.Debug,
-    @moonlog.Info,
-    @moonlog.Warning,
-    @moonlog.Error,
-    @moonlog.Fatal,
-  ])
-  assert_eq(sink.records[1].message, "i")
+  let records = memory.records()
+  let levels = [
+    @moonlog.debug, @moonlog.info, @moonlog.warn, @moonlog.error, @moonlog.fatal,
+  ]
+  assert_eq(records.map(r => r.level.name()), levels.map(l => l.name()))
+  assert_eq(records[1].msg, "i")
+  assert_eq(records[1].target, "raft")
 }
 
 ///|
-test "moonlog bridge: Panic is logged as Fatal, not as an abort" {
-  let sink : RecordingSink = { records: [], }
-  let logger = MoonlogLogger::to_sink(sink, level=@moonlog.Trace)
-  logger.as_logger().log(@core.Panic, "boom")
-  assert_eq(sink.records.length(), 1)
-  assert_eq(sink.records[0].level, @moonlog.Fatal)
-  assert_eq(sink.records[0].message, "boom")
+test "moonlog bridge: Panic is logged as fatal, not as an abort" {
+  let (hub, memory) = recording(@moonlog.trace)
+  MoonlogLogger::of(hub).as_logger().log(@core.Panic, "boom")
+  let records = memory.records()
+  assert_eq(records.length(), 1)
+  assert_eq(records[0].level.name(), @moonlog.fatal.name())
+  assert_eq(records[0].msg, "boom")
 }
 
 ///|
-test "moonlog bridge: the moonlog filter drops a record before it is written" {
-  let sink : RecordingSink = { records: [], }
-  let logger = MoonlogLogger::to_sink(sink, level=@moonlog.Warning)
-  let core : &@core.Logger = logger.as_logger()
+test "moonlog bridge: the hub's level drops a record before it is written" {
+  let (hub, memory) = recording(@moonlog.warn)
+  let core = MoonlogLogger::of(hub, target="consensus").as_logger()
   core.log(@core.Debug, "dropped")
   core.log(@core.Info, "dropped")
   core.log(@core.Warning, "kept")
-  assert_eq(sink.records.length(), 1)
-  assert_eq(sink.records[0].message, "kept")
+  let records = memory.records()
+  assert_eq(records.length(), 1)
+  assert_eq(records[0].msg, "kept")
+  assert_eq(records[0].target, "consensus")
 }
 
 ///|
-test "moonlog bridge: a wrapped logger keeps its own level" {
-  let sink : RecordingSink = { records: [], }
-  let inner = @moonlog.Logger::new(sink, level=@moonlog.Error)
-  let logger = MoonlogLogger::new(inner)
+test "moonlog bridge: a wrapped logger can still be used directly" {
+  let (hub, memory) = recording(@moonlog.error)
+  let logger = MoonlogLogger::new(hub.logger("node"))
   logger.inner().error("routed")
   logger.as_logger().log(@core.Info, "filtered")
-  assert_eq(sink.records.length(), 1)
-  assert_eq(sink.records[0].message, "routed")
+  let records = memory.records()
+  assert_eq(records.length(), 1)
+  assert_eq(records[0].msg, "routed")
+  assert_eq(records[0].target, "node")
 }

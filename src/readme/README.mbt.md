@@ -151,10 +151,9 @@ logging backend:
 ```mbt check
 ///|
 test "readme: hand a moonlog-backed logger to the core" {
-  // A silent moonlog logger: it accepts the records and writes nothing, which is
-  // what a test wants. Swap in a real `Sink` to route them to stderr, a file, or
-  // a collector.
-  let bridge = @moonlog_bridge.MoonlogLogger::new(@moonlog.Logger::silent())
+  // A hub with no sinks accepts the records and writes nothing, which is what a
+  // test wants. Add a slot to route them to stderr, a file, or a collector.
+  let bridge = @moonlog_bridge.MoonlogLogger::of(@moonlog.Hub::new())
   // `as_logger` is the `core.Logger` that `Config` and `RaftNode::new` take.
   let logger = bridge.as_logger()
   logger.log(@raft.LogLevel::Debug, "a line nobody asked for")
