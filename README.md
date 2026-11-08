@@ -113,11 +113,12 @@ an in-repo interpreter: all [41 etcd-io/raft scripts](scripts/testdata/etcd/)
 verbatim, embedded at build time, and driven through the same `RawNode` /
 `Changer` / quorum code the library ships — in CI. The scripts' expected blocks
 are compared byte for byte: all 41 match, including every one of the 558 cases in
-the 28 `raft` scripts (an exact count, not a floor). [docs/porting.md](docs/porting.md)
-records how the replay works and what it took to converge.
+the 28 `raft` scripts (an exact count, not a floor). [the porting notes](https://moonbitstack.github.io/moonraft/porting.html)
+record how the replay works and what it took to converge.
 
-[the porting ledger](docs/ledger.md) audits the other direction: each of upstream's 258
-`Test*` functions against the MoonBit test that carries it.
+[the ledger](https://moonbitstack.github.io/moonraft/ledger.html) audits the other
+direction: each of upstream's 258 `Test*` functions against the MoonBit test that
+carries it.
 
 ## Benchmarks
 

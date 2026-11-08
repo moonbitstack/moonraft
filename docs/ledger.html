@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ledger · moonraft</title>
+    <meta
+      name="description"
+      content="An audit of the port against the reference implementation's own unit-test suite: all 258 Test functions accounted for, the nine that cannot be translated and why, and the fifty that are covered by scripted scenarios and behaviour-named tests."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+<script type="module" src="assets/scrollbar.js"></script>
+    <script src="assets/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="wrap row">
+      <a class="brand" href="./"><span class="prompt">~/</span><span class="moon">moon</span><span class="raft">raft</span><span class="caret">▊</span></a>
+      <nav class="links">
+        <a href="./">Home</a><a href="quickstart.html">Guide</a>
+        <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
+        <a href="porting.html">Porting</a><a href="ledger.html">Ledger</a>
+        <a href="https://github.com/moonbitstack/moonraft" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <span class="spacer"></span>
+      <button class="iconbtn" data-theme-toggle></button>
+      <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
+    </div></header>
+
+    <main class="wrap">
+      <section class="hero" style="padding: 56px 0 22px">
+        <p class="eyebrow">Ledger</p>
+        <h1 class="display" style="font-size: clamp(28px, 5vw, 52px)">
+          258 tests,<br />none unaccounted for
+        </h1>
+        <p class="lede">
+          How the port stands against the reference implementation's own unit-test suite.
+          The target is <a href="https://github.com/etcd-io/raft">etcd-io/raft</a> pinned at
+          <code>26647d5</code>; the scope is that repository minus the database beside it
+          (mvcc, watch, lease, gRPC).
+        </p>
+        <p class="sub" style="margin-top: 14px">
+          This page audits the <b>unit-test</b> side. The <b>scripted</b> side — 41
+          scenarios replayed block by block — is recorded in the
+          <a href="porting.html">porting notes</a>, and all 41 match byte for byte.
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Method</p>
+        <h2 class="sec">Mechanical, so it can be falsified</h2>
+        <p class="sub">
+          The reference tree's test functions were extracted from the pinned commit with two
+          commands:
+        </p>
+        <pre class="code">grep -rhoE '^func (Test[A-Za-z0-9_]+)\(t \*testing\.T\)' --include=*_test.go . \
+  | sed 's/func //;s/(t \*testing.T)//' | sort</pre>
+        <p class="sub" style="margin-top: 14px">
+          That yields <b>258</b> <code>Test*</code> functions. Each is matched against this
+          repository by the convention the port follows: a MoonBit test carries the
+          reference name at the front of its own name, or names it in the comment above.
+        </p>
+        <pre class="code"><span class="c">// TestRawNodeStep: RawNode.Step handles every network message.</span>
+<span class="k">test</span> <span class="s">"TestRawNodeStep every network payload routes through Step"</span> { … }</pre>
+        <p class="sub" style="margin-top: 14px">
+          A test's provenance is therefore visible in <code>moon test</code> output rather
+          than buried in a mapping file. <code>Benchmark*</code> functions are not in this
+          count; the three the port names are in
+          <a href="https://github.com/moonbitstack/moonraft/tree/master/src/cmd/benchmark">src/cmd/benchmark</a>.
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Result</p>
+        <h2 class="sec">Every test has a disposition</h2>
+        <table class="api">
+          <thead>
+            <tr><th>Disposition</th><th style="text-align: right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Carried by a test of the same name</td><td style="text-align: right"><b>199</b></td></tr>
+            <tr><td><code>N/A</code> — out of scope, reason below</td><td style="text-align: right"><b>9</b></td></tr>
+            <tr><td>Covered by the scripted scenarios and by tests named after the behaviour</td><td style="text-align: right"><b>50</b></td></tr>
+            <tr><td><b>Total reference <code>Test*</code></b></td><td style="text-align: right"><b>258</b></td></tr>
+          </tbody>
+        </table>
+        <p class="note good" style="margin-top: 18px">
+          No reference test is unaccounted for, and the 50 are grouped below with the file
+          that covers each group — so a wrong grouping is one grep away from being caught.
+        </p>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Out of scope</p>
+        <h2 class="sec">The nine that cannot be translated</h2>
+        <p class="sub">
+          Three reasons are admissible: a language-level concurrency shell, a benchmark, and a
+          memory-layout assertion. Only the first and the third occur here.
+        </p>
+        <table class="api">
+          <thead>
+            <tr><th>Reference test</th><th>Why not</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>TestProtoMemorySizes</code></td>
+              <td>It asserts the byte size of message fields under the reference language's struct layout. MoonBit's data model has no comparable layout to assert, and nothing in the protocol depends on one.</td>
+            </tr>
+            <tr>
+              <td><code>TestNodeStop</code>, <code>TestNodeStepUnblock</code></td>
+              <td>The goroutine-and-channel shell around the core: a Ready loop in a goroutine, a stop channel, a proposal queue. The port has no such shell — <code>RawNode</code> is the same state machine driven by the caller — so there is no lifecycle to stop or unblock.</td>
+            </tr>
+            <tr>
+              <td><code>TestNodeCommitPaginationAfterRestart</code></td>
+              <td>Same shell: it restarts a goroutine and counts the readies it hands out. Its substance — a committed batch paginated across readies, and the applied cursor surviving a restart — is carried by <code>TestRawNodeCommitPaginationAfterRestart</code>, which is translated.</td>
+            </tr>
+            <tr>
+              <td><code>TestNetworkDrop</code>, <code>TestNetworkDelay</code></td>
+              <td>The test network is a goroutine per node behind a channel; these two drive that shell's drop and delay knobs. The port's <code>Cluster</code> covers the same two faults — <code>set_drop</code>, <code>set_delay</code> — deterministically, and both are exercised throughout the property and scenario tests.</td>
+            </tr>
+            <tr>
+              <td><code>TestBasicProgress</code>, <code>TestPause</code>, <code>TestRestart</code></td>
+              <td>They assert on the progress of the goroutine-backed node, which the port does not have. The state they inspect — a <code>Progress</code> advancing, a paused follower, a node resumed from storage — is asserted directly in the tracker's progress tests, the <code>replicate_pause</code> script, and <code>TestRawNodeRestart</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Covered without a same-named test</p>
+        <h2 class="sec">The fifty, by area</h2>
+        <p class="sub">
+          These behaviours are exercised — through the scripts, and through tests named after
+          what they check rather than after the function they came from.
+        </p>
+        <div class="grid c2">
+          <div class="card">
+            <div class="rule-accent"></div>
+            <h3>Election timing</h3>
+            <p>
+              <code>TestFollowerStartElection</code>,
+              <code>TestFollowerElectionTimeoutRandomized</code>,
+              <code>TestCandidateElectionTimeoutRandomized</code>,
+              <code>TestFollowersElectionTimeoutNonconflict</code>,
+              <code>TestCandidatesElectionTimeoutNonconflict</code>,
+              <code>TestPastElectionTimeout</code> — covered by the randomised-timeout band
+              test, the pinned-timeout tick test, and the <code>campaign</code> and
+              <code>prevote</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--follower)"></div>
+            <h3>One-round elections and their losers</h3>
+            <p>
+              <code>TestCandidateConcede</code>, <code>TestSingleNodeCandidate</code>,
+              <code>TestSingleNodePreCandidate</code>,
+              <code>TestCandidateSelfVoteAfterLostElection</code>, and the pre-vote variant,
+              <code>TestCandidateDeliversPreCandidateSelfVoteAfterBecomingCandidate</code> —
+              covered by the election, election-contention and pre-vote property tests,
+              the vote-record test, and the <code>single_node</code> script.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--candidate)"></div>
+            <h3>Stale and duplicated messages</h3>
+            <p>
+              <code>TestOldMessages</code>, <code>TestAllServerStepdown</code> — covered by the
+              stale-term and step-dispatch tests, and by the scripts' ignored-message blocks.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--leader)"></div>
+            <h3>Replication and proposals</h3>
+            <p>
+              <code>TestLogReplication</code>, <code>TestProposal</code>,
+              <code>TestProposalByProxy</code>, <code>TestLeaderMsgAppSelfAckAfterTermChange</code>
+              — covered by the replication, forwarding and idempotent-append tests, and the
+              <code>async_storage_writes</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Heartbeats</h3>
+            <p>
+              <code>TestBcastBeat</code>, <code>TestRecvMsgBeat</code> — covered by the
+              <code>replicate_pause</code> and
+              <code>heartbeat_resp_recovers_from_probing</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Flow control</h3>
+            <p>
+              <code>TestProgressFlowControl</code>, <code>TestProgressPaused</code>,
+              <code>TestProgressResumeByHeartbeatResp</code> — covered by
+              <code>replicate_pause</code> (a full in-flight window),
+              <code>probe_and_replicate</code>, and the tracker's progress tests.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Learners</h3>
+            <p>
+              <code>TestLearnerPromotion</code>, <code>TestLearnerLogReplication</code>,
+              <code>TestLearnerReceiveSnapshot</code> — covered by the learners-next test and
+              the two auto-add scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Snapshots</h3>
+            <p>
+              <code>TestProvideSnap</code>, <code>TestIgnoreProvidingSnap</code>,
+              <code>TestRestoreFromSnapMsg</code>, <code>TestRestoreIgnoreSnapshot</code> —
+              covered by the snapshot, snapshot-RPC and snapshot-scenario tests, and the
+              <code>snapshot_succeed_via_app_resp</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Membership</h3>
+            <p>
+              <code>TestAddLearner</code>, <code>TestRemoveNode</code>,
+              <code>TestStepConfig</code>, <code>TestStepIgnoreConfig</code>,
+              <code>TestConfChangeCheckBeforeCampaign</code>,
+              <code>TestConfChangeV2CheckBeforeCampaign</code> — covered by the configuration,
+              cluster and pending-change tests, and the nine <code>confchange</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Leadership transfer</h3>
+            <p>
+              <code>TestLeaderTransferTimeout</code>,
+              <code>TestLeaderTransferRemoveNode</code>,
+              <code>TestLeaderTransferDemoteNode</code>,
+              <code>TestLeaderTransferToNonExistingNode</code>,
+              <code>TestTransferNonMember</code> — covered by the transfer tests (a transfer to
+              a non-member is a no-op; an incomplete transfer aborts after an election
+              timeout) and the <code>confchange_v2_replace_leader</code> scripts.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Read index and leases</h3>
+            <p>
+              <code>TestReadOnlyForNewLeader</code>, <code>TestReadOnlyOptionLease</code>,
+              <code>TestReadOnlyWithLearner</code>, <code>TestRaftFreesReadOnlyMem</code> —
+              covered by the read-only and read-index-queue tests: lease-based reads, safe
+              reads with a learner, and lease reads without a quorum.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Check-quorum disruption</h3>
+            <p>
+              <code>TestDisruptiveFollower</code>,
+              <code>TestDisruptiveFollowerPreVote</code> — covered by the check-quorum test
+              (a leased follower drops a pre-vote) and the <code>checkquorum</code> script.
+            </p>
+          </div>
+          <div class="card">
+            <h3>The scripted drivers themselves</h3>
+            <p>
+              <code>TestDataDriven</code>, <code>TestConfChangeDataDriven</code>,
+              <code>TestInteraction</code> — covered by the port's own interpreter and the two
+              scoreboards that replay all 41 scripts.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Why a ledger</p>
+        <h2 class="sec">Counts are mechanical; judgement is named</h2>
+        <p class="sub">
+          The counts above are two commands over the pinned tree and <code>src/</code>. The
+          fifty rows are the part that needs judgement, so they are grouped and each group
+          names what covers it. If a group is wrong, it is wrong in a way one grep exposes —
+          which is the point.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="porting.html">How the scripts replay</a>
+          <a class="btn" href="https://github.com/moonbitstack/moonraft">Source</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site"><div class="wrap row">
+      <span>Raft consensus in <b>MoonBit</b> · Apache-2.0</span>
+      <span class="mono">© 2026 Leo Cheng · <a href="https://github.com/moonbitstack/moonraft">GitHub</a></span>
+    </div></footer>
+
+    <style>
+      table.api td {
+        color: var(--ink-2);
+        font-size: 13.5px;
+      }
+      table.api td code {
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </body>
+</html>

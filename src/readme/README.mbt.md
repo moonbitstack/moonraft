@@ -164,6 +164,6 @@ test "readme: hand a moonlog-backed logger to the core" {
 
 - [`src/examples/`](../examples/) — twelve short runnable programs, from a first
   election up to a replicated key-value store and the `RawNode` deployment loop.
-- [docs/porting.md](../../docs/porting.md) — how the port is reconciled with the
-  pinned upstream, and how the datadriven corpus is replayed.
+- [the porting notes](https://moonbitstack.github.io/moonraft/porting.html) — how the
+  port is reconciled with the pinned upstream, and how the scripted corpus is replayed.
 - [API reference](https://moonbitstack.github.io/moonraft/api.html).

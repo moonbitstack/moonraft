@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Porting notes · moonraft</title>
+    <meta
+      name="description"
+      content="How moonraft is reconciled with the reference implementation it was written from: the 41 scripted scenarios of the pinned tree replayed block by block through the same RawNode, Changer and quorum code the library ships, and the scripts' expected output compared byte for byte."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="assets/site.css" />
+<script type="module" src="assets/scrollbar.js"></script>
+    <script src="assets/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="wrap row">
+      <a class="brand" href="./"><span class="prompt">~/</span><span class="moon">moon</span><span class="raft">raft</span><span class="caret">▊</span></a>
+      <nav class="links">
+        <a href="./">Home</a><a href="quickstart.html">Guide</a>
+        <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
+        <a href="porting.html">Porting</a><a href="ledger.html">Ledger</a>
+        <a href="https://github.com/moonbitstack/moonraft" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <span class="spacer"></span>
+      <button class="iconbtn" data-theme-toggle></button>
+      <button class="iconbtn" data-burger aria-label="Toggle menu">≡</button>
+    </div></header>
+
+    <main class="wrap">
+      <section class="hero" style="padding: 56px 0 22px">
+        <p class="eyebrow">Porting notes</p>
+        <h1 class="display" style="font-size: clamp(28px, 5vw, 52px)">
+          41 scripts,<br />replayed block by block
+        </h1>
+        <p class="lede">
+          This library is a MoonBit port of
+          <a href="https://github.com/etcd-io/raft">etcd-io/raft</a> pinned at commit
+          <code>26647d5</code>. The reference tree ships 41 scripted scenarios; they are
+          archived verbatim, replayed through the same <code>RawNode</code>,
+          <code>Changer</code> and quorum code the library ships, and their expected
+          output is compared byte for byte. This page records how that works and what
+          it took to converge.
+        </p>
+        <div class="badges" style="margin-top: 22px">
+          <span class="badge">scripts <b>41</b></span>
+          <span class="badge">raft cases <b>558</b></span>
+          <span class="badge">pinned at <b>26647d5</b></span>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">The corpus</p>
+        <h2 class="sec">Archived as they are, embedded at build time</h2>
+        <p class="sub">
+          The reference tree's <code>datadriven</code> scripts — the
+          <code>testdata/*.txt</code> corpus — are copied without edits into
+          <a href="https://github.com/moonbitstack/moonraft/tree/master/scripts/testdata/etcd">scripts/testdata/etcd/</a>,
+          and <code>scripts/gen_dd_scripts.py</code> embeds them into
+          <code>src/core/dd_scripts_wbtest.mbt</code> so the replay needs no file IO and
+          runs on every target.
+        </p>
+        <table class="api">
+          <thead>
+            <tr><th>Group</th><th>Scripts</th><th>What they drive</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>raft/testdata/</code></td><td>28</td><td>The <code>RawNode</code> Ready/Advance contract, elections, replication, snapshots, membership, read-only leases</td></tr>
+            <tr><td><code>confchange/testdata/</code></td><td>9</td><td>Simple and joint configuration changes through the <code>Changer</code></td></tr>
+            <tr><td><code>quorum/testdata/</code></td><td>4</td><td>Vote and commit majorities, majority and joint</td></tr>
+          </tbody>
+        </table>
+        <p class="sub" style="margin-top: 16px">
+          <code>src/core/datadriven_wbtest.mbt</code> is an in-repo interpreter for the
+          script format: it parses each file into directive / input / expected blocks and
+          drives the command sequence through the harness that owns it.
+        </p>
+        <table class="api" style="margin-top: 10px">
+          <thead>
+            <tr><th>Harness</th><th>Drives</th><th>Scripts</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>RaftTest</code></td><td>The <code>RawNode</code> Ready/Advance contract, a message queue, and the raft log</td><td><code>testdata/*.txt</code></td></tr>
+            <tr><td><code>ConfChangeTest</code></td><td>The <code>Changer</code> — <code>simple</code>, <code>enter-joint</code>, <code>leave-joint</code></td><td><code>confchange/testdata/*.txt</code></td></tr>
+            <tr><td><code>run_quorum</code></td><td><code>vote_result</code> and <code>committed_index</code></td><td><code>quorum/testdata/*.txt</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="band">
+        <p class="kicker">The comparison</p>
+        <h2 class="sec">A byte comparison, not a shape check</h2>
+        <p class="sub">
+          The harness executes every command the reference understands and renders its
+          output in the reference's own format — a port of <code>util.go</code>'s
+          <code>DescribeReady</code> / <code>DescribeMessage</code> /
+          <code>DescribeEntry</code> family. A script's expected block is then compared
+          as text, so whitespace, field order and formatting all count.
+        </p>
+        <div class="grid c2">
+          <div class="card">
+            <div class="rule-accent"></div>
+            <h3>confchange and quorum — 13 scripts</h3>
+            <p>
+              Compared case by case; all 13 reproduce the reference exactly, asserted by
+              <code>datadriven: quorum and confchange scripts reproduce upstream exactly</code>.
+            </p>
+          </div>
+          <div class="card">
+            <div class="rule-accent" style="background: var(--leader)"></div>
+            <h3>raft — 28 scripts, 558 cases</h3>
+            <p>
+              Scored block by block by
+              <code>datadriven: raft scripts reproduce upstream block by block</code>:
+              all 558 cases match. The scoreboard asserts the exact count, so a change that
+              stops one script reproducing is a failure rather than a lower score.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Convergence</p>
+        <h2 class="sec">What closed the last of the gap</h2>
+        <p class="sub">In the order each was found and fixed, each with a test that fails before it.</p>
+        <div class="grid c2">
+          <div class="card">
+            <h3>The durable log, and the append thread</h3>
+            <p>
+              <code>raft-log</code> prints the durable log, not the unstable tail, and the
+              append thread persists what it was handed before the acknowledgement is
+              delivered. That is what makes the ABA-race script's interleaving visible at
+              all: a stale append from an older term still lands, and the storage
+              acknowledgement then reports the ignored stabilisation instead of silently
+              doing nothing.
+            </p>
+          </div>
+          <div class="card">
+            <h3>A local compaction is not an installed snapshot</h3>
+            <p>
+              Both move the core's snapshot index, but only an install produces
+              <code>Ready.snapshot</code> — so a compacted leader no longer hands its own
+              application a snapshot of its own log.
+            </p>
+          </div>
+          <div class="card">
+            <h3>A committed change applies before the durability responses</h3>
+            <p>
+              The caller applies <code>CommittedEntries</code> and then calls
+              <code>Advance</code>. That ordering is what makes the leader probe a newly
+              added peer with the pre-advance commit index.
+            </p>
+          </div>
+          <div class="card">
+            <h3>The leader's own progress comes from the tracker</h3>
+            <p>
+              Not synthesised from the log tail, so a proposal does not count as replicated
+              before its self-acknowledgement is durable.
+            </p>
+          </div>
+          <div class="card">
+            <h3>A forwarded proposal keeps its unset <code>0/0</code></h3>
+            <p>
+              Only <code>appendEntry</code> stamps a term and an index on it, and a response
+              from a peer the node no longer tracks is refused with
+              <code>raft: cannot step as peer not found</code>.
+            </p>
+          </div>
+          <div class="card">
+            <h3>The leave-joint entry is broadcast at once</h3>
+            <p>
+              The automatic <code>leave-joint</code> entry goes out in the same turn it is
+              appended, matching what proposing a configuration change does.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">The scripts</p>
+        <h2 class="sec">All 41, by group</h2>
+        <div class="grid c3">
+          <div>
+            <div class="tag">raft/testdata — 28</div>
+            <ul class="ddlist">
+              <li>async_storage_writes</li>
+              <li>async_storage_writes_append_aba_race</li>
+              <li>campaign</li>
+              <li>campaign_learner_must_vote</li>
+              <li>checkquorum</li>
+              <li>confchange_disable_validation</li>
+              <li>confchange_v1_add_single</li>
+              <li>confchange_v1_remove_leader</li>
+              <li>confchange_v1_remove_leader_stepdown</li>
+              <li>confchange_v2_add_double_auto</li>
+              <li>confchange_v2_add_double_implicit</li>
+              <li>confchange_v2_add_single_auto</li>
+              <li>confchange_v2_add_single_explicit</li>
+              <li>confchange_v2_replace_leader</li>
+              <li>confchange_v2_replace_leader_stepdown</li>
+              <li>forget_leader</li>
+              <li>forget_leader_prevote_checkquorum</li>
+              <li>forget_leader_read_only_lease_based</li>
+              <li>heartbeat_resp_recovers_from_probing</li>
+              <li>lagging_commit</li>
+              <li>prevote</li>
+              <li>prevote_checkquorum</li>
+              <li>probe_and_replicate</li>
+              <li>replicate_pause</li>
+              <li>single_node</li>
+              <li>slow_follower_after_compaction</li>
+              <li>snapshot_succeed_via_app_resp</li>
+              <li>snapshot_succeed_via_app_resp_behind</li>
+            </ul>
+          </div>
+          <div>
+            <div class="tag">confchange/testdata — 9</div>
+            <ul class="ddlist">
+              <li>joint_autoleave</li>
+              <li>joint_idempotency</li>
+              <li>joint_learners_next</li>
+              <li>joint_safety</li>
+              <li>simple_idempotency</li>
+              <li>simple_promote_demote</li>
+              <li>simple_safety</li>
+              <li>update</li>
+              <li>zero</li>
+            </ul>
+          </div>
+          <div>
+            <div class="tag">quorum/testdata — 4</div>
+            <ul class="ddlist">
+              <li>joint_commit</li>
+              <li>joint_vote</li>
+              <li>majority_commit</li>
+              <li>majority_vote</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <p class="kicker">The other direction</p>
+        <h2 class="sec">Scripts replay behaviour; the ledger audits tests</h2>
+        <p class="sub">
+          The corpus above checks what the library <em>does</em>. The
+          <a href="ledger.html">ledger</a> checks something else: every <code>Test*</code>
+          function in the reference tree, matched against the MoonBit test that carries it.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="ledger.html">Read the ledger</a>
+          <a class="btn" href="api.html">Browse the API</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site"><div class="wrap row">
+      <span>Raft consensus in <b>MoonBit</b> · Apache-2.0</span>
+      <span class="mono">© 2026 Leo Cheng · <a href="https://github.com/moonbitstack/moonraft">GitHub</a></span>
+    </div></footer>
+
+    <style>
+      .ddlist {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.75;
+        color: var(--ink-2);
+        overflow-wrap: anywhere;
+      }
+      table.api {
+        margin-top: 14px;
+      }
+      table.api td {
+        color: var(--ink-2);
+        font-size: 13.5px;
+      }
+    </style>
+  </body>
+</html>

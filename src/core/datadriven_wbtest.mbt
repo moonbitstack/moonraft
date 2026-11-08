@@ -20,7 +20,7 @@
 // Because upstream's expected outputs are dominated by off-limits raft-core
 // logger lines, the replay asserts the scripts run end to end, every command is
 // recognised, and the run is deterministic (recorded twice, identical) rather
-// than byte-comparing upstream text. See docs/porting.md.
+// than byte-comparing upstream text. See docs/porting.html.
 
 ///|
 /// One datadriven case: directive line, optional block input, expected output.
