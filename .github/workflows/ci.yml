@@ -83,6 +83,15 @@ jobs:
           node scripts/gen_api.mjs
           git diff --exit-code docs/api.html
 
+      - name: the skills are valid
+        if: runner.os == 'Linux'
+        run: |
+          for dir in docs/skills/*/; do
+            case "$dir" in *CHANGE-ME*) continue ;; esac
+            [ -f "$dir/SKILL.md" ] || continue
+            pipx run --spec skills-ref agentskills validate "$dir"
+          done
+
       - name: the guide shows the code it runs
         if: runner.os == 'Linux'
         run: python3 scripts/check_guide.py
