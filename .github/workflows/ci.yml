@@ -82,3 +82,7 @@ jobs:
         run: |
           node scripts/gen_api.mjs
           git diff --exit-code docs/api.html
+
+      - name: the guide shows the code it runs
+        if: runner.os == 'Linux'
+        run: python3 scripts/check_guide.py

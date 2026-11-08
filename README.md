@@ -7,7 +7,7 @@
 [![mooncakes](https://img.shields.io/badge/mooncakes-moonbitstack%2Fmoonraft-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**[▶ Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[Docs](https://moonbitstack.github.io/moonraft/)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Quickstart](https://moonbitstack.github.io/moonraft/quickstart.html)**
+**[Home](https://moonbitstack.github.io/moonraft/)** · **[Guide](https://moonbitstack.github.io/moonraft/quickstart.html)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[mooncakes](https://mooncakes.io/docs/moonbitstack/moonraft)**
 
 </div>
 
@@ -45,7 +45,9 @@ assert_true(cluster.committed_agrees())
 That snippet is not a copy in a README: it is compiled and run by `moon test`
 from [`src/readme/README.mbt.md`](src/readme/README.mbt.md), together with the
 membership, `RawNode` and logging examples. The prose stays here; the code that
-has to keep working lives there.
+has to keep working lives there. The [guide](https://moonbitstack.github.io/moonraft/quickstart.html)
+is executable the same way — every step of it, and every line it prints, comes
+from [`src/readme/GUIDE.mbt.md`](src/readme/GUIDE.mbt.md).
 
 Or run the bundled example — a five-node cluster elects, replicates, loses its leader and re-elects, printing the safety invariants at each step:
 
@@ -103,7 +105,7 @@ Raft's value is its safety properties, and the library checks them as it runs ra
 
 ## Verification
 
-Every public behaviour is exercised by the test suite — 774 tests, 100% line
+Every public behaviour is exercised by the test suite — 786 tests, 100% line
 coverage of the library — and the code is reconciled against a pinned upstream
 (`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
 an in-repo interpreter: all [41 etcd-io/raft scripts](scripts/testdata/etcd/)

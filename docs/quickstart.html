@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Quickstart · moonraft</title>
+    <title>Guide · moonraft</title>
     <meta
       name="description"
-      content="Install moonraft, elect a leader, replicate a command, survive a leader crash, and fold the log into your own state machine - a progressive guide where every snippet is run and every line of output is real."
+      content="A progressive guide to moonraft: install it, elect a leader, replicate, plug in a state machine, then the failure modes, snapshots and the Ready / Advance loop a deployment runs. Every snippet is compiled by moon test and every line of output is the transcript of that run."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%96%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="assets/site.css" />
@@ -17,8 +17,10 @@
     <header class="topbar"><div class="wrap row">
       <a class="brand" href="./"><span class="prompt">~/</span><span class="moon">moon</span><span class="raft">raft</span><span class="caret">▊</span></a>
       <nav class="links">
-        <a href="./">Home</a><a href="quickstart.html">Quickstart</a>
+        <a href="./">Home</a><a href="quickstart.html">Guide</a>
         <a href="api.html">API</a><a href="demo.html">Demo</a><a href="design.html">Design</a>
+        <a href="porting.html">Porting</a><a href="ledger.html">Ledger</a>
+        <a href="https://github.com/moonbitstack/moonraft" target="_blank" rel="noopener">GitHub</a>
       </nav>
       <span class="spacer"></span>
       <button class="iconbtn" data-theme-toggle></button>
@@ -27,199 +29,486 @@
 
     <main class="wrap qs">
       <section class="hero" style="padding: 56px 0 20px">
-        <p class="eyebrow">Quickstart</p>
+        <p class="eyebrow">Guide</p>
         <h1 class="display" style="font-size: clamp(28px, 4.6vw, 46px)">
-          From zero to a<br />replicating cluster
+          From zero to a<br />deployed log
         </h1>
         <p class="lede" style="font-size: 16px">
-          Five steps, each one runnable on its own. Every snippet is copied from
-          a program that compiles, and every line of output below is what that
-          program actually prints - the simulator is seeded, so the same code
-          always prints the same transcript.
+          Twelve steps in three parts: a cluster in one process, the same cluster
+          under failure, and the loop a deployment runs. Each step stands on its
+          own and each one runs.
+        </p>
+        <p class="note good" style="margin-top: 14px">
+          The code is compiled and the output is captured: every block below comes
+          from <a href="https://github.com/moonbitstack/moonraft/blob/master/src/readme/GUIDE.mbt.md">src/readme/GUIDE.mbt.md</a>,
+          which <code>moon test</code> runs, and the assertions there pin every
+          value printed. The simulator is seeded, so the same code prints the same
+          transcript on every machine.
         </p>
       </section>
 
-      <ol class="steps">
-        <li>
-          <div class="stepno">01</div>
-          <div class="stepbody">
-            <h2 class="sec" style="font-size: 20px">Add the package</h2>
-            <p class="sub" style="margin-bottom: 14px">
-              moonraft lives on
-              <a href="https://mooncakes.io">mooncakes.io</a> under
-              <code>moonbitstack</code>; the source is
-              <a href="https://github.com/moonbitstack/moonraft">moonbitstack/moonraft</a>.
-            </p>
-            <pre class="code"># in your MoonBit project
+      <section class="band" style="border-top: none; padding-top: 10px">
+        <p class="kicker">Part 1 · One process</p>
+        <h2 class="sec">A cluster that elects, replicates and applies</h2>
+        <ol class="steps">
+<li>
+  <div class="stepno">01</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Add the package</h3>
+    <p class="sub" style="margin-bottom: 14px">moonraft is on <a href="https://mooncakes.io">mooncakes.io</a> under <code>moonbitstack</code>; the source is <a href="https://github.com/moonbitstack/moonraft">moonbitstack/moonraft</a>. The root package is a façade: every type is reachable as <code>@raft.X</code> wherever the sub-package that owns it lives.</p>
+    <pre class="code"># in your MoonBit project
 moon add moonbitstack/moonraft</pre>
-          </div>
-        </li>
-
-        <li>
-          <div class="stepno">02</div>
-          <div class="stepbody">
-            <h2 class="sec" style="font-size: 20px">First cluster: elect a leader</h2>
-            <p class="sub" style="margin-bottom: 14px">
-              A <code>Cluster</code> is the batteries-included path: it wires the
-              consensus core to a deterministic, single-seed network so you can
-              drive a whole cluster from one thread. Bring up five nodes and let
-              them elect a leader.
-            </p>
-            <pre class="code"><span class="c">// Bring up five nodes and let them elect a leader.</span>
-<span class="k">let</span> cluster = @raft.Cluster::new([<span class="s">"n1"</span>, <span class="s">"n2"</span>, <span class="s">"n3"</span>, <span class="s">"n4"</span>, <span class="s">"n5"</span>], seed=7)
-<span class="k">let</span> leader = cluster.run_until_leader(300).unwrap()
-println(<span class="s">"elected \{leader} in term \{cluster.node(leader).term()}"</span>)</pre>
-            <p class="tag" style="margin: 14px 0 6px">Output - verbatim</p>
-            <pre class="code out">elected n3 in term 1</pre>
-          </div>
-        </li>
-
-        <li>
-          <div class="stepno">03</div>
-          <div class="stepbody">
-            <h2 class="sec" style="font-size: 20px">Replicate and read</h2>
-            <p class="sub" style="margin-bottom: 14px">
-              Propose a command and wait until every node has committed it.
-              <code>committed_agrees</code> checks that all five logs share the
-              same prefix up to the commit index - the one guarantee a replicated
-              log exists to provide.
-            </p>
-            <pre class="code"><span class="c">// Propose a command; wait until every node has committed it.</span>
-<span class="k">let</span> ids = [<span class="s">"a"</span>, <span class="s">"b"</span>, <span class="s">"c"</span>]
-<span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=11)
-<span class="k">let</span> _ = cluster.run_until_leader(200)
-<span class="k">let</span> _ = cluster.propose(b<span class="s">"set x = 1"</span>)
-<span class="k">let</span> _ = cluster.run_until_committed(2, 300)
-println(<span class="s">"all nodes committed through index 2: \{cluster.committed_agrees()}"</span>)
-<span class="k">for</span> id <span class="k">in</span> ids {
-  println(<span class="s">"  \{id}: commit_index = \{cluster.node(id).commit_index()}"</span>)
-}</pre>
-            <p class="tag" style="margin: 14px 0 6px">Output - verbatim</p>
-            <pre class="code out">all nodes committed through index 2: true
+  </div>
+</li>
+<li>
+  <div class="stepno">02</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">A first cluster</h3>
+    <p class="sub" style="margin-bottom: 14px">A <code>Cluster</code> is the batteries-included front: it wires the consensus core to a deterministic, single-seed network, so a whole cluster runs in one thread. Five nodes, and one of them wins the first election.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: elect a leader&quot;</span> {
+  <span class="k">let</span> cluster = @raft.Cluster::new([<span class="s">&quot;n1&quot;</span>, <span class="s">&quot;n2&quot;</span>, <span class="s">&quot;n3&quot;</span>, <span class="s">&quot;n4&quot;</span>, <span class="s">&quot;n5&quot;</span>], seed=<span class="o">7</span>)
+  <span class="k">let</span> leader = cluster.run_until_leader(<span class="o">300</span>).unwrap()
+  println(<span class="s">&quot;elected \{leader} in term \{cluster.node(leader).term()}&quot;</span>)
+  assert_eq(leader, <span class="s">&quot;n3&quot;</span>)
+  assert_eq(cluster.node(leader).term(), <span class="o">1UL</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">elected n3 in term 1</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">03</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Propose, commit, read</h3>
+    <p class="sub" style="margin-bottom: 14px">Propose a command and wait until every node has committed it. <code>committed_agrees</code> compares the committed prefix across the cluster — the one guarantee a replicated log exists to provide.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: replicate and read the commit index&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">11</span>)
+  <span class="k">let</span> _ = cluster.run_until_leader(<span class="o">200</span>)
+  <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;set x = 1&quot;</span>)
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">2</span>, <span class="o">300</span>)
+  println(<span class="s">&quot;all nodes committed through index 2: \{cluster.committed_agrees()}&quot;</span>)
+  <span class="k">for</span> id <span class="k">in</span> ids {
+    println(<span class="s">&quot;  \{id}: commit_index = \{cluster.node(id).commit_index()}&quot;</span>)
+  }
+  assert_true(cluster.committed_agrees())
+  assert_eq(cluster.node(<span class="s">&quot;a&quot;</span>).commit_index(), <span class="o">2UL</span>)
+  assert_eq(cluster.node(<span class="s">&quot;b&quot;</span>).commit_index(), <span class="o">2UL</span>)
+  assert_eq(cluster.node(<span class="s">&quot;c&quot;</span>).commit_index(), <span class="o">2UL</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">all nodes committed through index 2: true
   a: commit_index = 2
   b: commit_index = 2
   c: commit_index = 2</pre>
-          </div>
-        </li>
-
-        <li>
-          <div class="stepno">04</div>
-          <div class="stepbody">
-            <h2 class="sec" style="font-size: 20px">Survive a leader crash</h2>
-            <p class="sub" style="margin-bottom: 14px">
-              Crash the leader and let a survivor take over. The two invariants
-              that decide correctness under failure still hold: at most one
-              leader per term, and every committed prefix agreed across the
-              cluster.
-            </p>
-            <pre class="code"><span class="c">// Crash the leader; a survivor takes over, and safety must still hold.</span>
-<span class="k">let</span> ids = [<span class="s">"a"</span>, <span class="s">"b"</span>, <span class="s">"c"</span>, <span class="s">"d"</span>, <span class="s">"e"</span>]
-<span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=5)
-<span class="k">let</span> first = cluster.run_until_leader(200).unwrap()
-<span class="k">let</span> _ = cluster.propose(b<span class="s">"cmd-1"</span>)
-<span class="k">let</span> _ = cluster.run_until_committed(2, 200)
-cluster.crash(first)
-<span class="k">let</span> second = cluster.run_until_leader(400).unwrap()
-println(<span class="s">"crashed \{first}; new leader \{second}"</span>)
-println(<span class="s">"one leader per term : \{cluster.one_leader_per_term()}"</span>)
-println(<span class="s">"committed agree     : \{cluster.committed_agrees()}"</span>)</pre>
-            <p class="tag" style="margin: 14px 0 6px">Output - verbatim</p>
-            <pre class="code out">crashed a; new leader b
-one leader per term : true
-committed agree     : true</pre>
-          </div>
-        </li>
-
-        <li>
-          <div class="stepno">05</div>
-          <div class="stepbody">
-            <h2 class="sec" style="font-size: 20px">Plug in your state machine</h2>
-            <p class="sub" style="margin-bottom: 14px">
-              Raft only orders bytes; meaning comes from your state machine, which
-              <code>apply</code>s each committed entry in log order. Implement the
-              <code>StateMachine</code> trait, propose encoded commands, and fold
-              every replica's committed log into a fresh store - the results must
-              be identical.
-            </p>
-            <pre class="code"><span class="c">// A replicated key-value store on top of the consensus log.</span>
+  </div>
+</li>
+<li>
+  <div class="stepno">04</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Your own state machine</h3>
+    <p class="sub" style="margin-bottom: 14px">Raft only orders bytes; meaning comes from your state machine, whose <code>apply</code> runs once per committed entry, in log order, on every replica. Commands here are UTF-16 text — <code>s&lt;key&gt;=&lt;value&gt;</code> sets a key, <code>d&lt;key&gt;</code> deletes one.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="c">/// The application state. `apply` is the only method consensus calls.</span>
 <span class="k">struct</span> KV {
   data : Map[String, String]
 }
-<span class="k">fn</span> KV::new() -> KV { { data: Map([]) } }
-<span class="k">fn</span> KV::get(self : KV, key : String) -> String? { self.data.get(key) }
 
-<span class="k">impl</span> @raft.StateMachine <span class="k">for</span> KV <span class="k">with</span> <span class="k">fn</span> apply(self, cmd : Bytes) {
-  <span class="k">let</span> s = cmd.to_unchecked_string()
-  <span class="k">if</span> s.has_prefix(<span class="s">"s"</span>) {
-    <span class="k">let</span> body = s[1:].to_owned()
-    <span class="k">let</span> mut key = <span class="s">""</span>; <span class="k">let</span> mut value = <span class="s">""</span>; <span class="k">let</span> mut eq = <span class="k">false</span>
+<span class="c">///|</span>
+<span class="k">fn</span> KV::new() -&gt; KV {
+  { data: Map([]), }
+}
+
+<span class="c">///|</span>
+<span class="k">fn</span> KV::get(self : KV, key : String) -&gt; String? {
+  self.data.get(key)
+}
+
+<span class="c">///|</span>
+<span class="c">/// Commands are UTF-16 text: `s&lt;key&gt;=&lt;value&gt;` sets a key, `d&lt;key&gt;` deletes one.</span>
+<span class="k">impl</span> @raft.StateMachine <span class="k">for</span> KV <span class="k">with</span> <span class="k">fn</span> apply(self, command) {
+  <span class="k">let</span> s = command.to_unchecked_string()
+  <span class="k">if</span> s.has_prefix(<span class="s">&quot;s&quot;</span>) {
+    <span class="k">let</span> body = s[<span class="o">1</span>:].to_owned()
+    <span class="k">let</span> <span class="k">mut</span> key = <span class="s">&quot;&quot;</span>
+    <span class="k">let</span> <span class="k">mut</span> value = <span class="s">&quot;&quot;</span>
+    <span class="k">let</span> <span class="k">mut</span> seen_eq = <span class="k">false</span>
     <span class="k">for</span> c <span class="k">in</span> body {
-      <span class="k">if</span> !eq &amp;&amp; c == <span class="s">'='</span> { eq = <span class="k">true</span> }
-      <span class="k">else if</span> eq { value = value + <span class="s">"\{c}"</span> }
-      <span class="k">else</span> { key = key + <span class="s">"\{c}"</span> }
+      <span class="k">if</span> !seen_eq &amp;&amp; c == &#x27;=&#x27; {
+        seen_eq = <span class="k">true</span>
+      } <span class="k">else</span> <span class="k">if</span> seen_eq {
+        value = value + <span class="s">&quot;\{c}&quot;</span>
+      } <span class="k">else</span> {
+        key = key + <span class="s">&quot;\{c}&quot;</span>
+      }
     }
     self.data[key] = value
-  } <span class="k">else if</span> s.has_prefix(<span class="s">"d"</span>) {
-    self.data.remove(s[1:].to_owned())
+  } <span class="k">else</span> <span class="k">if</span> s.has_prefix(<span class="s">&quot;d&quot;</span>) {
+    self.data.remove(s[<span class="o">1</span>:].to_owned())
   }
 }
 
-<span class="c">// Encode a command as the UTF-16LE bytes apply() reads back.</span>
-<span class="k">fn</span> to_wire(s : String) -> Bytes {
+<span class="c">///|</span>
+<span class="c">/// Encode a string as the UTF-16LE bytes `to_unchecked_string` reads back.</span>
+<span class="k">fn</span> KV::wire(s : String) -&gt; Bytes {
   <span class="k">let</span> arr : Array[Byte] = []
   <span class="k">for</span> c <span class="k">in</span> s {
     <span class="k">let</span> code = c.to_int()
-    arr.push((code &amp; 0xff).to_byte())
-    arr.push(((code >> 8) &amp; 0xff).to_byte())
+    arr.push((code &amp; <span class="o">0xff</span>).to_byte())
+    arr.push(((code &gt;&gt; <span class="o">8</span>) &amp; <span class="o">0xff</span>).to_byte())
   }
   Bytes::from_array(arr)
-}
-<span class="k">fn</span> kv_set(k : String, v : String) -> Bytes { to_wire(<span class="s">"s"</span> + k + <span class="s">"="</span> + v) }
-
-<span class="k">fn</span> main {
-  <span class="k">let</span> ids = [<span class="s">"a"</span>, <span class="s">"b"</span>, <span class="s">"c"</span>]
-  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=9)
-  <span class="k">let</span> _ = cluster.run_until_leader(200)
-  <span class="k">let</span> _ = cluster.propose(kv_set(<span class="s">"service"</span>, <span class="s">"moonraft"</span>))
-  <span class="k">let</span> _ = cluster.run_until_committed(2, 300)
+}</pre><p class="sub" style="margin: 16px 0 0">Then each replica folds its own committed log into a fresh store — three nodes, three identical maps.</p><pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: fold each replica&#x27;s committed log into a store&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">9</span>)
+  <span class="k">let</span> _ = cluster.run_until_leader(<span class="o">200</span>)
+  <span class="k">let</span> _ = cluster.propose(KV::wire(<span class="s">&quot;sservice=moonraft&quot;</span>))
+  <span class="k">let</span> _ = cluster.propose(KV::wire(<span class="s">&quot;slang=moonbit&quot;</span>))
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">3</span>, <span class="o">300</span>)
   <span class="k">for</span> id <span class="k">in</span> ids {
     <span class="k">let</span> kv = KV::new()
     cluster.node(id).node().apply_committed(kv)
-    println(<span class="s">"  \{id}: service = \{kv.get("service").unwrap()}"</span>)
+    println(
+      <span class="s">&quot;  \{id}: service = \{kv.get(&quot;</span>service<span class="s">&quot;).unwrap()}, lang = \{kv.get(&quot;</span>lang<span class="s">&quot;).unwrap()}&quot;</span>,
+    )
+    assert_eq(kv.get(<span class="s">&quot;service&quot;</span>), Some(<span class="s">&quot;moonraft&quot;</span>))
+    assert_eq(kv.get(<span class="s">&quot;lang&quot;</span>), Some(<span class="s">&quot;moonbit&quot;</span>))
   }
-}</pre>
-            <p class="tag" style="margin: 14px 0 6px">Output - verbatim</p>
-            <pre class="code out">  a: service = moonraft
-  b: service = moonraft
-  c: service = moonraft</pre>
-            <p class="sub" style="margin-top: 14px">
-              The full program - with <code>kv_delete</code> and a self-check that
-              every replica holds the same commands - is
-              <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/04-kvstore">src/examples/04-kvstore</a>.
-            </p>
-          </div>
-        </li>
-      </ol>
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">  a: service = moonraft, lang = moonbit
+  b: service = moonraft, lang = moonbit
+  c: service = moonraft, lang = moonbit</pre><p class="sub" style="margin-top: 14px">The whole program, with deletes and a self-check, is <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/04-kvstore">04-kvstore</a>.</p>
+  </div>
+</li>
+        </ol>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Part 2 · Under failure</p>
+        <h2 class="sec">Crashes, partitions, reconfiguration, compaction</h2>
+        <p class="sub">
+          Every failure mode below is injected by the same deterministic network, so a
+          scenario that reproduces once reproduces always — which is what makes a
+          consensus bug fixable at all.
+        </p>
+        <ol class="steps">
+<li>
+  <div class="stepno">05</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Crash the leader</h3>
+    <p class="sub" style="margin-bottom: 14px">Kill the leader and let a survivor take over. Both invariants that decide correctness under failure still hold: at most one leader per term, and every committed prefix agreed across the cluster.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: crash the leader and re-elect&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>, <span class="s">&quot;d&quot;</span>, <span class="s">&quot;e&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">5</span>)
+  <span class="k">let</span> first = cluster.run_until_leader(<span class="o">200</span>).unwrap()
+  <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;cmd-1&quot;</span>)
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">2</span>, <span class="o">200</span>)
+  cluster.crash(first)
+  <span class="k">let</span> second = cluster.run_until_leader(<span class="o">400</span>).unwrap()
+  println(<span class="s">&quot;crashed \{first}; new leader \{second}&quot;</span>)
+  println(<span class="s">&quot;one leader per term : \{cluster.one_leader_per_term()}&quot;</span>)
+  println(<span class="s">&quot;committed agree     : \{cluster.committed_agrees()}&quot;</span>)
+  assert_eq(first, <span class="s">&quot;a&quot;</span>)
+  assert_true(second != first)
+  assert_true(cluster.one_leader_per_term())
+  assert_true(cluster.committed_agrees())
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">crashed a; new leader b
+one leader per term : true
+committed agree     : true</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">06</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Split the network</h3>
+    <p class="sub" style="margin-bottom: 14px">A partition cuts the cluster in two: two nodes on one side, three on the other. The minority cannot elect — a candidate needs a majority — while the majority side keeps its leader and keeps committing. Heal it and the two sides agree again.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: a minority cannot elect, a majority carries on&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>, <span class="s">&quot;d&quot;</span>, <span class="s">&quot;e&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">13</span>)
+  <span class="k">let</span> _ = cluster.run_until_leader(<span class="o">200</span>)
+  <span class="c">// Two nodes on one side of the split, three on the other.</span>
+  cluster.partition([<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>], [<span class="s">&quot;c&quot;</span>, <span class="s">&quot;d&quot;</span>, <span class="s">&quot;e&quot;</span>])
+  cluster.run(<span class="o">200</span>)
+  <span class="k">let</span> side = cluster.leaders()
+  println(<span class="s">&quot;leaders after the split: \{side.length()}&quot;</span>)
+  println(
+    <span class="s">&quot;the majority side keeps committing: \{cluster.propose(b&quot;</span>after-split<span class="s">&quot;)}&quot;</span>,
+  )
+  cluster.heal()
+  cluster.run(<span class="o">200</span>)
+  println(<span class="s">&quot;after the heal, leaders: \{cluster.leaders().length()}&quot;</span>)
+  println(<span class="s">&quot;committed agree: \{cluster.committed_agrees()}&quot;</span>)
+  assert_eq(side.length(), <span class="o">1</span>)
+  assert_eq(cluster.leaders().length(), <span class="o">1</span>)
+  assert_true(cluster.committed_agrees())
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">leaders after the split: 1
+the majority side keeps committing: true
+after the heal, leaders: 1
+committed agree: true</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">07</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Change the membership</h3>
+    <p class="sub" style="margin-bottom: 14px">A configuration change is proposed like any other command and takes effect when it commits (§6). Adding a voter widens the quorum; a learner receives the log but never votes and never counts toward a quorum (§4.2.1).</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: add a voter, then a learner&quot;</span> {
+  <span class="k">let</span> cluster = @raft.Cluster::new([<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>], seed=<span class="o">7</span>)
+  <span class="k">let</span> _ = cluster.run_until_leader(<span class="o">200</span>)
+  <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;init&quot;</span>)
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">2</span>, <span class="o">200</span>)
+  println(<span class="s">&quot;voters before: \{sorted(cluster.node(&quot;</span>a<span class="s">&quot;).voter_nodes())}&quot;</span>)
+  <span class="k">let</span> _ = cluster.propose_conf(@raft.ConfChange::add(<span class="s">&quot;d&quot;</span>))
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">3</span>, <span class="o">200</span>)
+  println(<span class="s">&quot;voters after adding d: \{sorted(cluster.node(&quot;</span>a<span class="s">&quot;).voter_nodes())}&quot;</span>)
+  <span class="k">let</span> _ = cluster.propose_conf(@raft.ConfChange::add_learner(<span class="s">&quot;e&quot;</span>))
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">4</span>, <span class="o">200</span>)
+  println(<span class="s">&quot;learners: \{sorted(cluster.node(&quot;</span>a<span class="s">&quot;).conf_state().learners)}&quot;</span>)
+  assert_eq(sorted(cluster.node(<span class="s">&quot;a&quot;</span>).voter_nodes()), <span class="s">&quot;a,b,c,d&quot;</span>)
+  assert_eq(sorted(cluster.node(<span class="s">&quot;a&quot;</span>).conf_state().learners), <span class="s">&quot;e&quot;</span>)
+}
+
+<span class="c">///|</span>
+<span class="k">fn</span> sorted(ids : Array[String]) -&gt; String {
+  <span class="k">let</span> copy = ids.copy()
+  copy.sort()
+  copy.join(<span class="s">&quot;,&quot;</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">voters before: a,b,c
+voters after adding d: a,b,c,d
+learners: e</pre><p class="sub" style="margin-top: 14px">Runnable versions: <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/05-membership">05-membership</a> and <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/06-learner">06-learner</a>.</p>
+  </div>
+</li>
+<li>
+  <div class="stepno">08</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Snapshot, and catch up</h3>
+    <p class="sub" style="margin-bottom: 14px">The log cannot grow without bound, so a leader folds its prefix into a snapshot (§7). A follower that was down while the leader compacted comes back to a log whose early entries are gone: the leader ships it the snapshot instead, and it catches up on its own.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: a node that fell behind catches up from a snapshot&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">9</span>)
+  <span class="k">let</span> leader = cluster.run_until_leader(<span class="o">200</span>).unwrap()
+  <span class="k">let</span> lagging = ids.filter(<span class="k">fn</span>(x) { x != leader })[<span class="o">0</span>]
+  <span class="k">for</span> i <span class="k">in</span> <span class="o">0..</span>&lt;<span class="o">8</span> {
+    <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;cmd-\{i}&quot;</span>)
+    <span class="k">let</span> _ = cluster.run_until_committed(
+      cluster.node(leader).node().last_log_index(),
+      <span class="o">100</span>,
+    )
+  }
+  <span class="c">// Fold everything at or below index 5 into a snapshot.</span>
+  println(<span class="s">&quot;compacted at 5: \{cluster.compact_leader(5, b&quot;</span>payload<span class="s">&quot;)}&quot;</span>)
+  <span class="c">// While the follower is down, the leader keeps appending to a compacted log.</span>
+  cluster.crash(lagging)
+  <span class="k">for</span> i <span class="k">in</span> <span class="o">0..</span>&lt;<span class="o">4</span> {
+    <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;more-\{i}&quot;</span>)
+    <span class="k">let</span> _ = cluster.run_until_committed(
+      cluster.node(leader).node().last_log_index(),
+      <span class="o">100</span>,
+    )
+  }
+  <span class="k">let</span> ahead = cluster.node(leader).commit_index()
+  println(<span class="s">&quot;down at \{cluster.node(lagging).commit_index()}, leader at \{ahead}&quot;</span>)
+  cluster.restart(lagging)
+  cluster.run(<span class="o">400</span>)
+  println(<span class="s">&quot;after the restart: \{cluster.node(lagging).commit_index()}&quot;</span>)
+  println(<span class="s">&quot;committed agree: \{cluster.committed_agrees()}&quot;</span>)
+  assert_eq(cluster.node(lagging).commit_index(), ahead)
+  assert_true(cluster.committed_agrees())
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">compacted at 5: true
+down at 9, leader at 13
+after the restart: 13
+committed agree: true</pre>
+  </div>
+</li>
+        </ol>
+      </section>
+
+      <section class="band">
+        <p class="kicker">Part 3 · On a real transport</p>
+        <h2 class="sec">The loop a deployment runs</h2>
+        <p class="sub">
+          <code>RawNode</code> is the whole protocol as a state machine the caller drives:
+          you own the clock, the disk and the wire.
+        </p>
+        <ol class="steps">
+<li>
+  <div class="stepno">09</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">The Ready / Advance loop</h3>
+    <p class="sub" style="margin-bottom: 14px">The simulator is the convenient front; a deployment runs <code>RawNode</code> instead. <code>tick</code> advances the clock, <code>ready</code> hands you a batch (entries to persist, messages to send, committed entries to apply), <code>store</code> persists it, <code>advance</code> acknowledges. No threads, no async, nothing hidden.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: drive one node through tick, Ready and Advance&quot;</span> {
+  <span class="k">let</span> node = @raft.RaftNode::new(<span class="s">&quot;a&quot;</span>, [], pre_vote=<span class="k">false</span>)
+  <span class="k">let</span> raw = node.raw()
+  raw.campaign()
+  <span class="k">let</span> <span class="k">mut</span> applied = <span class="o">0</span>
+  <span class="k">while</span> raw.has_ready() {
+    <span class="k">let</span> ready = raw.ready()
+    raw.store(ready)
+    applied = applied + ready.committed_entries.length()
+    raw.advance(ready)
+  }
+  println(<span class="s">&quot;entries applied after campaigning: \{applied}&quot;</span>)
+  raw.propose(b<span class="s">&quot;set x = 2&quot;</span>)
+  <span class="k">while</span> raw.has_ready() {
+    <span class="k">let</span> ready = raw.ready()
+    raw.store(ready)
+    applied = applied + ready.committed_entries.length()
+    raw.advance(ready)
+  }
+  println(<span class="s">&quot;entries applied after the proposal: \{applied}&quot;</span>)
+  println(<span class="s">&quot;commit_index: \{raw.node().commit_index()}&quot;</span>)
+  assert_eq(applied, <span class="o">2</span>)
+  assert_eq(raw.node().commit_index(), <span class="o">2UL</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">entries applied after campaigning: 1
+entries applied after the proposal: 2
+commit_index: 2</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">10</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Restart from what you persisted</h3>
+    <p class="sub" style="margin-bottom: 14px">A <code>Ready</code> tells you exactly what must reach stable storage. Rebuild a node from a <code>MemoryStorage</code> that holds it and the term, the commit index and the log come back unchanged — the recovery path a deployment drives from its write-ahead log.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: rebuild a node from what it persisted&quot;</span> {
+  <span class="k">let</span> node = @raft.RaftNode::new(<span class="s">&quot;a&quot;</span>, [], pre_vote=<span class="k">false</span>)
+  <span class="k">let</span> raw = node.raw()
+  raw.campaign()
+  <span class="k">let</span> run = <span class="k">fn</span>() {
+    <span class="k">while</span> raw.has_ready() {
+      <span class="k">let</span> ready = raw.ready()
+      raw.store(ready)
+      raw.advance(ready)
+    }
+  }
+  run()
+  raw.propose(b<span class="s">&quot;set x = 3&quot;</span>)
+  run()
+  <span class="k">let</span> store = @raft.MemoryStorage::new()
+  raw.node().node().save_into(store)
+  println(
+    <span class="s">&quot;before restart: term=\{raw.node().term()}, commit=\{raw.node().commit_index()}&quot;</span>,
+  )
+  <span class="k">let</span> recovered = @raft.RaftNode::new(<span class="s">&quot;a&quot;</span>, [], pre_vote=<span class="k">false</span>)
+  recovered.node().load_from(store)
+  println(
+    <span class="s">&quot;after restart:  term=\{recovered.term()}, commit=\{recovered.commit_index()}&quot;</span>,
+  )
+  assert_eq(recovered.term(), raw.node().term())
+  assert_eq(recovered.commit_index(), raw.node().commit_index())
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">before restart: term=1, commit=2
+after restart:  term=1, commit=2</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">11</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">A linearizable read</h3>
+    <p class="sub" style="margin-bottom: 14px">A leader that has been cut off must not answer a read from stale state. <code>read_index</code> asks for a fresh quorum round-trip; the <code>ReadState</code> that surfaces on the leader’s <code>Ready</code> is the proof that the read is safe at that commit index (§6.4).</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: a read the quorum has confirmed&quot;</span> {
+  <span class="k">let</span> ids = [<span class="s">&quot;a&quot;</span>, <span class="s">&quot;b&quot;</span>, <span class="s">&quot;c&quot;</span>]
+  <span class="k">let</span> cluster = @raft.Cluster::new(ids, seed=<span class="o">17</span>)
+  <span class="k">let</span> leader = cluster.run_until_leader(<span class="o">200</span>).unwrap()
+  <span class="k">let</span> _ = cluster.propose(b<span class="s">&quot;v1&quot;</span>)
+  <span class="k">let</span> _ = cluster.run_until_committed(<span class="o">2</span>, <span class="o">200</span>)
+  <span class="k">let</span> raw = cluster.node(leader).raw()
+  raw.read_index(b<span class="s">&quot;client-ctx-1&quot;</span>)
+  <span class="k">let</span> <span class="k">mut</span> reads = <span class="o">0</span>
+  <span class="k">for</span> _ <span class="k">in</span> <span class="o">0..</span>&lt;<span class="o">200</span> {
+    cluster.run(<span class="o">1</span>)
+    <span class="k">if</span> raw.has_ready() {
+      <span class="k">let</span> ready = raw.ready()
+      raw.store(ready)
+      reads = reads + ready.read_states.length()
+      raw.advance(ready)
+    }
+    <span class="k">if</span> reads &gt; <span class="o">0</span> {
+      <span class="k">break</span>
+    }
+  }
+  println(<span class="s">&quot;read states confirmed by a quorum: \{reads}&quot;</span>)
+  println(<span class="s">&quot;safe to read at commit index: \{raw.node().commit_index()}&quot;</span>)
+  assert_true(reads &gt; <span class="o">0</span>)
+  assert_eq(raw.node().commit_index(), <span class="o">2UL</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">read states confirmed by a quorum: 1
+safe to read at commit index: 2</pre>
+  </div>
+</li>
+<li>
+  <div class="stepno">12</div>
+  <div class="stepbody">
+    <h3 class="sec" style="font-size: 20px">Logging</h3>
+    <p class="sub" style="margin-bottom: 14px">The core logs through a one-method <code>Logger</code> trait and defaults to silence, so the consensus engine names no logging backend. Implement the trait and the diagnostics of an election arrive in order.</p>
+    <pre class="code mbt"><span class="c">///|</span>
+<span class="c">/// The core logs through one method and defaults to silence, so a deployment</span>
+<span class="c">/// decides where diagnostics go.</span>
+<span class="k">struct</span> Recorder {
+  lines : Array[String]
+}
+
+<span class="c">///|</span>
+<span class="k">impl</span> @raft.Logger <span class="k">for</span> Recorder <span class="k">with</span> <span class="k">fn</span> log(self, _level, message) {
+  self.lines.push(message)
+}
+
+<span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: capture what the core reports&quot;</span> {
+  <span class="k">let</span> recorder : Recorder = { lines: [], }
+  <span class="k">let</span> node = @raft.RaftNode::new(<span class="s">&quot;a&quot;</span>, [], pre_vote=<span class="k">false</span>, logger=recorder)
+  <span class="k">let</span> raw = node.raw()
+  raw.campaign()
+  <span class="k">while</span> raw.has_ready() {
+    <span class="k">let</span> ready = raw.ready()
+    raw.store(ready)
+    raw.advance(ready)
+  }
+  println(<span class="s">&quot;records captured: \{recorder.lines.length()}&quot;</span>)
+  <span class="k">for</span> line <span class="k">in</span> recorder.lines {
+    println(<span class="s">&quot;  \{line}&quot;</span>)
+  }
+  assert_eq(recorder.lines.length(), <span class="o">8</span>)
+  assert_eq(
+    recorder.lines[recorder.lines.length() - <span class="o">1</span>],
+    <span class="s">&quot;a became leader at term 1&quot;</span>,
+  )
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">records captured: 8
+  a switched to configuration voters=(a)
+  a became follower at term 0
+  newRaft a [peers: [a], term: 0, commit: 0, applied: 0, lastindex: 0, lastterm: 0]
+  a is starting a new election at term 0
+  a became candidate at term 1
+  a received MsgVoteResp from a at term 1
+  a has received 1 MsgVoteResp votes and 0 vote rejections
+  a became leader at term 1</pre><p class="sub" style="margin: 16px 0 0">Already running <a href="https://mooncakes.io/docs/moonbitstack/moonlog">moonlog</a>? <code>moonbitstack/moonraft/moonlog_bridge</code> adapts its logger to the same seam.</p><pre class="code mbt"><span class="c">///|</span>
+<span class="k">test</span> <span class="s">&quot;guide: the same seam takes a moonlog logger&quot;</span> {
+  <span class="k">let</span> bridge = @moonlog_bridge.MoonlogLogger::of(@moonlog.Hub::new())
+  <span class="k">let</span> logger = bridge.as_logger()
+  logger.log(@raft.LogLevel::Info, <span class="s">&quot;moonraft is ready&quot;</span>)
+  println(<span class="s">&quot;a hub with no sinks accepts the record and writes nothing&quot;</span>)
+  assert_true(<span class="k">true</span>)
+}</pre><p class="tag" style="margin: 14px 0 6px">Output - verbatim</p><pre class="code out">a hub with no sinks accepts the record and writes nothing</pre>
+  </div>
+</li>
+        </ol>
+      </section>
 
       <section class="band">
         <p class="kicker">Where to next</p>
-        <h2 class="sec">Run it for real</h2>
+        <h2 class="sec">Read it, run it, check it</h2>
         <p class="sub">
-          The <code>Cluster</code> simulator is the fastest way to learn the
-          protocol, but a deployment speaks Raft over a real transport. That is
-          the <a href="api.html#t-RawNode">RawNode</a> Ready / Advance loop: take a
-          batch of work (entries to persist, messages to send, committed entries
-          to apply), do it, then <code>advance</code>. Browse every public type
-          and method in the <a href="api.html">API reference</a>, watch the
-          invariants hold in the <a href="demo.html">live demo</a>, or read the
-          <a href="https://github.com/moonbitstack/moonraft">source</a> package by
-          package.
+          Browse every public type and method in the <a href="api.html">API reference</a>,
+          watch the invariants hold in the <a href="demo.html">live demo</a>, or read how
+          the port is kept honest against its reference implementation in the
+          <a href="porting.html">porting notes</a> and the <a href="ledger.html">ledger</a>.
         </p>
         <p class="sub" style="margin-top: 18px">
-          The <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples">src/examples/</a>
-          directory is a guided tour - each program shows one idea through either
-          the deterministic <code>Cluster</code> simulator or the message-driven
-          <code>RawNode</code>, so you can pick the layer you care about:
+          The <a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples">src/examples/</a> directory is the same tour as runnable
+          programs — each one shows a single idea through either the deterministic
+          <code>Cluster</code> or the message-driven <code>RawNode</code>:
         </p>
         <ul class="examples">
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/00-helloworld">00-helloworld</a> — a minimal system: elect a leader</li>
@@ -229,7 +518,7 @@ committed agree     : true</pre>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/04-kvstore">04-kvstore</a> — a complete replicated key-value store on a StateMachine</li>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/05-membership">05-membership</a> — add &amp; remove voters at runtime</li>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/06-learner">06-learner</a> — a non-voting learner, then promote it to a voter</li>
-          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/07-checkquorum">07-checkquorum</a> — check-quorum: a leader steps down when it loses its majority</li>
+          <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/07-checkquorum">07-checkquorum</a> — a leader steps down when it loses its majority</li>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/08-snapshot">08-snapshot</a> — compact the log; a restarted node catches up</li>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/09-rawnode">09-rawnode</a> — the RawNode tick → Ready → Advance loop, by hand</li>
           <li><a href="https://github.com/moonbitstack/moonraft/tree/master/src/examples/10-storage">10-storage</a> — persist Raft state to MemoryStorage and recover it</li>
@@ -247,16 +536,12 @@ committed agree     : true</pre>
         <p class="sub">
           The interactive demo builds from the same consensus core. Compile to
           WebAssembly, drop the artifact next to the page, and serve
-          <code>docs/</code> over http - an ES-module / <code>fetch</code> of
+          <code>docs/</code> over http — an ES-module / <code>fetch</code> of
           <code>.wasm</code> needs <code>http(s)</code>, not <code>file://</code>.
         </p>
         <pre class="code">moon build --target wasm --release src/examples/browser
 cp _build/wasm/release/build/examples/browser/browser.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs   <span class="c"># open http://localhost:8099/demo.html</span></pre>
-        <div class="cta">
-          <a class="btn primary" href="demo.html">▶ See it running</a>
-          <a class="btn" href="api.html">Full API</a>
-        </div>
       </section>
     </main>
 
@@ -290,6 +575,9 @@ python3 -m http.server 8099 --directory docs   <span class="c"># open http://loc
       }
       .stepbody {
         min-width: 0;
+      }
+      .stepbody h3.sec {
+        margin: 0 0 10px;
       }
       .out {
         color: var(--ink-2);
