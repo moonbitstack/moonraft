@@ -56,6 +56,7 @@ pub fn Node::install_snapshot(self : Node, snapshot : Snapshot) -> Unit {
   self.log.clear()
   self.snapshot_index = snapshot.last_index
   self.snapshot_term = snapshot.last_term
+  self.snapshot_data = snapshot.data
   self.snapshots_installed = self.snapshots_installed + 1
   if self.commit_index < snapshot.last_index {
     self.commit_index = snapshot.last_index
@@ -101,6 +102,7 @@ pub fn Node::handle_install_snapshot(
   }
   self.snapshot_index = args.last_index
   self.snapshot_term = args.last_term
+  self.snapshot_data = args.data
   // A snapshot arriving from a leader is a real install: the driver replays it
   // into the application once. A local compaction moves the same index but must
   // not, so the count is what distinguishes the two.

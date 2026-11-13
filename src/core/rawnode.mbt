@@ -185,7 +185,7 @@ fn RawNode::sync_log(self : RawNode) -> Unit {
     self.reflect_snapshot({
       last_index: node.snapshot_index,
       last_term: node.snapshot_term,
-      data: b"",
+      data: node.snapshot_data,
       conf_state: self.raft.conf_state(),
     })
   }

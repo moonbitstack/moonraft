@@ -231,3 +231,32 @@ test "TestLeaderTransferAfterSnapshot" {
   assert_true(lead.role() == Follower)
   assert_true(lead.leader() == Some("3"))
 }
+
+///|
+/// The image a snapshot carries reaches the application through `Ready.snapshot`.
+/// The index and term name the baseline a state machine must resume from; the
+/// data is the state machine itself, and a driver that receives an empty image
+/// cannot rebuild what the leader had applied — it would have to trust that the
+/// indices alone say everything, which they do not.
+test "ready snapshot carries the state image" {
+  let raw = RaftNode::new("1", ["2"]).raw()
+  let snap : Snapshot = {
+    last_index: 7,
+    last_term: 3,
+    data: b"state through 7",
+    conf_state: {
+      voters: ["1", "2"],
+      learners: [],
+      voters_outgoing: [],
+      learners_next: [],
+      auto_leave: false,
+    },
+  }
+  raw.step(
+    Message::new("2", "1", Snapshot(InstallSnapshotArgs::whole(3, "2", snap))),
+  )
+  let rd = raw.ready()
+  assert_eq(rd.snapshot.unwrap().data, b"state through 7")
+  raw.store(rd)
+  raw.advance(rd)
+}

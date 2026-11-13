@@ -30,6 +30,10 @@ pub struct Node {
   mut last_applied : UInt64
   mut snapshot_index : UInt64
   mut snapshot_term : UInt64
+  // The state image the installed snapshot carried. The driver applies it to the
+  // state machine, so it has to reach `Ready.snapshot` intact; the index and term
+  // alone name the baseline but cannot rebuild what was applied.
+  priv mut snapshot_data : Bytes
   // How many snapshots this node has *installed from a leader*. A local
   // compaction also advances `snapshot_index` — it moves the durable floor — but
   // installs nothing, so only this counter makes a snapshot real to the driver.
@@ -49,6 +53,7 @@ pub fn Node::new(id : String) -> Node {
     last_applied: 0,
     snapshot_index: 0,
     snapshot_term: 0,
+    snapshot_data: b"",
     snapshots_installed: 0,
   }
 }

@@ -157,6 +157,7 @@ pub struct Node {
   mut snapshot_index : UInt64
   mut snapshot_term : UInt64
   mut snapshots_installed : UInt64
+  // private fields
 }
 pub fn Node::advance_commit(Self, UInt64) -> Unit
 pub fn Node::append(Self, UInt64, Bytes) -> @raftpb.Entry
