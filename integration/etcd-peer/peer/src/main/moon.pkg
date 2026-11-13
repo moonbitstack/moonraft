@@ -1,0 +1,15 @@
+import {
+  "moonbitstack/moonraft" @raft,
+  "moonbitstack/moonbase/base16",
+  "moonbitlang/async",
+  "moonbitlang/async/stdio",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+}
+
+pkgtype(kind: "executable")
+
+// A harness process: it reads and writes standard streams, which only the native
+// backends provide. Nothing imports this package, so the limit stays here.
+
+supported_targets = "native"

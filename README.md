@@ -120,6 +120,13 @@ record how the replay works and what it took to converge.
 direction: each of upstream's 258 `Test*` functions against the MoonBit test that
 carries it.
 
+The library also runs as one voter of a cluster whose other voters are the
+reference Go implementation. `integration/etcd-peer` builds a MoonBit node and a
+harness that drives it and two `etcd-io/raft` nodes over one wire: the MoonBit
+node wins an election and replicates to them, follows an etcd leader, is killed
+and repaired from a new leader, and is brought up to date by a snapshot after the
+leader compacts its log. Every committed entry is compared, not just the index.
+
 ## Benchmarks
 
 `src/cmd/benchmark` ports upstream's `BenchmarkStatus`, `BenchmarkRawNode` and

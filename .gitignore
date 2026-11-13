@@ -6,3 +6,5 @@ target/
 bisect.coverage
 cobertura.xml
 docs/moonraft.wasm
+integration/etcd-peer/harness
+integration/etcd-peer/*.exe
