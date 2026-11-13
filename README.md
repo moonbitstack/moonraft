@@ -7,7 +7,7 @@
 [![mooncakes](https://img.shields.io/badge/mooncakes-moonbitstack%2Fmoonraft-26b483)](https://mooncakes.io/docs/moonbitstack/moonraft)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**[Home](https://moonbitstack.github.io/moonraft/)** · **[Guide](https://moonbitstack.github.io/moonraft/quickstart.html)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[mooncakes](https://mooncakes.io/docs/moonbitstack/moonraft)**
+**[Home](https://moonbitstack.github.io/moonraft/)** · **[Guide](https://moonbitstack.github.io/moonraft/guide.html)** · **[API](https://moonbitstack.github.io/moonraft/api.html)** · **[Live demo](https://moonbitstack.github.io/moonraft/demo.html)** · **[mooncakes](https://mooncakes.io/docs/moonbitstack/moonraft)**
 
 </div>
 
@@ -45,7 +45,7 @@ assert_true(cluster.committed_agrees())
 That snippet is not a copy in a README: it is compiled and run by `moon test`
 from [`src/readme/README.mbt.md`](src/readme/README.mbt.md), together with the
 membership, `RawNode` and logging examples. The prose stays here; the code that
-has to keep working lives there. The [guide](https://moonbitstack.github.io/moonraft/quickstart.html)
+has to keep working lives there. The [guide](https://moonbitstack.github.io/moonraft/guide.html)
 is executable the same way — every step of it, and every line it prints, comes
 from [`src/readme/GUIDE.mbt.md`](src/readme/GUIDE.mbt.md).
 
@@ -105,14 +105,14 @@ Raft's value is its safety properties, and the library checks them as it runs ra
 
 ## Verification
 
-Every public behaviour is exercised by the test suite — 786 tests, 100% line
+Every public behaviour is exercised by the test suite — <!-- count:tests -->787<!-- /count --> tests, 100% line
 coverage of the library — and the code is reconciled against a pinned upstream
 (`etcd-io/raft` at `26647d5`). The upstream **datadriven** corpus is replayed by
-an in-repo interpreter: all [41 etcd-io/raft scripts](scripts/testdata/etcd/)
+an in-repo interpreter: all <!-- count:scripts -->41<!-- /count --> [etcd-io/raft scripts](scripts/testdata/etcd/)
 (`raft/testdata/`, `confchange/testdata/`, `quorum/testdata/`) are archived
 verbatim, embedded at build time, and driven through the same `RawNode` /
 `Changer` / quorum code the library ships — in CI. The scripts' expected blocks
-are compared byte for byte: all 41 match, including every one of the 558 cases in
+are compared byte for byte: all <!-- count:scripts -->41<!-- /count --> match, including every one of the 558 cases in
 the 28 `raft` scripts (an exact count, not a floor). [the porting notes](https://moonbitstack.github.io/moonraft/porting.html)
 record how the replay works and what it took to converge.
 
