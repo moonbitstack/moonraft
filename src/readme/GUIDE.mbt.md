@@ -2,7 +2,7 @@
 
 Every `mbt check` block on this page is compiled and run by `moon test`, and each
 one prints exactly the transcript the guide shows. The prose guide is
-[`docs/quickstart.html`](../../docs/quickstart.html); this page is the part of it
+[`docs/guide.html`](../../docs/guide.html); this page is the part of it
 that has to stay true.
 
 ## 01 - a first cluster

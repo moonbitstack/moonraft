@@ -1,6 +1,6 @@
 """Check that the guide page shows the code the executable guide actually runs.
 
-`docs/quickstart.html` is the prose; `src/readme/GUIDE.mbt.md` is the same guide
+`docs/guide.html` is the prose; `src/readme/GUIDE.mbt.md` is the same guide
 as blocks `moon test` compiles and runs. The page's MoonBit blocks are copies of
 those, so every one of them has to appear there verbatim, and every block of the
 guide has to appear on the page — a snippet edited in one place and not the other
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PAGE = ROOT / "docs" / "quickstart.html"
+PAGE = ROOT / "docs" / "guide.html"
 GUIDE = ROOT / "src" / "readme" / "GUIDE.mbt.md"
 
 PRE = re.compile(r'<pre class="code mbt">(.*?)</pre>', re.S)
@@ -49,7 +49,7 @@ def main():
         print(p)
     if problems:
         return 1
-    print(f"quickstart.html: {len(shown)} blocks, all run by {GUIDE.name}")
+    print(f"guide.html: {len(shown)} blocks, all run by {GUIDE.name}")
     return 0
 
 
