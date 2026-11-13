@@ -166,7 +166,7 @@ It is not a JavaScript re-implementation — messages cross the boundary as flat
 
 ```
 moon build --target wasm --release src/examples/browser
-cp _build/wasm/release/build/examples/browser/browser.wasm docs/moonraft.wasm
+cp _build/wasm/release/build/moonbitstack/moonraft/examples/browser/browser.wasm docs/moonraft.wasm
 python3 -m http.server 8099 --directory docs    # then open http://localhost:8099/
 ```
 

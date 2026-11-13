@@ -40,7 +40,7 @@ jobs:
         run: |
           moon update
           moon build --target wasm --release src/examples/browser
-          cp _build/wasm/release/build/examples/browser/browser.wasm docs/moonraft.wasm
+          cp _build/wasm/release/build/moonbitstack/moonraft/examples/browser/browser.wasm docs/moonraft.wasm
           node scripts/gen_api.mjs
 
       - name: configure pages
