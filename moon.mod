@@ -1,6 +1,6 @@
 name = "moonbitstack/moonraft"
 
-version = "0.7.6"
+version = "0.8.0"
 
 readme = "README.md"
 
@@ -29,5 +29,5 @@ description = "Raft consensus in MoonBit."
 source = "src"
 
 import {
-  "moonbitstack/moonlog@0.1.7",
+  "moonbitstack/moonlog@0.2.0",
 }
