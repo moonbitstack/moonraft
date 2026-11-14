@@ -472,6 +472,11 @@ h2.sec {
   display: grid;
   gap: 16px;
 }
+/* A grid item's minimum is its content's: a long code line would widen the column past the
+   screen. Zero lets the item shrink and its code scroll inside it. */
+.grid > * {
+  min-width: 0;
+}
 .grid.c3 {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -643,7 +648,7 @@ footer.site .mono {
 @media (max-width: 860px) {
   .grid.c3,
   .grid.c2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   nav.links {
     display: none;
@@ -998,5 +1003,18 @@ html, button, input, textarea, select { font-variant-ligatures: no-contextual; }
   table.api:hover::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--ink) 34%, transparent);
     background-clip: content-box;
+  }
+}
+
+/* An inline identifier longer than a phone is wide breaks where it must; a wide table scrolls in
+   its own box instead of widening the page. */
+:not(pre) > code {
+  overflow-wrap: anywhere;
+}
+@media (width <= 600px) {
+  table.api {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
 }
